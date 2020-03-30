@@ -1,0 +1,7 @@
+/ocs-api/ocs-api
+/ocs-api/ocs-db
+/vendor/
+/.vscode/
+
+# Intellij GoLand files
+/.idea/
