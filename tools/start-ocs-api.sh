@@ -9,7 +9,7 @@ if [[ "$runEnv" == "prod" ]]; then
 	:   # don't know if we need this yet
 elif [[ "$runEnv" == "dev" ]]; then
 	# We assume they run this in the SDO-support github dir
-	ocsDbDir=${SDO_OCS_API_DB_DIR:-ocs-api/ocs-db}
+	ocsDbDir=${SDO_OCS_API_DB_DIR:-ocs-api/ocs-db}    # this should be at the level ocs/config/db
 	mkdir -p $ocsDbDir
 	ocs-api/ocs-api $port $ocsDbDir &  # stdout and stderr will go to the terminal session
 	if [[ $? -eq 0 ]]; then

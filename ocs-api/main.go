@@ -1,18 +1,16 @@
 package main
 
 import (
-	//"encoding/hex"
-	"crypto/rand"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"strings"
+	"regexp"
 
 	"github.com/google/uuid"
+	"github.com/open-horizon/SDO-support/ocs-api/data"
+	"github.com/open-horizon/SDO-support/ocs-api/outils"
 )
 
 /*
@@ -20,7 +18,11 @@ REST API server to configure the SDO OCS (Owner Companion Service) DB files for 
 */
 
 // These global vars are necessary because the handler functions are not given any context
-var IsVerbose bool
+var OcsDbDir string
+
+var GetVoucherRegex = regexp.MustCompile(`^/api/voucher/([^/]+)$`)
+
+//var GetVoucherRegex = regexp.MustCompile(`^/api/voucher/(.+)$`)
 
 func main() {
 	if len(os.Args) < 3 {
@@ -30,21 +32,30 @@ func main() {
 
 	// Process cmd line args and env vars
 	port := os.Args[1]
-	ocsDbDir := os.Args[2]
-	SetVerbose()
+	OcsDbDir = os.Args[2]
+	outils.SetVerbose()
+
+	// Ensure we can get to the db, and create the necessary subdirs, if necessary
+	if err := os.MkdirAll(OcsDbDir+"/v1/devices", 0755); err != nil {
+		outils.Fatal(3, "could not create directory %s: %v", OcsDbDir+"/v1/devices", err)
+	}
+	if err := os.MkdirAll(OcsDbDir+"/v1/values", 0755); err != nil {
+		outils.Fatal(3, "could not create directory %s: %v", OcsDbDir+"/v1/values", err)
+	}
 
 	//http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/api/", apiHandler)
 
-	Verbose("Listening on port %s and using ocs db %s", port, ocsDbDir)
+	outils.Verbose("Listening on port %s and using ocs db %s", port, OcsDbDir)
 	log.Fatal(http.ListenAndServe(":"+port, nil))
 } // end of main
 
 // API route dispatcher
 func apiHandler(w http.ResponseWriter, r *http.Request) {
-	//Verbose("Handling %s ...", r.URL.Path)
-	if r.Method == "GET" && r.URL.Path == "/api/voucher" {
-		getVoucherHandler(w, r)
+	outils.Verbose("Handling %s ...", r.URL.Path)
+	//outils.Verbose("FindString: %s.", GetVoucherRegex.FindString(r.URL.Path))
+	if matches := GetVoucherRegex.FindStringSubmatch(r.URL.Path); r.Method == "GET" && len(matches) >= 2 {
+		getVoucherHandler(matches[1], w, r)
 	} else if r.Method == "POST" && r.URL.Path == "/api/voucher" {
 		postVoucherHandler(w, r)
 	} else {
@@ -54,23 +65,38 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 
 // Route Handlers --------------------------------------------------------------------------------------------------
 
-// Called for GET /api/voucher route
-func getVoucherHandler(w http.ResponseWriter, r *http.Request) {
-	Verbose("GET /api/voucher ...")
-	WriteJsonResponse(http.StatusOK, w, map[string]interface{}{
-		"msg": "here",
-	})
+//============= GET /api/voucher/{device-id} =============
+// Reads an already imported voucher
+func getVoucherHandler(deviceUuid string, w http.ResponseWriter, r *http.Request) {
+	outils.Verbose("GET /api/voucher/%s ...", deviceUuid)
+
+	// Read voucher.json from the db
+	voucherFileName := OcsDbDir + "/v1/devices/" + deviceUuid + "/voucher.json"
+	//if _, err := os.Stat(voucherFileName); err != nil {
+	//	http.Error(w, "Error reading "+voucherFileName+": "+err.Error(), http.StatusBadRequest)
+	//	return
+	//}
+	voucherBytes, err := ioutil.ReadFile(voucherFileName)
+	if err != nil {
+		http.Error(w, "Error reading "+voucherFileName+": "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Send voucher to client
+	outils.WriteResponse(http.StatusOK, w, voucherBytes)
 }
 
-// Called for POST /api/voucher route
+//============= POST /api/voucher =============
+// Imports a voucher (can be called again for an existing voucher and will update/overwrite)
 func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
-	Verbose("POST /api/voucher ...")
+	outils.Verbose("POST /api/voucher ...")
 
-	if err := IsValidPostJson(r); err != nil {
+	if err := outils.IsValidPostJson(r); err != nil {
 		http.Error(w, err.Error(), err.Code)
 		return
 	}
 
+	// Parse the request body
 	type OhStruct struct {
 		Guid []byte `json:"g"` // making it type []byte will automatically base64 decode the json value
 	}
@@ -79,7 +105,12 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	voucher := Voucher{}
-	if err := ReadJsonBody(r, &voucher); err != nil {
+	bodyBytes, err := ioutil.ReadAll(r.Body) // we need the body in 2 forms, but can only read it once, so get it as bytes
+	if err != nil {
+		http.Error(w, "Error reading the request body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := outils.ParseJsonString(bodyBytes, &voucher); err != nil {
 		http.Error(w, err.Error(), err.Code)
 		return
 	}
@@ -90,126 +121,64 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error converting GUID to UUID: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	Verbose("POST /api/voucher: device UUID: %s", uuid.String())
+	outils.Verbose("POST /api/voucher: device UUID: %s", uuid.String())
+
+	// Put the voucher in the OCS DB
+	deviceDir := OcsDbDir + "/v1/devices/" + uuid.String()
+	if err := os.MkdirAll(deviceDir, 0755); err != nil {
+		http.Error(w, "could not create directory "+deviceDir+": "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	fileName := deviceDir + "/voucher.json"
+	outils.Verbose("POST /api/voucher: creating %s ...", fileName)
+	if err := ioutil.WriteFile(fileName, bodyBytes, 0644); err != nil {
+		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Create the device download file (svi.json) and psi.json
+	fileName = deviceDir + "/svi.json"
+	outils.Verbose("POST /api/voucher: creating %s ...", fileName)
+	sviJson := data.SviJson1 + uuid.String() + data.SviJson2
+	if err := ioutil.WriteFile(fileName, []byte(sviJson), 0644); err != nil {
+		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	fileName = deviceDir + "/psi.json"
+	outils.Verbose("POST /api/voucher: creating %s ...", fileName)
+	if err := ioutil.WriteFile(fileName, []byte(data.PsiJson), 0644); err != nil {
+		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	// Generate a node token
-	nodeToken, httpErr := GenerateNodeToken()
+	nodeToken, httpErr := outils.GenerateNodeToken()
 	if err != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	}
 
-	//w.WriteHeader(http.StatusCreated)
+	// Create exec file
+	//todo: remove user creds when anax issue 1614 is implemented
+	userCreds := outils.GetEnvVarWithDefault("HZN_EXCHANGE_USER_AUTH", "")
+	if userCreds == "" {
+		http.Error(w, "HZN_EXCHANGE_USER_AUTH not set", http.StatusInternalServerError)
+		return
+	}
+	aptRepo := "http://pkg.bluehorizon.network/linux/ubuntu"
+	aptChannel := "testing"
+	execCmd := outils.MakeExecCmd("bash agent-install.sh -i " + aptRepo + " -t " + aptChannel + " -j apt-repo-public.key -u " + userCreds + " -d " + uuid.String() + ":" + nodeToken + "")
+	fileName = OcsDbDir + "/v1/values/" + uuid.String() + "_exec"
+	outils.Verbose("POST /api/voucher: creating %s ...", fileName)
+	if err := ioutil.WriteFile(fileName, []byte(execCmd), 0644); err != nil {
+		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Send response to client
 	respBody := map[string]interface{}{
 		"deviceUuid": uuid.String(),
 		"nodeToken":  nodeToken,
 	}
-	WriteJsonResponse(http.StatusCreated, w, respBody)
-}
-
-// Utilities -------------------
-
-// A "subclass" of error that also contains the http code that should be sent to the client
-type HttpError struct {
-	Err  error
-	Code int
-}
-
-func NewHttpError(code int, errStr string) *HttpError {
-	return &HttpError{Err: errors.New(errStr), Code: code}
-}
-
-func (e *HttpError) Error() string {
-	return e.Err.Error()
-}
-
-// Verify that the request content type is json
-func IsValidPostJson(r *http.Request) *HttpError {
-	val, ok := r.Header["Content-Type"]
-
-	if !ok || len(val) == 0 || val[0] != "application/json" {
-		return NewHttpError(http.StatusBadRequest, "Error: content-type must be application/json)")
-	}
-	return nil
-}
-
-// Parse the request json body into the given struct
-func ReadJsonBody(r *http.Request, bodyStruct interface{}) *HttpError {
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(bodyStruct)
-	if err != nil {
-		return NewHttpError(http.StatusBadRequest, "Error parsing request body: "+err.Error())
-	}
-	return nil
-}
-
-// Response to the client with this code and body
-func WriteJsonResponse(httpCode int, w http.ResponseWriter, bodyStruct interface{}) {
-	dataJson, err := json.Marshal(bodyStruct)
-	if err != nil {
-		http.Error(w, "Internal Server Error (could not encode json response)", http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(httpCode) // seems like this has to be before writing the body
-	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write(dataJson)
-	if err != nil {
-		Error(err.Error())
-	}
-}
-
-// Generate a random node token
-func GenerateNodeToken() (string, *HttpError) {
-	bytes := make([]byte, 22) // 44 hex chars
-	_, err := rand.Read(bytes)
-	if err != nil {
-		return "", NewHttpError(http.StatusInternalServerError, "Error creating random bytes for node token: "+err.Error())
-	}
-	return hex.EncodeToString(bytes), nil
-}
-
-// Initialize the verbose setting
-func SetVerbose() {
-	v := GetEnvVarWithDefault("VERBOSE", "false")
-	if v == "1" || strings.ToLower(v) == "true" {
-		IsVerbose = true
-	} else {
-		IsVerbose = false
-	}
-}
-
-// Print error msg to stderr
-func Verbose(msg string, args ...interface{}) {
-	if !IsVerbose {
-		return
-	}
-	if !strings.HasSuffix(msg, "\n") {
-		msg += "\n"
-	}
-	fmt.Printf("Verbose: "+msg, args...)
-}
-
-// Print error msg to stderr
-func Error(msg string, args ...interface{}) {
-	if !strings.HasSuffix(msg, "\n") {
-		msg += "\n"
-	}
-	l := log.New(os.Stderr, "", 0)
-	l.Printf("Error: "+msg, args...)
-}
-
-// Print error msg to stderr and exit with the specified code
-func Fatal(exitCode int, msg string, args ...interface{}) {
-	Error(msg, args...)
-	os.Exit(exitCode)
-}
-
-// Get this environment variable or use this default
-func GetEnvVarWithDefault(envVarName, defaultValue string) string {
-	envVarValue := os.Getenv(envVarName)
-	if envVarValue == "" {
-		return defaultValue
-	}
-	return envVarValue
+	outils.WriteJsonResponse(http.StatusCreated, w, respBody)
 }
