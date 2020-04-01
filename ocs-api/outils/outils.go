@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -18,12 +19,12 @@ var IsVerbose bool
 
 // A "subclass" of error that also contains the http code that should be sent to the client
 type HttpError struct {
-	Err  error
 	Code int
+	Err  error
 }
 
 func NewHttpError(code int, errStr string) *HttpError {
-	return &HttpError{Err: errors.New(errStr), Code: code}
+	return &HttpError{Code: code, Err: errors.New(errStr)}
 }
 
 func (e *HttpError) Error() string {
@@ -141,4 +142,39 @@ func GetEnvVarWithDefault(envVarName, defaultValue string) string {
 		return defaultValue
 	}
 	return envVarValue
+}
+
+// Returns true if this env var is set
+func IsEnvVarSet(envVarName string) bool {
+	return os.Getenv(envVarName) != ""
+}
+
+// Returns true if this file or dir exists
+func PathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+// Download a file from a web site (that doesn't require authentication)
+func DownloadFile(url, fileName string, perm os.FileMode) error {
+	// Set up the request
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Create the file
+	newFile, err := os.Create(fileName)
+	if err != nil {
+		return err
+	}
+	defer newFile.Close()
+	if err := newFile.Chmod(perm); err != nil {
+		return err
+	}
+
+	// Write the request body to the file. This streams the content straight from the request to the file, so works for large files
+	_, err = io.Copy(newFile, resp.Body)
+	return err
 }

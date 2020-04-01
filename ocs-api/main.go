@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -19,10 +20,17 @@ REST API server to configure the SDO OCS (Owner Companion Service) DB files for 
 
 // These global vars are necessary because the handler functions are not given any context
 var OcsDbDir string
-
 var GetVoucherRegex = regexp.MustCompile(`^/api/voucher/([^/]+)$`)
 
-//var GetVoucherRegex = regexp.MustCompile(`^/api/voucher/(.+)$`)
+type CfgVarsStruct struct {
+	HZN_EXCHANGE_URL string `json:"HZN_EXCHANGE_URL"`
+	HZN_FSS_CSSURL   string `json:"HZN_FSS_CSSURL"`
+	HZN_ORG_ID       string `json:"HZN_ORG_ID"`
+}
+type Config struct {
+	CfgVars CfgVarsStruct `json:"cfgVars"`
+	Crt     []byte        `json:"crt"` // making it type []byte will automatically base64 decode the json value
+}
 
 func main() {
 	if len(os.Args) < 3 {
@@ -43,6 +51,12 @@ func main() {
 		outils.Fatal(3, "could not create directory %s: %v", OcsDbDir+"/v1/values", err)
 	}
 
+	// Create all of the common config files, if we have the necessary env vars to do so
+	if httpErr := createConfigFiles(nil); httpErr != nil {
+		outils.Error("creating common config files, HTTP code: %d, error: %s", httpErr.Code, httpErr.Error())
+		// this isn't fatal because they can try again with POST /api/config
+	}
+
 	//http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/api/", apiHandler)
 
@@ -54,7 +68,9 @@ func main() {
 func apiHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("Handling %s ...", r.URL.Path)
 	//outils.Verbose("FindString: %s.", GetVoucherRegex.FindString(r.URL.Path))
-	if matches := GetVoucherRegex.FindStringSubmatch(r.URL.Path); r.Method == "GET" && len(matches) >= 2 {
+	if r.Method == "POST" && r.URL.Path == "/api/config" {
+		postConfigHandler(w, r)
+	} else if matches := GetVoucherRegex.FindStringSubmatch(r.URL.Path); r.Method == "GET" && len(matches) >= 2 {
 		getVoucherHandler(matches[1], w, r)
 	} else if r.Method == "POST" && r.URL.Path == "/api/voucher" {
 		postVoucherHandler(w, r)
@@ -65,6 +81,36 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 
 // Route Handlers --------------------------------------------------------------------------------------------------
 
+//============= POST /api/config =============
+// Sets ocs-api configuration that is not specific to any specific device
+func postConfigHandler(w http.ResponseWriter, r *http.Request) {
+	outils.Verbose("POST /api/config ...")
+
+	if httpErr := outils.IsValidPostJson(r); httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	}
+
+	// Parse the request body
+	config := Config{}
+	if httpErr := outils.ReadJsonBody(r, &config); httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	}
+	if config.CfgVars.HZN_EXCHANGE_URL == "" || config.CfgVars.HZN_FSS_CSSURL == "" || config.CfgVars.HZN_ORG_ID == "" || len(config.Crt) <= 0 {
+		http.Error(w, "Error: one of the required fields is missing in the request body", http.StatusBadRequest)
+		return
+	}
+
+	// Create all of the common config files
+	if httpErr := createConfigFiles(&config); httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 //============= GET /api/voucher/{device-id} =============
 // Reads an already imported voucher
 func getVoucherHandler(deviceUuid string, w http.ResponseWriter, r *http.Request) {
@@ -72,10 +118,6 @@ func getVoucherHandler(deviceUuid string, w http.ResponseWriter, r *http.Request
 
 	// Read voucher.json from the db
 	voucherFileName := OcsDbDir + "/v1/devices/" + deviceUuid + "/voucher.json"
-	//if _, err := os.Stat(voucherFileName); err != nil {
-	//	http.Error(w, "Error reading "+voucherFileName+": "+err.Error(), http.StatusBadRequest)
-	//	return
-	//}
 	voucherBytes, err := ioutil.ReadFile(voucherFileName)
 	if err != nil {
 		http.Error(w, "Error reading "+voucherFileName+": "+err.Error(), http.StatusBadRequest)
@@ -91,8 +133,15 @@ func getVoucherHandler(deviceUuid string, w http.ResponseWriter, r *http.Request
 func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("POST /api/voucher ...")
 
-	if err := outils.IsValidPostJson(r); err != nil {
-		http.Error(w, err.Error(), err.Code)
+	// If all of the common config files didn't get created at startup, tell them they have to run POST /api/config
+	valuesDir := OcsDbDir + "/v1/values"
+	if !outils.PathExists(valuesDir+"/agent-install.cfg") || !outils.PathExists(valuesDir+"/agent-install.crt") || !outils.PathExists(valuesDir+"/agent-install.sh") || !outils.PathExists(valuesDir+"/apt-repo-public.key") {
+		http.Error(w, "Error: not all of the common config files exist in the OCS DB. Run POST /api/config", http.StatusBadRequest)
+		return
+	}
+
+	if httpErr := outils.IsValidPostJson(r); httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	}
 
@@ -110,8 +159,8 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error reading the request body: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	if err := outils.ParseJsonString(bodyBytes, &voucher); err != nil {
-		http.Error(w, err.Error(), err.Code)
+	if httpErr := outils.ParseJsonString(bodyBytes, &voucher); httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	}
 
@@ -153,14 +202,14 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Generate a node token
 	nodeToken, httpErr := outils.GenerateNodeToken()
-	if err != nil {
+	if httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	}
 
 	// Create exec file
 	//todo: remove user creds when anax issue 1614 is implemented
-	userCreds := outils.GetEnvVarWithDefault("HZN_EXCHANGE_USER_AUTH", "")
+	userCreds := os.Getenv("HZN_EXCHANGE_USER_AUTH")
 	if userCreds == "" {
 		http.Error(w, "HZN_EXCHANGE_USER_AUTH not set", http.StatusInternalServerError)
 		return
@@ -181,4 +230,97 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		"nodeToken":  nodeToken,
 	}
 	outils.WriteJsonResponse(http.StatusCreated, w, respBody)
+}
+
+//============= Non-Route Functions =============
+
+// Create the common (not device specific) config files. Can be called during startup (config == nil) or from POST /api/config
+func createConfigFiles(config *Config) *outils.HttpError {
+	valuesDir := OcsDbDir + "/v1/values"
+	var fileName, data string
+
+	// Create agent-install.cfg and its name file
+	var exchUrl, fssUrl, orgId string
+	if config != nil {
+		exchUrl = config.CfgVars.HZN_EXCHANGE_URL
+		fssUrl = config.CfgVars.HZN_FSS_CSSURL
+		orgId = config.CfgVars.HZN_ORG_ID
+	} else if outils.IsEnvVarSet("HZN_EXCHANGE_URL") && outils.IsEnvVarSet("HZN_FSS_CSSURL") && outils.IsEnvVarSet("HZN_ORG_ID") {
+		exchUrl = os.Getenv("HZN_EXCHANGE_URL")
+		fssUrl = os.Getenv("HZN_FSS_CSSURL")
+		orgId = os.Getenv("HZN_ORG_ID")
+	}
+	if exchUrl != "" && fssUrl != "" && orgId != "" {
+		fileName = valuesDir + "/agent-install.cfg"
+		outils.Verbose("Creating %s ...", fileName)
+		data = "HZN_EXCHANGE_URL=" + exchUrl + "\nHZN_FSS_CSSURL=" + fssUrl + "\nHZN_ORG_ID=" + orgId + "\nHZN_MGMT_HUB_CERT_PATH=agent-install.crt\n"
+		if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
+			return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
+		}
+	}
+
+	fileName = valuesDir + "/agent-install-cfg_name"
+	outils.Verbose("Creating %s ...", fileName)
+	data = "agent-install.cfg"
+	if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
+		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
+	}
+
+	// Create agent-install.crt and its name file
+	var crt []byte
+	if config != nil {
+		crt = config.Crt
+	} else if outils.IsEnvVarSet("HZN_MGMT_HUB_CERT") {
+		var err error
+		crt, err = base64.StdEncoding.DecodeString(os.Getenv("HZN_MGMT_HUB_CERT"))
+		if err != nil {
+			return outils.NewHttpError(http.StatusBadRequest, "could not base64 decode HZN_MGMT_HUB_CERT: "+err.Error())
+		}
+	}
+	if len(crt) > 0 {
+		fileName = valuesDir + "/agent-install.crt"
+		outils.Verbose("Creating %s ...", fileName)
+		if err := ioutil.WriteFile(fileName, []byte(crt), 0644); err != nil {
+			return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
+		}
+	}
+
+	fileName = valuesDir + "/agent-install-crt_name"
+	outils.Verbose("Creating %s ...", fileName)
+	data = "agent-install.crt"
+	if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
+		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
+	}
+
+	// Download and create agent-install.sh and its name file
+	url := "https://raw.githubusercontent.com/open-horizon/anax/master/agent-install/agent-install.sh"
+	fileName = valuesDir + "/agent-install.sh"
+	outils.Verbose("Downloading %s to %s ...", url, fileName)
+	if err := outils.DownloadFile(url, fileName, 0755); err != nil {
+		return outils.NewHttpError(http.StatusInternalServerError, "could not download "+url+" to "+fileName+": "+err.Error())
+	}
+
+	fileName = valuesDir + "/agent-install-sh_name"
+	outils.Verbose("Creating %s ...", fileName)
+	data = "agent-install.sh"
+	if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
+		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
+	}
+
+	// Download and create apt-repo-public.key and its name file
+	url = "http://pkg.bluehorizon.network/bluehorizon.network-public.key"
+	fileName = valuesDir + "/apt-repo-public.key"
+	outils.Verbose("Downloading %s to %s ...", url, fileName)
+	if err := outils.DownloadFile(url, fileName, 0644); err != nil {
+		return outils.NewHttpError(http.StatusInternalServerError, "could not download "+url+" to "+fileName+": "+err.Error())
+	}
+
+	fileName = valuesDir + "/apt-repo-public-key_name"
+	outils.Verbose("Creating %s ...", fileName)
+	data = "apt-repo-public.key"
+	if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
+		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
+	}
+
+	return nil
 }
