@@ -68,7 +68,9 @@ func main() {
 func apiHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("Handling %s ...", r.URL.Path)
 	//outils.Verbose("FindString: %s.", GetVoucherRegex.FindString(r.URL.Path))
-	if r.Method == "POST" && r.URL.Path == "/api/config" {
+	if r.Method == "GET" && r.URL.Path == "/api/version" {
+		getVersionHandler(w, r)
+	} else if r.Method == "POST" && r.URL.Path == "/api/config" {
 		postConfigHandler(w, r)
 	} else if matches := GetVoucherRegex.FindStringSubmatch(r.URL.Path); r.Method == "GET" && len(matches) >= 2 {
 		getVoucherHandler(matches[1], w, r)
@@ -80,6 +82,19 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // Route Handlers --------------------------------------------------------------------------------------------------
+
+//============= GET /api/voucher/{device-id} =============
+// Returns the ocs-api version (in plain text, not json)
+func getVersionHandler(w http.ResponseWriter, r *http.Request) {
+	outils.Verbose("GET /api/version ...")
+
+	// Send voucher to client
+	w.WriteHeader(http.StatusOK) // seems like this has to be before writing the body
+	_, err := w.Write([]byte(OCS_API_VERSION))
+	if err != nil {
+		outils.Error(err.Error())
+	}
+}
 
 //============= POST /api/config =============
 // Sets ocs-api configuration that is not specific to any specific device
@@ -112,7 +127,7 @@ func postConfigHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 //============= GET /api/voucher/{device-id} =============
-// Reads an already imported voucher
+// Reads/returns an already imported voucher
 func getVoucherHandler(deviceUuid string, w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("GET /api/voucher/%s ...", deviceUuid)
 

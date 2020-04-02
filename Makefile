@@ -2,7 +2,7 @@ SHELL ?= /bin/bash -e
 #BINARY ?= cmd/server/mendel-web-ui
 BINARY ?= mendel-web-ui
 # Set this before building the ocs-api binary
-export VERSION ?= 1.1.8
+export VERSION ?= 0.1.0
 
 default: run-ocs-api
 
