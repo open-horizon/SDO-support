@@ -1,5 +1,8 @@
 /ocs-api/ocs-api
-/ocs-api/ocs-db
+/ocs-api/linux/
+/ocs-db
+/sdo_sdk_binaries_linux_x64
+/sdo_addons
 /vendor/
 /.vscode/
 
