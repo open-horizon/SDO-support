@@ -1,0 +1,3 @@
+package: github.com/open-horizon/SDO-support
+import:
+- package: golang.org/x/crypto/bcrypt
