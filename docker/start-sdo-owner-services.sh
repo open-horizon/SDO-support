@@ -22,6 +22,11 @@ fi
 #todo: change this when it is time to use the real RV
 echo "127.0.0.1 RVSDO OwnerSDO" >> /etc/hosts
 
+# Need to move this file into the ocs db *after* the docker run mount is done
+#todo: how is it really supposed to get here?
+mkdir -p $ocsDbDir/v1/creds
+mv ocs/config/owner-keystore.p12 $ocsDbDir/v1/creds
+
 # Run all of the services
 echo "Starting rendezvous service..."
 (cd rv && ./rendezvous) &

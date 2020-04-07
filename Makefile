@@ -1,12 +1,12 @@
 SHELL ?= /bin/bash -e
 # Set this before building the ocs-api binary
-export VERSION ?= 0.3.0
+export VERSION ?= 0.5.0
 
 DOCKER_REGISTRY ?= openhorizon
 SDO_DOCKER_IMAGE ?= sdo-owner-services
 SDO_OCS_DB_HOST_DIR ?= $(PWD)/ocs-db
 # this is where OCS needs it to be
-SDO_OCS_DB_CONTAINER_DIR ?= /ocs/config/db
+SDO_OCS_DB_CONTAINER_DIR ?= /root/ocs/config/db
 OCS_API_PORT ?= 9008
 
 SDO_RV_PORT = 8040

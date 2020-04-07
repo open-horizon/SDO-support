@@ -15,7 +15,7 @@ FROM registry.access.redhat.com/ubi8/ubi-minimal:8.0
 #todo: create a user for all of the services to run as (and use that home dir as working dir)
 ENV WORKDIR=/root
 # Note: the ocs service needs this to be here
-ENV SDO_OCS_DB_PATH=/ocs/config/db
+ENV SDO_OCS_DB_PATH=$WORKDIR/ocs/config/db
 # These can be overridden on the docker run cmd with: -e "<var>=<value>"
 ENV OCS_API_PORT=9008
 ENV VERBOSE=true
@@ -52,17 +52,20 @@ COPY sdo_sdk_binaries_linux_x64/demo/rendezvous/rendezvous $WORKDIR/rv/
 COPY sdo_sdk_binaries_linux_x64/cri/rendezvous-1.7.0.war $WORKDIR/rv/
 
 # Get to0scheduler files
-COPY sdo_sdk_binaries_linux_x64//SDOIotPlatformSDK/to0scheduler $WORKDIR/to0scheduler/
+COPY sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/to0scheduler $WORKDIR/to0scheduler/
 
 # Get OCS files
-COPY sdo_sdk_binaries_linux_x64//SDOIotPlatformSDK/ocs $WORKDIR/ocs/
+COPY sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/ocs $WORKDIR/ocs/
+# Note: the $WORKDIR/ocs/config/db subdir of the copy above will get hidden by the ocs db mount when the container starts.
+#       The only file we care about is creds/owner-keystore.p12, so put that in ocs/config for now and start-sdo-owner-services.sh will move it in place.
+COPY sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/ocs/config/db/v1/creds/owner-keystore.p12 $WORKDIR/ocs/config/
 # This mod for dev/test/demo makes the to0scheduler respond to changes more quickly, and let us use the same voucher over again
 RUN sed -i -e 's/^to0.scheduler.interval=.*$/to0.scheduler.interval=5/' -e 's/^to2.credential-reuse.enabled=.*$/to2.credential-reuse.enabled=true/' $WORKDIR/ocs/config/application.properties
 # This is where the external OCS DB files get mounted to
-RUN mkdir -p /ocs/config/db
+RUN mkdir -p $SDO_OCS_DB_PATH
 
 # Get OPS files
-COPY sdo_sdk_binaries_linux_x64//SDOIotPlatformSDK/ops $WORKDIR/ops/
+COPY sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/ops $WORKDIR/ops/
 
 # Get our ocs-api binary and startup script
 COPY ocs-api/linux/ocs-api docker/start-sdo-owner-services.sh $WORKDIR/
