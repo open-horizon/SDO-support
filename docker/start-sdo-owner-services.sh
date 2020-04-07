@@ -18,6 +18,15 @@ if [[ -z "$HZN_EXCHANGE_URL" || -z "$HZN_FSS_CSSURL" || -z "$HZN_ORG_ID" || -z "
     echo "Error: all of these environment variables must be set: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID, HZN_MGMT_HUB_CERT"
 fi
 
+# Define the hostnames the services use to find each other (this must be done here and not in the Dockerfile)
+#todo: change this when it is time to use the real RV
+echo "127.0.0.1 RVSDO OwnerSDO" >> /etc/hosts
+
+# Need to move this file into the ocs db *after* the docker run mount is done
+#todo: how is it really supposed to get here?
+mkdir -p $ocsDbDir/v1/creds
+mv ocs/config/owner-keystore.p12 $ocsDbDir/v1/creds
+
 # Run all of the services
 echo "Starting rendezvous service..."
 (cd rv && ./rendezvous) &
