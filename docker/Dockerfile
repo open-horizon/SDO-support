@@ -42,9 +42,8 @@ RUN mkdir /usr/lib/jvm && \
     update-alternatives --install /usr/bin/java java /usr/lib/jvm/openjdk-11-manual-installation/bin/java 1 && \
     update-alternatives --install /usr/bin/javac javac /usr/lib/jvm/openjdk-11-manual-installation/bin/javac 1
 
-# Define the hostnames the services use to find each other
-#todo: change this when it is time to use the real RV
-RUN echo "127.0.0.1 RVSDO OwnerSDO" >> /etc/hosts
+# this doesn't work here, because docker writes /etc/hosts when it starts the container
+#RUN echo "127.0.0.1 RVSDO OwnerSDO" >> /etc/hosts
 
 # Get rendezvous files. The rv subdir will be created automatically by COPY
 COPY sdo_sdk_binaries_linux_x64/demo/rendezvous/application.properties $WORKDIR/rv/
@@ -65,7 +64,7 @@ RUN mkdir -p /ocs/config/db
 # Get OPS files
 COPY sdo_sdk_binaries_linux_x64//SDOIotPlatformSDK/ops $WORKDIR/ops/
 
-# Get our ocs-api binary
+# Get our ocs-api binary and startup script
 COPY ocs-api/linux/ocs-api docker/start-sdo-owner-services.sh $WORKDIR/
 
 # Note: these don't actually expose the port, they just serve as documentation about the -p flags docker run should use

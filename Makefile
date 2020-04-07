@@ -1,6 +1,6 @@
 SHELL ?= /bin/bash -e
 # Set this before building the ocs-api binary
-export VERSION ?= 0.2.0
+export VERSION ?= 0.3.0
 
 DOCKER_REGISTRY ?= openhorizon
 SDO_DOCKER_IMAGE ?= sdo-owner-services
@@ -39,10 +39,12 @@ $(SDO_DOCKER_IMAGE): ocs-api/linux/ocs-api
 	docker build -t $(DOCKER_REGISTRY)/$@:$(VERSION) $(DOCKER_OPTS) -f docker/Dockerfile .
 
 # Run the SDO services docker container
+# If you want to run the image w/o rebuilding: make -W sdo-owner-services -W ocs-api/linux/ocs-api run-sdo-owner-services
+#todo: remove HZN_EXCHANGE_USER_AUTH from these rules
 run-$(SDO_DOCKER_IMAGE): $(SDO_DOCKER_IMAGE)
-	: $${HZN_EXCHANGE_URL:?} $${HZN_FSS_CSSURL:?} $${HZN_ORG_ID:?} $${HZN_MGMT_HUB_CERT:?}
+	: $${HZN_EXCHANGE_URL:?} $${HZN_FSS_CSSURL:?} $${HZN_ORG_ID:?} $${HZN_MGMT_HUB_CERT:?} $${HZN_EXCHANGE_USER_AUTH:?}
 	- docker rm -f $(SDO_DOCKER_IMAGE) 2> /dev/null || :
-	docker run --name $(SDO_DOCKER_IMAGE) -dt -v $(SDO_OCS_DB_HOST_DIR):$(SDO_OCS_DB_CONTAINER_DIR) -p $(OCS_API_PORT):$(OCS_API_PORT) -p $(SDO_RV_PORT):$(SDO_RV_PORT) -p $(SDO_TO0_PORT):$(SDO_TO0_PORT) -p $(SDO_OPS_PORT):$(SDO_OPS_PORT) -e "SDO_OCS_DB_PATH=$(SDO_OCS_DB_CONTAINER_DIR)" -e "OCS_API_PORT=$(OCS_API_PORT)" -e "HZN_EXCHANGE_URL=$${HZN_EXCHANGE_URL}" -e "HZN_FSS_CSSURL=$${HZN_FSS_CSSURL}" -e "HZN_ORG_ID=$${HZN_ORG_ID}" -e "HZN_MGMT_HUB_CERT=$${HZN_MGMT_HUB_CERT}" $(DOCKER_REGISTRY)/$<:$(VERSION)
+	docker run --name $(SDO_DOCKER_IMAGE) -dt -v $(SDO_OCS_DB_HOST_DIR):$(SDO_OCS_DB_CONTAINER_DIR) -p $(OCS_API_PORT):$(OCS_API_PORT) -p $(SDO_RV_PORT):$(SDO_RV_PORT) -p $(SDO_TO0_PORT):$(SDO_TO0_PORT) -p $(SDO_OPS_PORT):$(SDO_OPS_PORT) -e "SDO_OCS_DB_PATH=$(SDO_OCS_DB_CONTAINER_DIR)" -e "OCS_API_PORT=$(OCS_API_PORT)" -e "HZN_EXCHANGE_URL=$${HZN_EXCHANGE_URL}" -e "HZN_FSS_CSSURL=$${HZN_FSS_CSSURL}" -e "HZN_ORG_ID=$${HZN_ORG_ID}" -e "HZN_MGMT_HUB_CERT=$${HZN_MGMT_HUB_CERT}" -e "HZN_EXCHANGE_USER_AUTH=$${HZN_EXCHANGE_USER_AUTH}" $(DOCKER_REGISTRY)/$<:$(VERSION)
 
 # Push the SDO services docker image to the registry
 publish-$(SDO_DOCKER_IMAGE):
