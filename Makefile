@@ -1,5 +1,5 @@
 SHELL ?= /bin/bash -e
-# Set this before building the ocs-api binary
+# Set this before building the ocs-api binary and sdo-owner-services (for now they use the samme version number)
 export VERSION ?= 0.5.0
 
 DOCKER_REGISTRY ?= openhorizon
@@ -9,6 +9,10 @@ SDO_OCS_DB_HOST_DIR ?= $(PWD)/ocs-db
 SDO_OCS_DB_CONTAINER_DIR ?= /root/ocs/config/db
 OCS_API_PORT ?= 9008
 
+export MFG_VERSION ?= 0.5.0
+SDO_MFG_DOCKER_IMAGE ?= sdo-mfg-services
+
+# These can't be overridden easily
 SDO_RV_PORT = 8040
 SDO_TO0_PORT = 8049
 SDO_OPS_PORT = 8042
@@ -16,7 +20,7 @@ SDO_OPS_PORT = 8042
 # can override this in the environment, e.g. set it to: --no-cache
 DOCKER_OPTS ?=
 
-default: run-ocs-api
+default: $(SDO_DOCKER_IMAGE)
 
 ocs-api/ocs-api: ocs-api/*.go ocs-api/*/*.go Makefile
 	echo 'package main; const OCS_API_VERSION = "$(VERSION)"' > ocs-api/version.go
@@ -52,10 +56,36 @@ publish-$(SDO_DOCKER_IMAGE):
 	docker tag $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION) $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):latest
 	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):latest
 
+pull-$(SDO_DOCKER_IMAGE):
+	docker pull $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
+
+
+# Build the sample SDO mfg services docker image - see the build environment requirements listed in sample-mfg/Dockerfile
+$(SDO_MFG_DOCKER_IMAGE):
+	- docker rm -f $(SDO_MFG_DOCKER_IMAGE) 2> /dev/null || :
+	docker build -t $(DOCKER_REGISTRY)/$@:$(MFG_VERSION) $(DOCKER_OPTS) -f sample-mfg/Dockerfile .
+
+# Run the SDO services docker container
+# If you want to run the image w/o rebuilding: make -W sdo-mfg-services run-sdo-mfg-services
+run-$(SDO_MFG_DOCKER_IMAGE): $(SDO_MFG_DOCKER_IMAGE)
+	- docker rm -f $(SDO_MFG_DOCKER_IMAGE) 2> /dev/null || :
+	docker run --name $(SDO_MFG_DOCKER_IMAGE) -dt -p $(SDO_RV_PORT):$(SDO_RV_PORT) -e "SDO_OCS_DB_PATH=$(SDO_OCS_DB_CONTAINER_DIR)" -e "OCS_API_PORT=$(OCS_API_PORT)" $(DOCKER_REGISTRY)/$<:$(MFG_VERSION)
+
+# Push the SDO services docker image to the registry
+publish-$(SDO_MFG_DOCKER_IMAGE):
+	docker push $(DOCKER_REGISTRY)/$(SDO_MFG_DOCKER_IMAGE):$(MFG_VERSION)
+	docker tag $(DOCKER_REGISTRY)/$(SDO_MFG_DOCKER_IMAGE):$(MFG_VERSION) $(DOCKER_REGISTRY)/$(SDO_MFG_DOCKER_IMAGE):latest
+	docker push $(DOCKER_REGISTRY)/$(SDO_MFG_DOCKER_IMAGE):latest
+
+pull-$(SDO_MFG_DOCKER_IMAGE):
+	docker pull $(DOCKER_REGISTRY)/$(SDO_MFG_DOCKER_IMAGE):$(MFG_VERSION)
+
 clean:
 	go clean
 	rm -f ocs-api/ocs-api ocs-api/linux/ocs-api
 	- docker rm -f $(SDO_DOCKER_IMAGE) 2> /dev/null || :
 	- docker rmi $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):{$(VERSION),latest} 2> /dev/null || :
+	- docker rm -f $(SDO_MFG_DOCKER_IMAGE) 2> /dev/null || :
+	- docker rmi $(DOCKER_REGISTRY)/$(SDO_MFG_DOCKER_IMAGE):{$(MFG_VERSION),latest} 2> /dev/null || :
 
 .PHONY: default run-ocs-api clean

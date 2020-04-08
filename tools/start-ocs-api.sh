@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Start the open-horizon SDO OCS API.
+# Start the open-horizon SDO OCS API (not in a container)
 
 runEnv=${1:-dev}
 port=${SDO_OCS_API_PORT:-9008}
