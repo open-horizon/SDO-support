@@ -11,29 +11,46 @@
 usage() {
     exitCode=${1:-0}
     cat << EndOfMessage
-${0##*/} <priv-key-file> <customer-pub-key-file>
+${0##*/} <priv-key-file> [<customer-pub-key-file>]
+
+Arguments:
+  <priv-key-file>  Device manufacturer private key?
+  <owner-pub-key-file>  Device customer/owner public key. If not specified, it will use a sample public key.
 
 Environment Variables that must be set:
   SDO_RV_DEV_IP (will no longer be required when using the real RV service)
+
+${0##*/} must be run in a directory where it has access to create a few files and directories.
 EndOfMessage
     exit $exitCode
 }
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     usage 0
-elif [[ -z "$2" ]]; then
+elif [[ -z "$1" ]]; then
     usage 1
 fi
 : ${SDO_RV_DEV_IP:?}
 
 privateKeyFile="$1"   # not yet sure what this is
-customerPubKeyFile="$2"
 rvIp="$SDO_RV_DEV_IP"   #todo: the mfg won't have to specify this when using the real/intel RV
+sampleMfgRepo=${SDO_SAMPLE_MFG_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/master}
+ownerPubKeyFile=${2:-$sampleMfgRepo/sample-mfg/owner-key.pub}
+
+if [[ ! -f $privateKeyFile ]]; then
+    echo "Error: $privateKeyFile does not exist"
+    exit 1
+fi
+
+if [[ ${ownerPubKeyFile:0:4} != 'http' && ! -f $ownerPubKeyFile ]]; then
+    echo "Error: $ownerPubKeyFile does not exist"
+    exit 1
+fi
 
 # Only echo this if VERBOSE is 1 or true
 verbose() {
     if [[ "$VERBOSE" == "1" || "$VERBOSE" == "true" ]]; then
-        echo $*
+        echo 'verbose:' $*
     fi
 }
 
@@ -67,7 +84,7 @@ checkexitcode $? 'adding SCT to /etc/hosts'
 
 #todo: remove this when it is time to use the real RV
 echo "Adding '$rvIp RVSDO' to /etc/hosts, if not there ..."
-if grep RVSDO /etc/hosts; then
+if grep -q RVSDO /etc/hosts; then
     # In case we are using a different RV IP than before
     [ $(uname) == "Darwin" ] || sudo sed -i -e "s/^.\+ RVSDO.*$/$rvIp RVSDO/" /etc/hosts
 else
@@ -75,38 +92,47 @@ else
 fi
 checkexitcode $? 'adding RVSDO to /etc/hosts'
 
+# Get the other files we need from our git repo
+echo "Getting docker files from $sampleMfgRepo ..."
+#set -x
+curl --progress-bar -o Dockerfile-mariadb $sampleMfgRepo/sample-mfg/Dockerfile-mariadb
+checkexitcode $? 'getting sample-mfg/Dockerfile-mariadb'
+curl --progress-bar -o Dockerfile-manufacturer $sampleMfgRepo/sample-mfg/Dockerfile-manufacturer
+checkexitcode $? 'getting sample-mfg/Dockerfile-manufacturer'
+curl --progress-bar -o docker-compose.yml $sampleMfgRepo/sample-mfg/docker-compose.yml
+checkexitcode $? 'getting sample-mfg/docker-compose.yml'
+# { set +x; } 2>/dev/null
+
+# The owner public key is either a URL we retrieve, or a file we use as-is
+mkdir -p keys
+if [[ ${ownerPubKeyFile:0:4} == 'http' ]]; then
+    echo "Getting $ownerPubKeyFile ..."
+    curl --progress-bar -o keys/owner-key.pub $ownerPubKeyFile
+    checkexitcode $? 'getting owner public key'
+    ownerPubKeyFile='keys/owner-key.pub'
+fi
+
+# Copy the mfg private key to keys/sdo.p12, unless it is already there
+if [[ $privateKeyFile != 'keys/sdo.p12' || $privateKeyFile != './keys/sdo.p12' ]]; then
+    cp $privateKeyFile keys/sdo.p12
+fi
+
 # Start mfg services (this and next step were done in SCT/startup-docker.sh)
-echo "Starting the SDO SCT services..."
+echo "Pulling and starting the SDO SCT services..."
 docker pull openhorizon/manufacturer:latest
 docker tag openhorizon/manufacturer:latest manufacturer:latest
 docker pull openhorizon/sct_mariadb:latest
 docker tag openhorizon/sct_mariadb:latest sct_mariadb:latest
-#docker tag openhorizon/sct_mariadb:latest mariadb:latest
-#docker pull mariadb:bionic
 # need to explicitly set the project name, because it was built under Services/SCT which by default sets the project name to SCT
 docker-compose --project-name SCT up -d --no-build
-exit
+checkexitcode $? 'starting SDO SCT services'
 
 # Add the customer public key to the mariadb
-docker exec -t mariadb mysql -usdo_admin -psdo -h localhost -e "use intel_sdo; call rt_add_customer_public_key('all','-----BEGIN PUBLIC KEY-----
-MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE4RFfGVQdojLIODXnUT6NqB6KpmmPV2Rl
-aVWXzdDef83f/JT+/XLPcpAZVoS++pwZpDoCkRU+E2FqKFdKDDD4g7obfqWd87z1
-EtjdVaI1qiagqaSlkul2oQPBAujpIaHZ
------END PUBLIC KEY-----
------BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtE58Wx9S4BWTNdrTmj3+
-kJXNKuOAk3sgQwvF0Y8uXo3/ECeS/hj5SDmxG5fSnBlmGVKJwGV1bTVERDZ4uh4a
-W1fWMmoUd4xcxun4N4B9+WDSQlX/+Rd3wBLEkKQfNr7lU9ZitfaGkBKxs23Y0GCY
-Hfwh91TjXzNtGzAzv4F/SqQ45KrSafQIIEj72yuadBrQuN+XHkagpJwFtLYr0rbt
-RZfSLcSvoGZtpwW9JfIDntC+eqoqcwOrMRWZAnyAY52GFZqK9+cjJlXuoAS4uH+q
-6KHgLC5u0rcpLiDYJgiv56s4pwd4ILSuRGSohCYsIIIk9rD+tVWqFsGZGDcZXU0z
-CQIDAQAB
------END PUBLIC KEY-----
------BEGIN PUBLIC KEY-----
-MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEWVUE2G0GLy8scmAOyQyhcBiF/fSU
-d3i/Og7XDShiJb2IsbCZSRqt1ek15IbeCI5z7BHea2GZGgaK63cyD15gNA==
------END PUBLIC KEY-----')"
+verbose "adding $ownerPubKeyFile to the SCT services..."
+docker exec -t mariadb mysql -usdo_admin -psdo -h localhost -e "use intel_sdo; call rt_add_customer_public_key('all','$(cat $ownerPubKeyFile)')"
+checkexitcode $? 'adding owner public key to SDO SCT services'
 # it can be listed with: docker exec -t mariadb mysql -usdo_admin -psdo -h localhost -e "use intel_sdo; select customer_descriptor from rt_customer_public_key"
+exit
 
 # Device initialization
 cd ../sdo_sdk_binaries_1.7.0.89_linux_x64/demo/device

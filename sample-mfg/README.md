@@ -30,4 +30,7 @@ This simulates the process of a manufacturer initializing a device with SDO and 
 apt install openjdk-11-jre-headless docker docker-compose
 mkdir -p $HOME/sdo/keys
 # get sdo private key from Services/SCT/keys/sdo.p12 and put it in above dir
+cd $HOME/sdo
+curl -sS --progress-bar -o simulate-mfg.sh $SDO_SAMPLE_MFG_REPO/sample-mfg/simulate-mfg.sh
+./simulate-mfg.sh keys/sdo.p12
 ```
