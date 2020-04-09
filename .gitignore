@@ -2,6 +2,7 @@
 /ocs-api/linux/
 /ocs-db/
 /sdo_sdk_binaries_linux_x64/
+/sample-mfg/sdo_device_binaries_linux_x64.tar.gz
 /sample-mfg/Services/
 /sample-mfg/keys/
 #/sdo_addons/

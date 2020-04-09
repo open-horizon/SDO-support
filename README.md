@@ -4,6 +4,13 @@ Components to make it easy to use Intel's SDO (Secure Device Onboard) with open-
 
 ## Build the SDO Owner Services
 
+Get the SDO SDK binaries tar file and unpack it in `sdo_sdk_binaries_linux_x64`:
+
+```bash
+tar -zxvf $FULL_PATH/sdo_sdk_binaries_1.7.*_linux_x64.tar.gz
+mv sdo_sdk_binaries_1.7.*_linux_x64 sdo_sdk_binaries_linux_x64
+```
+
 To build the docker container that will run all of the SDO services needed on the open-horizon management hub:
 
 ```bash

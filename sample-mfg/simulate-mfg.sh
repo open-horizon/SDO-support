@@ -37,6 +37,9 @@ rvIp="$SDO_RV_DEV_IP"   #todo: the mfg won't have to specify this when using the
 sampleMfgRepo=${SDO_SAMPLE_MFG_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/master}
 ownerPubKeyFile=${2:-$sampleMfgRepo/sample-mfg/owner-key.pub}
 
+dbUser='sdo_admin'
+dbPw='sdo'
+
 if [[ ! -f $privateKeyFile ]]; then
     echo "Error: $privateKeyFile does not exist"
     exit 1
@@ -55,7 +58,7 @@ verbose() {
 }
 
 # Check the exit code passed in and exit if non-zero
-checkexitcode() {
+chk() {
     local exitCode=$1
     local task=$2
     local dontExit=$3   # set to 'continue' to not exit for this error
@@ -77,10 +80,12 @@ function confirmcmds {
     done
 }
 
+confirmcmds grep curl docker docker-compose java
+
 # Define the hostname used to find the SCT services (only if its not already set)
 echo "Adding SCT to /etc/hosts, if not there ..."
 grep -qxF '127.0.0.1 SCT' /etc/hosts || sudo sh -c "echo '127.0.0.1 SCT' >> /etc/hosts"
-checkexitcode $? 'adding SCT to /etc/hosts'
+chk $? 'adding SCT to /etc/hosts'
 
 #todo: remove this when it is time to use the real RV
 echo "Adding '$rvIp RVSDO' to /etc/hosts, if not there ..."
@@ -90,17 +95,17 @@ if grep -q RVSDO /etc/hosts; then
 else
     sudo sh -c "echo \"$rvIp RVSDO\" >> /etc/hosts"
 fi
-checkexitcode $? 'adding RVSDO to /etc/hosts'
+chk $? 'adding RVSDO to /etc/hosts'
 
 # Get the other files we need from our git repo
 echo "Getting docker files from $sampleMfgRepo ..."
 #set -x
 curl --progress-bar -o Dockerfile-mariadb $sampleMfgRepo/sample-mfg/Dockerfile-mariadb
-checkexitcode $? 'getting sample-mfg/Dockerfile-mariadb'
+chk $? 'getting sample-mfg/Dockerfile-mariadb'
 curl --progress-bar -o Dockerfile-manufacturer $sampleMfgRepo/sample-mfg/Dockerfile-manufacturer
-checkexitcode $? 'getting sample-mfg/Dockerfile-manufacturer'
+chk $? 'getting sample-mfg/Dockerfile-manufacturer'
 curl --progress-bar -o docker-compose.yml $sampleMfgRepo/sample-mfg/docker-compose.yml
-checkexitcode $? 'getting sample-mfg/docker-compose.yml'
+chk $? 'getting sample-mfg/docker-compose.yml'
 # { set +x; } 2>/dev/null
 
 # The owner public key is either a URL we retrieve, or a file we use as-is
@@ -108,7 +113,7 @@ mkdir -p keys
 if [[ ${ownerPubKeyFile:0:4} == 'http' ]]; then
     echo "Getting $ownerPubKeyFile ..."
     curl --progress-bar -o keys/owner-key.pub $ownerPubKeyFile
-    checkexitcode $? 'getting owner public key'
+    chk $? 'getting owner public key'
     ownerPubKeyFile='keys/owner-key.pub'
 fi
 
@@ -117,7 +122,7 @@ if [[ $privateKeyFile != 'keys/sdo.p12' || $privateKeyFile != './keys/sdo.p12' ]
     cp $privateKeyFile keys/sdo.p12
 fi
 
-# Start mfg services (this and next step were done in SCT/startup-docker.sh)
+# Start mfg services (originally done by SCT/startup-docker.sh)
 echo "Pulling and starting the SDO SCT services..."
 docker pull openhorizon/manufacturer:latest
 docker tag openhorizon/manufacturer:latest manufacturer:latest
@@ -125,31 +130,82 @@ docker pull openhorizon/sct_mariadb:latest
 docker tag openhorizon/sct_mariadb:latest sct_mariadb:latest
 # need to explicitly set the project name, because it was built under Services/SCT which by default sets the project name to SCT
 docker-compose --project-name SCT up -d --no-build
-checkexitcode $? 'starting SDO SCT services'
+chk $? 'starting SDO SCT services'
 
 # Add the customer public key to the mariadb
-verbose "adding $ownerPubKeyFile to the SCT services..."
-docker exec -t mariadb mysql -usdo_admin -psdo -h localhost -e "use intel_sdo; call rt_add_customer_public_key('all','$(cat $ownerPubKeyFile)')"
-checkexitcode $? 'adding owner public key to SDO SCT services'
-# it can be listed with: docker exec -t mariadb mysql -usdo_admin -psdo -h localhost -e "use intel_sdo; select customer_descriptor from rt_customer_public_key"
-exit
+echo "Adding owner public key $ownerPubKeyFile to the SCT services..."
+docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "call rt_add_customer_public_key('all','$(cat $ownerPubKeyFile)')"
+chk $? 'adding owner public key to SDO SCT services'
+# it can be listed with: docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "select customer_descriptor from rt_customer_public_key"
 
-# Device initialization
-cd ../sdo_sdk_binaries_1.7.0.89_linux_x64/demo/device
-vi application.properties
-  #com.intel.sdo.device.credentials=creds/6584d23f-2e8d-4129-84c2-bd94fa803651.oc  # comment this out to initiate DI
-  com.intel.sdo.di.uri=http://SCT:8039
-./device   # gives manufacturer container info for ownership voucher
-#cd ../../../Services
+# Device initialization (and create the ownership voucher)
+echo "Running device initialization..."
+cd sdo_sdk_binaries_linux_x64/demo/device
+# comment out this property to put the device in DI mode
+sed -i -e 's/^com.intel.sdo.device.credentials=/#com.intel.sdo.device.credentials=/' application.properties
+chk $? 'modifying device application.properties for DI'
+# this property is already set how we want it: com.intel.sdo.di.uri=http://localhost:8039
 
-# Extend the voucher to the owner
-cd SCT && ./sct-docker.sh && cd ..  #  get vouchers from mariadb and runs to-docker.sh (which copies the voucher files into ocs's file db)
+# this creates an ownership voucher and puts it in the mariadb rt_ownership_voucher table
+./device
+chk $? 'running DI'
+cd creds/saved
+deviceOcFile=$(ls -t creds/saved/*.oc | head -1)   # get the most recently created credentials
+cd ../..
+deviceUuid=${deviceOcFile%.oc}
+echo "Device UUID: $deviceUuid"
+cd ../../..
+
+# Extend the voucher to the owner and save it in the current dir (orginally done by SCT/sct-docker.sh)
+echo "Extending the voucher to the owner..."
+devSerialNum=$(docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo --skip-column-names -s -e "select device_serial_no from rt_ownership_voucher where customer_public_key_id is NULL")
+chk $? 'querying device_serial_no'
+numSerialNums=$(echo -n "$devSerialNum" | grep -c '^')   # this counts the number of lines
+if [[ $numSerialNums -ne 1 ]]; then
+    echo "Error: found $numSerialNums device serial numbers in the SCT DB, instead of 1"
+    exit 4
+fi
+if [[ "$deviceUuid" != "$devSerialNum" ]]; then
+    echo "Error: the device uuid in creds/saved ($deviceUuid) does not equal the device uuid in the SCT DB ($devSerialNum)"
+    exit 4
+fi
+
+# this is what extends the voucher to the owner, because the db already has the owner public key
+docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "call rt_assign_device_to_customer('$devSerialNum','all')"
+chk $? 'assign voucher to owner'
+echo "Device and owner data in the DB:"
+docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "select rt_ownership_voucher.device_serial_no, rt_customer_public_key.customer_descriptor from rt_ownership_voucher inner join rt_customer_public_key on rt_customer_public_key.customer_public_key_id=rt_ownership_voucher.customer_public_key_id"
+
+# get the voucher from the db
+if [[ -f voucher.json ]]; then
+    mkdir -p saved
+    mv voucher.json saved
+fi
+httpCode=$(curl -sS -w "%{http_code}" -X GET -o voucher.json http://localhost:8039/api/v1/vouchers/$devSerialNum)
+chk $? 'getting voucher from SCT DB'
+if [[ $httpCode -ne 200 ]]; then
+    echo "Error: HTTP code $httpCode when trying to get the voucher from the SCT service"
+    exit 5
+elif [[ ! -f voucher.json ]]; then
+    echo "Error: file voucher.json not created"
+    exit 5
+fi
+echo "The extended ownership voucher is in voucher.json"
+
+# Note: originally to-docker.sh would at this point put the voucher in the ocs db, but our hzn-import-voucher does that later
 
 # Switch the device into owner mode
-cd $HOME/sdo/sdo_sdk_binaries_1.7.0.89_linux_x64/demo/device
-cp creds/saved/${SDO_DEVICE_UUID}.oc creds
-vi application.properties   # switch device into mode of booting at customer site
-  com.intel.sdo.device.credentials=creds/${SDO_DEVICE_UUID}.oc
+cd sdo_sdk_binaries_linux_x64/demo/device
+echo "Switching the device into owner mode with credential file $deviceOcFile ..."
+mv creds/saved/$deviceOcFile creds
+chk $? 'moving device .oc file'
+sed -i -e "s|^#*com.intel.sdo.device.credentials=.*$|com.intel.sdo.device.credentials=creds/$deviceOcFile|" application.properties
+chk $? 'switching device to owner mode'
+cd ../../..
 
 # Shutdown mfg services
+echo "Shutting down SDO SCT services..."
+docker-compose --project-name SCT down
+chk $? 'shutting down SDO SCT services'
 
+echo "Device manufacturing initialization complete."
