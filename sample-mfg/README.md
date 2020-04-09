@@ -42,6 +42,8 @@ scp $SDO_BUILD_USER_AND_HOST:src/github.com/open-horizon/SDO-support/sample-mfg/
 scp $SDO_BUILD_USER_AND_HOST:src/github.com/open-horizon/SDO-support/sample-mfg/sdo_device_binaries_linux_x64.tar.gz .
 tar -zxvf sdo_device_binaries_linux_x64.tar.gz
 curl -sS --progress-bar -o simulate-mfg.sh $SDO_SAMPLE_MFG_REPO/sample-mfg/simulate-mfg.sh
+chmod +x simulate-mfg.sh
+export SDO_RV_DEV_IP=<local-dev-rv>   # if using that
 export VERBOSE=true   # if you want
 ./simulate-mfg.sh keys/sdo.p12
 ```

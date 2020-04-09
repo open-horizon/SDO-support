@@ -150,7 +150,7 @@ chk $? 'modifying device application.properties for DI'
 ./device
 chk $? 'running DI'
 cd creds/saved
-deviceOcFile=$(ls -t creds/saved/*.oc | head -1)   # get the most recently created credentials
+deviceOcFile=$(ls -t *.oc | head -1)   # get the most recently created credentials
 cd ../..
 deviceUuid=${deviceOcFile%.oc}
 echo "Device UUID: $deviceUuid"
@@ -160,15 +160,17 @@ cd ../../..
 echo "Extending the voucher to the owner..."
 devSerialNum=$(docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo --skip-column-names -s -e "select device_serial_no from rt_ownership_voucher where customer_public_key_id is NULL")
 chk $? 'querying device_serial_no'
+devSerialNum=${devSerialNum:0:$((${#devSerialNum}-1))}   # the last char seems to be a carriage return control char, so strip it
 numSerialNums=$(echo -n "$devSerialNum" | grep -c '^')   # this counts the number of lines
 if [[ $numSerialNums -ne 1 ]]; then
     echo "Error: found $numSerialNums device serial numbers in the SCT DB, instead of 1"
     exit 4
 fi
-if [[ "$deviceUuid" != "$devSerialNum" ]]; then
-    echo "Error: the device uuid in creds/saved ($deviceUuid) does not equal the device uuid in the SCT DB ($devSerialNum)"
-    exit 4
-fi
+# devSerialNum is different from the deviceUuid
+#if [[ "$deviceUuid" != "$devSerialNum" ]]; then
+#    echo "Error: the device uuid in creds/saved ($deviceUuid) does not equal the device uuid in the SCT DB ($devSerialNum)"
+#    exit 4
+#fi
 
 # this is what extends the voucher to the owner, because the db already has the owner public key
 docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "call rt_assign_device_to_customer('$devSerialNum','all')"
