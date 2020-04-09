@@ -6,7 +6,7 @@
 usage() {
     exitCode=${1:-0}
     cat << EndOfMessage
-${0##*/} <voucher-file> [<example>]
+Usage: ${0##*/} <voucher-file> [<example>]
 
 Environment Variables that must be set:
   HZN_EXCHANGE_URL
@@ -29,7 +29,7 @@ HZN_SDO_SVC_URL=${HZN_SDO_SVC_URL:-http://localhost:9008/api}
 : ${HZN_EXCHANGE_URL:?} ${HZN_MGMT_HUB_CERT_PATH:?} ${HZN_ORG_ID:?} ${HZN_EXCHANGE_USER_AUTH:?}
 
 # Check the exit code passed in and exit if non-zero
-checkexitcode() {
+chk() {
     local exitCode=$1
     local task=$2
     local dontExit=$3   # set to 'continue' to not exit for this error
@@ -41,7 +41,7 @@ checkexitcode() {
 }
 
 # Verify that the prereq commands we need are installed
-function confirmcmds {
+confirmcmds() {
     for c in $*; do
         #echo "checking $c..."
         if ! which $c >/dev/null; then
@@ -51,19 +51,10 @@ function confirmcmds {
     done
 }
 
-# These 2 functions are not used any more...
-# Parses the voucher to get the UUID of the device (which will be our node id)
-#parseVoucher() {
-#    local voucherFile=$1
-#    local uuid=$(jq -r .oh.g $voucherFile | base64 -d | hexdump -v -e '/1 "%02x" ')
-#    checkexitcode $? 'parse voucher'
-#    echo "${uuid:0:8}-${uuid:8:4}-${uuid:12:4}-${uuid:16:4}-${uuid:20}"
-#}
-
 # Generate a random node token
 #generateNodeToken() {
 #    cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 45 | head -n 1   # stolen from agent-install.sh
-#    checkexitcode $? 'generate node token'
+#    chk $? 'generate node token'
 #}
 
 # Create the node in the exchange
@@ -71,7 +62,7 @@ createNode() {
     local nodeId=$1
     local nodeToken=$2
     hzn exchange node create -n "$nodeId:$nodeToken"
-    checkexitcode $? 'create node'
+    chk $? 'create node'
 }
 
 # Create the node policy in the exchange, if they chose an example, or specified node policy
@@ -80,7 +71,7 @@ createNodePolicy() {
     local example=$2
     local policyJson='{ "properties": [ { "name": "openhorizon.example", "value": "'$example'" } ] }'
     hzn exchange node addpolicy $nodeId -f-  <<< $policyJson
-    checkexitcode $? 'create node policy'
+    chk $? 'create node policy'
 }
 
 # Main
@@ -91,7 +82,7 @@ confirmcmds hzn jq # base64 hexdump fold
 # Import voucher and get node id and token
 echo "Importing voucher: POST $HZN_SDO_SVC_URL/voucher ..."
 output=$(curl -sS -w "%{http_code}" -X POST -H "Content-Type: application/json" -d @$voucherFile $HZN_SDO_SVC_URL/voucher)
-checkexitcode $? 'import voucher'
+chk $? 'import voucher'
 # output looks like: {"deviceUuid":"3afde2eb-2c6f-4c5c-ac44-e8045e0cca69","nodeToken":"c0ac3e450aedfabccf502b018a5d44b364c920739d08"}201
 httpcode=${output:$((${#output}-3))}    # the last 3 chars are the http code
 if [[ "$httpcode" != "201" ]]; then

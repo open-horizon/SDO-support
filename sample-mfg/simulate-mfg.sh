@@ -11,7 +11,7 @@
 usage() {
     exitCode=${1:-0}
     cat << EndOfMessage
-${0##*/} <priv-key-file> [<customer-pub-key-file>]
+Usage: ${0##*/} <priv-key-file> [<customer-pub-key-file>]
 
 Arguments:
   <priv-key-file>  Device manufacturer private key?
@@ -70,7 +70,7 @@ chk() {
 }
 
 # Verify that the prereq commands we need are installed
-function confirmcmds {
+confirmcmds() {
     for c in $*; do
         #echo "checking $c..."
         if ! which $c >/dev/null; then
@@ -80,6 +80,14 @@ function confirmcmds {
     done
 }
 
+# Parses the voucher to get the UUID of the device (which will be our node id)
+parseVoucher() {
+    local voucherFile=$1
+    local uuid=$(jq -r .oh.g $voucherFile | base64 -d | hexdump -v -e '/1 "%02x" ')
+    chk $? 'parse voucher'
+    echo "${uuid:0:8}-${uuid:8:4}-${uuid:12:4}-${uuid:16:4}-${uuid:20}"
+}
+
 confirmcmds grep curl docker docker-compose java
 
 # Define the hostname used to find the SCT services (only if its not already set)
@@ -87,15 +95,15 @@ echo "Adding SCT to /etc/hosts, if not there ..."
 grep -qxF '127.0.0.1 SCT' /etc/hosts || sudo sh -c "echo '127.0.0.1 SCT' >> /etc/hosts"
 chk $? 'adding SCT to /etc/hosts'
 
-#todo: remove this when it is time to use the real RV
-echo "Adding '$rvIp RVSDO' to /etc/hosts, if not there ..."
+#todo: remove this when it is time to use the real RV and OwnerSDO
+echo "Adding '$rvIp RVSDO OwnerSDO' to /etc/hosts, if not there ..."
 if grep -q RVSDO /etc/hosts; then
     # In case we are using a different RV IP than before
-    [ $(uname) == "Darwin" ] || sudo sed -i -e "s/^.\+ RVSDO.*$/$rvIp RVSDO/" /etc/hosts
+    [ $(uname) == "Darwin" ] || sudo sed -i -e "s/^.\+ RVSDO.*$/$rvIp RVSDO OwnerSDO/" /etc/hosts
 else
-    sudo sh -c "echo \"$rvIp RVSDO\" >> /etc/hosts"
+    sudo sh -c "echo \"$rvIp RVSDO OwnerSDO\" >> /etc/hosts"
 fi
-chk $? 'adding RVSDO to /etc/hosts'
+chk $? 'adding RVSDO OwnerSDO to /etc/hosts'
 
 # Get the other files we need from our git repo
 echo "Getting docker files from $sampleMfgRepo ..."
@@ -167,10 +175,6 @@ if [[ $numSerialNums -ne 1 ]]; then
     exit 4
 fi
 # devSerialNum is different from the deviceUuid
-#if [[ "$deviceUuid" != "$devSerialNum" ]]; then
-#    echo "Error: the device uuid in creds/saved ($deviceUuid) does not equal the device uuid in the SCT DB ($devSerialNum)"
-#    exit 4
-#fi
 
 # this is what extends the voucher to the owner, because the db already has the owner public key
 docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "call rt_assign_device_to_customer('$devSerialNum','all')"
@@ -191,6 +195,13 @@ if [[ $httpCode -ne 200 ]]; then
 elif [[ ! -f voucher.json ]]; then
     echo "Error: file voucher.json not created"
     exit 5
+fi
+
+# Verify that the device UUID in the voucher is the same as what we found above
+voucherDevUuid=$(parseVoucher voucher.json)
+if [[ "$deviceUuid" != "$voucherDevUuid" ]]; then
+    echo "Error: the device uuid in creds/saved ($deviceUuid) does not equal the device uuid in the voucher ($voucherDevUuid)"
+    exit 4
 fi
 echo "The extended ownership voucher is in voucher.json"
 
