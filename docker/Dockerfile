@@ -53,6 +53,8 @@ COPY sdo_sdk_binaries_linux_x64/cri/rendezvous-1.7.0.war $WORKDIR/rv/
 
 # Get to0scheduler files
 COPY sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/to0scheduler $WORKDIR/to0scheduler/
+# So to0scheduler will point RV (and by extension, the device) to the correct OPS host. #todo: this needs to change
+RUN sed -i -e 's/^com.intel.sdo.to0.ownersign.to1d.bo.dns1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.dns1=OwnerSDO/' $WORKDIR/to0scheduler/config/application.properties
 
 # Get OCS files
 COPY sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/ocs $WORKDIR/ocs/

@@ -1,6 +1,6 @@
 SHELL ?= /bin/bash -e
-# Set this before building the ocs-api binary
-export VERSION ?= 0.5.0
+# Set this before building the ocs-api binary and sdo-owner-services (for now they use the samme version number)
+export VERSION ?= 0.6.0
 
 DOCKER_REGISTRY ?= openhorizon
 SDO_DOCKER_IMAGE ?= sdo-owner-services
@@ -9,6 +9,7 @@ SDO_OCS_DB_HOST_DIR ?= $(PWD)/ocs-db
 SDO_OCS_DB_CONTAINER_DIR ?= /root/ocs/config/db
 OCS_API_PORT ?= 9008
 
+# These can't be overridden easily
 SDO_RV_PORT = 8040
 SDO_TO0_PORT = 8049
 SDO_OPS_PORT = 8042
@@ -16,7 +17,7 @@ SDO_OPS_PORT = 8042
 # can override this in the environment, e.g. set it to: --no-cache
 DOCKER_OPTS ?=
 
-default: run-ocs-api
+default: $(SDO_DOCKER_IMAGE)
 
 ocs-api/ocs-api: ocs-api/*.go ocs-api/*/*.go Makefile
 	echo 'package main; const OCS_API_VERSION = "$(VERSION)"' > ocs-api/version.go
@@ -51,6 +52,9 @@ publish-$(SDO_DOCKER_IMAGE):
 	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
 	docker tag $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION) $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):latest
 	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):latest
+
+pull-$(SDO_DOCKER_IMAGE):
+	docker pull $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
 
 clean:
 	go clean
