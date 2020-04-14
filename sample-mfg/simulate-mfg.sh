@@ -107,15 +107,18 @@ fi
 chk $? 'adding RVSDO OwnerSDO to /etc/hosts'
 
 # Get the other files we need from our git repo
-echo "Getting docker files from $sampleMfgRepo ..."
+echo "Getting run-sdo-mfg-services.sh from $sampleMfgRepo ..."
 #set -x
-#todo: do we really need the dockerfiles, since we are using --no-build on docker-compose?
-curl --progress-bar -o Dockerfile-mariadb $sampleMfgRepo/sample-mfg/Dockerfile-mariadb
-chk $? 'getting sample-mfg/Dockerfile-mariadb'
-curl --progress-bar -o Dockerfile-manufacturer $sampleMfgRepo/sample-mfg/Dockerfile-manufacturer
-chk $? 'getting sample-mfg/Dockerfile-manufacturer'
-curl --progress-bar -o docker-compose.yml $sampleMfgRepo/sample-mfg/docker-compose.yml
-chk $? 'getting sample-mfg/docker-compose.yml'
+curl --progress-bar -o run-sdo-mfg-services.sh $sampleMfgRepo/sample-mfg/run-sdo-mfg-services.sh
+chk $? 'getting sample-mfg/run-sdo-mfg-services.sh'
+chmod +x run-sdo-mfg-services.sh
+chk $? 'chmod run-sdo-mfg-services.sh'
+#curl --progress-bar -o Dockerfile-mariadb $sampleMfgRepo/sample-mfg/Dockerfile-mariadb
+#chk $? 'getting sample-mfg/Dockerfile-mariadb'
+#curl --progress-bar -o Dockerfile-manufacturer $sampleMfgRepo/sample-mfg/Dockerfile-manufacturer
+#chk $? 'getting sample-mfg/Dockerfile-manufacturer'
+#curl --progress-bar -o docker-compose.yml $sampleMfgRepo/sample-mfg/docker-compose.yml
+#chk $? 'getting sample-mfg/docker-compose.yml'
 # { set +x; } 2>/dev/null
 
 # The owner public key is either a URL we retrieve, or a file we use as-is
@@ -128,18 +131,23 @@ if [[ ${ownerPubKeyFile:0:4} == 'http' ]]; then
 fi
 
 # Copy the mfg private key to keys/sdo.p12, unless it is already there
-if [[ $privateKeyFile != 'keys/sdo.p12' || $privateKeyFile != './keys/sdo.p12' ]]; then
+if [[ $privateKeyFile != 'keys/sdo.p12' && $privateKeyFile != './keys/sdo.p12' ]]; then
     cp $privateKeyFile keys/sdo.p12
 fi
 
 # Start mfg services (originally done by SCT/startup-docker.sh)
 echo "Pulling and starting the SDO SCT services..."
-docker pull openhorizon/manufacturer:latest
-docker tag openhorizon/manufacturer:latest manufacturer:latest
-docker pull openhorizon/sct_mariadb:latest
-docker tag openhorizon/sct_mariadb:latest sct_mariadb:latest
+export DOCKER_NETWORK=${DOCKER_NETWORK:-sct_default}
+export DOCKER_REGISTRY=${DOCKER_REGISTRY:-openhorizon}
+export SDO_MFG_DOCKER_IMAGE=${SDO_MFG_DOCKER_IMAGE:-manufacturer}
+export SDO_MARIADB_DOCKER_IMAGE=${SDO_MARIADB_DOCKER_IMAGE:-sct_mariadb}
+#docker pull openhorizon/manufacturer:latest
+#docker tag openhorizon/manufacturer:latest manufacturer:latest
+#docker pull openhorizon/sct_mariadb:latest
+#docker tag openhorizon/sct_mariadb:latest sct_mariadb:latest
 # need to explicitly set the project name, because it was built under Services/SCT which by default sets the project name to SCT
-docker-compose --project-name SCT up -d --no-build
+#docker-compose --project-name SCT up -d --no-build
+./run-sdo-mfg-services.sh   # this imitates what docker-compose.yml does
 chk $? 'starting SDO SCT services'
 
 # Add the customer public key to the mariadb
@@ -207,7 +215,7 @@ if [[ "$deviceUuid" != "$voucherDevUuid" ]]; then
 fi
 echo "The extended ownership voucher is in voucher.json"
 
-# Note: originally to-docker.sh would at this point put the voucher in the ocs db, but our hzn-import-voucher does that later
+# Note: originally to-docker.sh would at this point put the voucher in the ocs db, but our hzn-voucher-import does that later
 
 # Switch the device into owner mode
 cd sdo_sdk_binaries_linux_x64/demo/device
@@ -219,8 +227,13 @@ chk $? 'switching device to owner mode'
 cd ../../..
 
 # Shutdown mfg services
-echo "Shutting down SDO SCT services..."
-docker-compose --project-name SCT down
-chk $? 'shutting down SDO SCT services'
+if [[ "$SDO_SAMPLE_MFG_KEEP_SVCS" == '1' || "$SDO_SAMPLE_MFG_KEEP_SVCS" == 'true' ]]; then
+    echo "Leaving SCT services running, because SDO_SAMPLE_MFG_KEEP_SVCS=$SDO_SAMPLE_MFG_KEEP_SVCS"
+else
+    echo "Shutting down SDO SCT services..."
+    #docker-compose --project-name SCT down
+    docker rm -f $SDO_MFG_DOCKER_IMAGE && docker rm -f $SDO_MARIADB_DOCKER_IMAGE && docker network rm $DOCKER_NETWORK
+    chk $? 'shutting down SDO SCT services'
+fi
 
 echo "Device manufacturing initialization complete."

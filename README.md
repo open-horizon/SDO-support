@@ -57,7 +57,7 @@ To develop/test/demo the SDO owner services, you need to initialize a VM to simu
 From an "admin" host, copy the `voucher.json` file from the device to here, then:
 
 ```bash
-tools/hzn-import-voucher voucher.json helloworld
+tools/hzn-voucher-import voucher.json helloworld
 ```
 
 ## Configure the Device and Connect it to the Horizon Management Hub
