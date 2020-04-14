@@ -34,7 +34,7 @@ services:
       # CATALINA_OPTS: -D<add any additional tomcat options here, if needed>
     healthcheck:
       # Modify port here if it was changed above.
-      test: CMD curl -f http://MPSSDO:8039/api/version
+      test: CMD curl -f http://localhost:8039/api/version
       interval: 20s
       timeout: 10s
       retries: 1

@@ -90,7 +90,8 @@ parseVoucher() {
 
 confirmcmds grep curl docker docker-compose java
 
-# Define the hostname used to find the SCT services (only if its not already set)
+# Set the SCT hostname used to find the SCT services to be the local host (only if its not already set)
+#todo: is this actually needed?
 echo "Adding SCT to /etc/hosts, if not there ..."
 grep -qxF '127.0.0.1 SCT' /etc/hosts || sudo sh -c "echo '127.0.0.1 SCT' >> /etc/hosts"
 chk $? 'adding SCT to /etc/hosts'
@@ -108,6 +109,7 @@ chk $? 'adding RVSDO OwnerSDO to /etc/hosts'
 # Get the other files we need from our git repo
 echo "Getting docker files from $sampleMfgRepo ..."
 #set -x
+#todo: do we really need the dockerfiles, since we are using --no-build on docker-compose?
 curl --progress-bar -o Dockerfile-mariadb $sampleMfgRepo/sample-mfg/Dockerfile-mariadb
 chk $? 'getting sample-mfg/Dockerfile-mariadb'
 curl --progress-bar -o Dockerfile-manufacturer $sampleMfgRepo/sample-mfg/Dockerfile-manufacturer

@@ -10,16 +10,18 @@ DOCKER_OPTS ?=
 
 default: $(SDO_MFG_DOCKER_IMAGE)
 
-# Build the sample SDO mfg services docker image - see the build environment requirements listed in sample-mfg/Dockerfile
+# Build the sample SDO mfg services docker images
+#todo: Dockerfile-mariadb copies mt_config.sql into the container and that hardcodes the RV URL into vouchers (i think). Figure out how to fix this
 sdo-mfg-services:
 	- docker rm -f $(SDO_MFG_DOCKER_IMAGE) $(SDO_MARIADB_DOCKER_IMAGE) 2> /dev/null || :
 	cd Services/SCT && docker-compose build
 
+# Note: we currently use docker-compose up to run the containers, instead of this...
 # Run the SDO services docker container
 # If you want to run the image w/o rebuilding: make -W sdo-mfg-services run-sdo-mfg-services
-run-sdo-mfg-services: sdo-mfg-services
-	- docker rm -f $(SDO_MFG_DOCKER_IMAGE) $(SDO_MARIADB_DOCKER_IMAGE) 2> /dev/null || :
-	docker run --name $(SDO_MFG_DOCKER_IMAGE) -dt -p $(SDO_RV_PORT):$(SDO_RV_PORT) -e "SDO_OCS_DB_PATH=$(SDO_OCS_DB_CONTAINER_DIR)" -e "OCS_API_PORT=$(OCS_API_PORT)" $(DOCKER_REGISTRY)/$<:$(MFG_VERSION)
+#run-sdo-mfg-services: sdo-mfg-services
+#	- docker rm -f $(SDO_MFG_DOCKER_IMAGE) $(SDO_MARIADB_DOCKER_IMAGE) 2> /dev/null || :
+#	docker run --name $(SDO_MFG_DOCKER_IMAGE) -dt -p $(SDO_RV_PORT):$(SDO_RV_PORT) -e "SDO_OCS_DB_PATH=$(SDO_OCS_DB_CONTAINER_DIR)" -e "OCS_API_PORT=$(OCS_API_PORT)" $(DOCKER_REGISTRY)/$<:$(MFG_VERSION)
 
 # Push the SDO services docker image to the registry
 publish-sdo-mfg-services:

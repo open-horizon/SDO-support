@@ -53,13 +53,14 @@ COPY sdo_sdk_binaries_linux_x64/cri/rendezvous-1.7.0.war $WORKDIR/rv/
 
 # Get to0scheduler files
 COPY sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/to0scheduler $WORKDIR/to0scheduler/
-# So to0scheduler will point RV (and by extension, the device) to the correct OPS host. #todo: this needs to change
-RUN sed -i -e 's/^com.intel.sdo.to0.ownersign.to1d.bo.dns1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.dns1=OwnerSDO/' $WORKDIR/to0scheduler/config/application.properties
+# Moved to start-sdo-owner-services.sh so the value can be passed in at run time. So to0scheduler will point RV (and by extension, the device) to the correct OPS host.
+#RUN sed -i -e 's/^com.intel.sdo.to0.ownersign.to1d.bo.dns1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.dns1=OwnerSDO/' $WORKDIR/to0scheduler/config/application.properties
 
 # Get OCS files
 COPY sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/ocs $WORKDIR/ocs/
 # Note: the $WORKDIR/ocs/config/db subdir of the copy above will get hidden by the ocs db mount when the container starts.
 #       The only file we care about is creds/owner-keystore.p12, so put that in ocs/config for now and start-sdo-owner-services.sh will move it in place.
+#todo: owner-keystore.p12 is for owner attestation, so i think we need to have the Horizon customer input this
 COPY sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/ocs/config/db/v1/creds/owner-keystore.p12 $WORKDIR/ocs/config/
 # This mod for dev/test/demo makes the to0scheduler respond to changes more quickly, and let us use the same voucher over again
 RUN sed -i -e 's/^to0.scheduler.interval=.*$/to0.scheduler.interval=5/' -e 's/^to2.credential-reuse.enabled=.*$/to2.credential-reuse.enabled=true/' $WORKDIR/ocs/config/application.properties

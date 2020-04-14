@@ -12,18 +12,12 @@ These sample scripts and docker images enable you to develop/test/demo the SDO o
   cd -
   ```
 
-1. Get the SDO Services.tar file from Intel and unpack it here:
+  Note: We also got the SDO Services.tar file from Intel and extracted these files from the `SCT` sub-directory and committed them into our git repo in the `sample-mfg` sub-directory:
 
   ```bash
-  tar -zxvf ~/Downloads/SDO/FromNima/Services.tar
-  ```
-
-  Note: these files were copied from Services.tar into this directory:
-
-  ```bash
-  SCT/docker-compose.yml
-  SCT/Dockerfile-manufacturer
-  SCT/Dockerfile-mariadb
+  docker-compose.yml
+  Dockerfile-manufacturer
+  Dockerfile-mariadb
   ```
 
 1. Build the SDO manufacturer services:
@@ -53,5 +47,6 @@ curl -sS --progress-bar -o simulate-mfg.sh $SDO_SAMPLE_MFG_REPO/sample-mfg/simul
 chmod +x simulate-mfg.sh
 export SDO_RV_DEV_IP=<local-dev-rv>   # if using that
 export VERBOSE=true   # if you want
+# Note: sdo.p12 is a sample manufacturer key. For device owners and IoT platform vendors it is ok to use this for dev/test/demo.
 ./simulate-mfg.sh keys/sdo.p12
 ```

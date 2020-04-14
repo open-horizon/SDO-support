@@ -1,18 +1,19 @@
 SHELL ?= /bin/bash -e
 # Set this before building the ocs-api binary and sdo-owner-services (for now they use the samme version number)
-export VERSION ?= 0.6.0
+export VERSION ?= 0.7.0
 
-DOCKER_REGISTRY ?= openhorizon
-SDO_DOCKER_IMAGE ?= sdo-owner-services
-SDO_OCS_DB_HOST_DIR ?= $(PWD)/ocs-db
+export DOCKER_REGISTRY ?= openhorizon
+export SDO_DOCKER_IMAGE ?= sdo-owner-services
+
+#SDO_OCS_DB_HOST_DIR ?= $(PWD)/ocs-db
 # this is where OCS needs it to be
-SDO_OCS_DB_CONTAINER_DIR ?= /root/ocs/config/db
-OCS_API_PORT ?= 9008
+#SDO_OCS_DB_CONTAINER_DIR ?= /root/ocs/config/db
+#OCS_API_PORT ?= 9008
 
 # These can't be overridden easily
-SDO_RV_PORT = 8040
-SDO_TO0_PORT = 8049
-SDO_OPS_PORT = 8042
+#SDO_RV_PORT = 8040
+#SDO_TO0_PORT = 8049
+#SDO_OPS_PORT = 8042
 
 # can override this in the environment, e.g. set it to: --no-cache
 DOCKER_OPTS ?=
@@ -45,7 +46,7 @@ $(SDO_DOCKER_IMAGE): ocs-api/linux/ocs-api
 run-$(SDO_DOCKER_IMAGE): $(SDO_DOCKER_IMAGE)
 	: $${HZN_EXCHANGE_URL:?} $${HZN_FSS_CSSURL:?} $${HZN_ORG_ID:?} $${HZN_MGMT_HUB_CERT:?} $${HZN_EXCHANGE_USER_AUTH:?}
 	- docker rm -f $(SDO_DOCKER_IMAGE) 2> /dev/null || :
-	docker run --name $(SDO_DOCKER_IMAGE) -dt -v $(SDO_OCS_DB_HOST_DIR):$(SDO_OCS_DB_CONTAINER_DIR) -p $(OCS_API_PORT):$(OCS_API_PORT) -p $(SDO_RV_PORT):$(SDO_RV_PORT) -p $(SDO_TO0_PORT):$(SDO_TO0_PORT) -p $(SDO_OPS_PORT):$(SDO_OPS_PORT) -e "SDO_OCS_DB_PATH=$(SDO_OCS_DB_CONTAINER_DIR)" -e "OCS_API_PORT=$(OCS_API_PORT)" -e "HZN_EXCHANGE_URL=$${HZN_EXCHANGE_URL}" -e "HZN_FSS_CSSURL=$${HZN_FSS_CSSURL}" -e "HZN_ORG_ID=$${HZN_ORG_ID}" -e "HZN_MGMT_HUB_CERT=$${HZN_MGMT_HUB_CERT}" -e "HZN_EXCHANGE_USER_AUTH=$${HZN_EXCHANGE_USER_AUTH}" $(DOCKER_REGISTRY)/$<:$(VERSION)
+	docker/run-sdo-owner-services.sh $(VERSION)
 
 # Push the SDO services docker image to the registry
 publish-$(SDO_DOCKER_IMAGE):
