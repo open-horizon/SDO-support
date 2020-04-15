@@ -62,10 +62,24 @@ chk() {
     local exitCode=$1
     local task=$2
     local dontExit=$3   # set to 'continue' to not exit for this error
-    if [[ $1 == 0 ]]; then return; fi
+    if [[ $exitCode == 0 ]]; then return; fi
     echo "Error: exit code $exitCode from: $task"
     if [[ $dontExit != 'continue' ]]; then
         exit $exitCode
+    fi
+}
+
+# Check both the exit code and http code passed in and exit if non-zero
+chkHttp() {
+    local exitCode=$1
+    local httpCode=$2
+    local task=$3
+    local dontExit=$4   # set to 'continue' to not exit for this error
+    chk $exitCode $task
+    if [[ $httpCode == 200 ]]; then return; fi
+    echo "Error: http code $httpCode from: $task"
+    if [[ $dontExit != 'continue' ]]; then
+        exit $httpCode
     fi
 }
 
@@ -109,8 +123,8 @@ chk $? 'adding RVSDO OwnerSDO to /etc/hosts'
 # Get the other files we need from our git repo
 echo "Getting run-sdo-mfg-services.sh from $sampleMfgRepo ..."
 #set -x
-curl --progress-bar -o run-sdo-mfg-services.sh $sampleMfgRepo/sample-mfg/run-sdo-mfg-services.sh
-chk $? 'getting sample-mfg/run-sdo-mfg-services.sh'
+httpCode=$(curl -w "%{http_code}" --progress-bar -o run-sdo-mfg-services.sh $sampleMfgRepo/sample-mfg/run-sdo-mfg-services.sh)
+chkHttp $? $httpCode 'getting sample-mfg/run-sdo-mfg-services.sh'
 chmod +x run-sdo-mfg-services.sh
 chk $? 'chmod run-sdo-mfg-services.sh'
 #curl --progress-bar -o Dockerfile-mariadb $sampleMfgRepo/sample-mfg/Dockerfile-mariadb
@@ -141,6 +155,7 @@ export DOCKER_NETWORK=${DOCKER_NETWORK:-sct_default}
 export DOCKER_REGISTRY=${DOCKER_REGISTRY:-openhorizon}
 export SDO_MFG_DOCKER_IMAGE=${SDO_MFG_DOCKER_IMAGE:-manufacturer}
 export SDO_MARIADB_DOCKER_IMAGE=${SDO_MARIADB_DOCKER_IMAGE:-sct_mariadb}
+export SDO_MARIADB_DOCKER_CONTAINER=${SDO_MARIADB_DOCKER_CONTAINER:-mariadb}
 #docker pull openhorizon/manufacturer:latest
 #docker tag openhorizon/manufacturer:latest manufacturer:latest
 #docker pull openhorizon/sct_mariadb:latest
@@ -149,6 +164,7 @@ export SDO_MARIADB_DOCKER_IMAGE=${SDO_MARIADB_DOCKER_IMAGE:-sct_mariadb}
 #docker-compose --project-name SCT up -d --no-build
 ./run-sdo-mfg-services.sh   # this imitates what docker-compose.yml does
 chk $? 'starting SDO SCT services'
+sleep 5   # give the containers a chance to start
 
 # Add the customer public key to the mariadb
 echo "Adding owner public key $ownerPubKeyFile to the SCT services..."
@@ -232,7 +248,7 @@ if [[ "$SDO_SAMPLE_MFG_KEEP_SVCS" == '1' || "$SDO_SAMPLE_MFG_KEEP_SVCS" == 'true
 else
     echo "Shutting down SDO SCT services..."
     #docker-compose --project-name SCT down
-    docker rm -f $SDO_MFG_DOCKER_IMAGE && docker rm -f $SDO_MARIADB_DOCKER_IMAGE && docker network rm $DOCKER_NETWORK
+    docker rm -f $SDO_MFG_DOCKER_IMAGE && docker rm -f $SDO_MARIADB_DOCKER_CONTAINER && docker network rm $DOCKER_NETWORK
     chk $? 'shutting down SDO SCT services'
 fi
 

@@ -47,7 +47,7 @@ chk() {
     local exitCode=$1
     local task=$2
     local dontExit=$3   # set to 'continue' to not exit for this error
-    if [[ $1 == 0 ]]; then return; fi
+    if [[ $exitCode == 0 ]]; then return; fi
     echo "Error: exit code $exitCode from: $task"
     if [[ $dontExit != 'continue' ]]; then
         exit $exitCode
@@ -56,7 +56,7 @@ chk() {
 
 # Shut down previous containers, in case they left them running
 docker rm -f $SDO_MFG_DOCKER_IMAGE 2> /dev/null
-docker rm -f $SDO_MARIADB_DOCKER_IMAGE 2> /dev/null
+docker rm -f $SDO_MARIADB_DOCKER_CONTAINER 2> /dev/null
 docker network rm $DOCKER_NETWORK 2> /dev/null
 
 # Create docker network the 2 containers use to communicated

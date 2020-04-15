@@ -33,7 +33,7 @@ chk() {
     local exitCode=$1
     local task=$2
     local dontExit=$3   # set to 'continue' to not exit for this error
-    if [[ $1 == 0 ]]; then return; fi
+    if [[ $exitCode == 0 ]]; then return; fi
     echo "Error: exit code $exitCode from: $task"
     if [[ $dontExit != 'continue' ]]; then
         exit $exitCode
