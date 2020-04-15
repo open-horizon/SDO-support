@@ -53,6 +53,11 @@ chk() {
     fi
 }
 
+# Shut down previous containers, in case they left them running
+docker rm -f $SDO_MFG_DOCKER_IMAGE 2> /dev/null
+docker rm -f $SDO_MARIADB_DOCKER_IMAGE 2> /dev/null
+docker network rm $DOCKER_NETWORK 2> /dev/null
+
 # Create docker network the 2 containers use to communicated
 docker network create $DOCKER_NETWORK
 chk $? 'creating SCT network'
