@@ -11,7 +11,7 @@ DOCKER_OPTS ?=
 default: $(SDO_MFG_DOCKER_IMAGE)
 
 # Build the sample SDO mfg services docker images
-#todo: Dockerfile-mariadb copies mt_config.sql into the container and that hardcodes the RV URL into vouchers (i think). Figure out how to fix this
+#todo: Dockerfile-mariadb copies mt_config.sql into the container and that "hardcodes" the RV URL into vouchers. Figure out how to fix this
 sdo-mfg-services:
 	- docker rm -f $(SDO_MFG_DOCKER_IMAGE) $(SDO_MARIADB_DOCKER_IMAGE) 2> /dev/null || :
 	cd Services/SCT && docker-compose build

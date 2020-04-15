@@ -1,5 +1,23 @@
 #!/bin/bash
 
+# !!!!!!!!!! This was intended to replace SCT/docker-compose.yml, but doesn't quite work (the networking between the 2 services doesn't work right)
+# If using this again, put all of these lines in simulate-mfg.sh:
+
+httpCode=$(curl -w "%{http_code}" --progress-bar -o run-sdo-mfg-services.sh $sampleMfgRepo/sample-mfg/run-sdo-mfg-services.sh)
+chkHttp $? $httpCode 'getting sample-mfg/run-sdo-mfg-services.sh'
+chmod +x run-sdo-mfg-services.sh
+chk $? 'chmod run-sdo-mfg-services.sh'
+
+export DOCKER_NETWORK=${DOCKER_NETWORK:-sct_default}
+export DOCKER_REGISTRY=${DOCKER_REGISTRY:-openhorizon}
+export SDO_MFG_DOCKER_IMAGE=${SDO_MFG_DOCKER_IMAGE:-manufacturer}
+export SDO_MARIADB_DOCKER_IMAGE=${SDO_MARIADB_DOCKER_IMAGE:-sct_mariadb}
+export SDO_MARIADB_DOCKER_CONTAINER=${SDO_MARIADB_DOCKER_CONTAINER:-mariadb}
+./run-sdo-mfg-services.sh   # this imitates what docker-compose.yml does
+
+docker rm -f $SDO_MFG_DOCKER_IMAGE && docker rm -f $SDO_MARIADB_DOCKER_CONTAINER && docker network rm $DOCKER_NETWORK
+
+
 # Run the SDO SCT services (manufacturer and mariadb) on a device so that device initialization can be run.
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
@@ -74,3 +92,23 @@ docker pull $DOCKER_REGISTRY/$SDO_MFG_DOCKER_IMAGE:$VERSION
 chk $? 'pulling manufacturer image'
 docker run --name $SDO_MFG_DOCKER_IMAGE --network $DOCKER_NETWORK -dt -v $SDO_MFG_KEYS_HOST_DIR:$SDO_MFG_KEYS_CONTAINER_DIR:ro -p $SDO_MFG_HOST_PORT:$SDO_MFG_CONTAINER_PORT -e "SPRING_DATASOURCE_URL=$SPRING_DATASOURCE_URL" -e "SPRING_DATASOURCE_USERNAME=$SPRING_DATASOURCE_USERNAME" -e "SPRING_DATASOURCE_PASSWORD=$SPRING_DATASOURCE_PASSWORD" -e "SDO_KEYSTORE=$SDO_KEYSTORE" -e "SDO_KEYSTORE_PASSWORD=$SDO_KEYSTORE_PASSWORD" -e "TZ=$TZ" $DOCKER_REGISTRY/$SDO_MFG_DOCKER_IMAGE:$VERSION
 chk $? 'running manufacturer image'
+
+# The mariadb container takes about 25 seconds to initialize (not sure why)
+printf "Waiting for the mariadb container to initialize (takes about 25 seconds) "
+counter=1
+maxCount=20
+sleepyTime=2
+while [[ $counter -le $maxCount ]]; do
+    # The mt_server_settings is initlized with 1 row so try getting that
+    output=$(docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "select * from mt_server_settings" 2>&1)
+    if [[ $? -eq 0 ]]; then break; fi
+    printf '.'
+    counter=$((counter+1))
+    sleep $sleepyTime
+done
+printf "\n"
+if [[ $counter -gt $maxCount ]]; then
+    echo "Error: the mariadb container did not initialize in $((maxCount * sleepyTime)) seconds: $output"
+    exit 3
+fi
+echo "Mariadb container initialized."

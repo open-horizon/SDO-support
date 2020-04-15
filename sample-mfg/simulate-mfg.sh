@@ -123,16 +123,12 @@ chk $? 'adding RVSDO OwnerSDO to /etc/hosts'
 # Get the other files we need from our git repo
 echo "Getting run-sdo-mfg-services.sh from $sampleMfgRepo ..."
 #set -x
-httpCode=$(curl -w "%{http_code}" --progress-bar -o run-sdo-mfg-services.sh $sampleMfgRepo/sample-mfg/run-sdo-mfg-services.sh)
-chkHttp $? $httpCode 'getting sample-mfg/run-sdo-mfg-services.sh'
-chmod +x run-sdo-mfg-services.sh
-chk $? 'chmod run-sdo-mfg-services.sh'
-#curl --progress-bar -o Dockerfile-mariadb $sampleMfgRepo/sample-mfg/Dockerfile-mariadb
-#chk $? 'getting sample-mfg/Dockerfile-mariadb'
-#curl --progress-bar -o Dockerfile-manufacturer $sampleMfgRepo/sample-mfg/Dockerfile-manufacturer
-#chk $? 'getting sample-mfg/Dockerfile-manufacturer'
-#curl --progress-bar -o docker-compose.yml $sampleMfgRepo/sample-mfg/docker-compose.yml
-#chk $? 'getting sample-mfg/docker-compose.yml'
+httpCode=$(curl -w "%{http_code}" --progress-bar -o Dockerfile-mariadb $sampleMfgRepo/sample-mfg/Dockerfile-mariadb)
+chkHttp $? $httpCode 'getting sample-mfg/Dockerfile-mariadb'
+httpCode=$(curl -w "%{http_code}" --progress-bar -o Dockerfile-manufacturer $sampleMfgRepo/sample-mfg/Dockerfile-manufacturer)
+chkHttp $? $httpCode 'getting sample-mfg/Dockerfile-manufacturer'
+httpCode=$(curl -w "%{http_code}" --progress-bar -o docker-compose.yml $sampleMfgRepo/sample-mfg/docker-compose.yml)
+chkHttp $? $httpCode 'getting sample-mfg/docker-compose.yml'
 # { set +x; } 2>/dev/null
 
 # The owner public key is either a URL we retrieve, or a file we use as-is
@@ -150,27 +146,29 @@ if [[ $privateKeyFile != 'keys/sdo.p12' && $privateKeyFile != './keys/sdo.p12' ]
 fi
 
 # Start mfg services (originally done by SCT/startup-docker.sh)
-echo "Pulling and starting the SDO SCT services..."
-export DOCKER_NETWORK=${DOCKER_NETWORK:-sct_default}
-export DOCKER_REGISTRY=${DOCKER_REGISTRY:-openhorizon}
-export SDO_MFG_DOCKER_IMAGE=${SDO_MFG_DOCKER_IMAGE:-manufacturer}
-export SDO_MARIADB_DOCKER_IMAGE=${SDO_MARIADB_DOCKER_IMAGE:-sct_mariadb}
-export SDO_MARIADB_DOCKER_CONTAINER=${SDO_MARIADB_DOCKER_CONTAINER:-mariadb}
-#docker pull openhorizon/manufacturer:latest
-#docker tag openhorizon/manufacturer:latest manufacturer:latest
-#docker pull openhorizon/sct_mariadb:latest
-#docker tag openhorizon/sct_mariadb:latest sct_mariadb:latest
+echo "Pulling and tagging the SDO SCT services..."
+docker pull openhorizon/manufacturer:latest
+docker tag openhorizon/manufacturer:latest manufacturer:latest
+docker pull openhorizon/sct_mariadb:latest
+docker tag openhorizon/sct_mariadb:latest sct_mariadb:latest
+
+echo "starting the SDO SCT services (will take about 75 seconds)..."
 # need to explicitly set the project name, because it was built under Services/SCT which by default sets the project name to SCT
-#docker-compose --project-name SCT up -d --no-build
-./run-sdo-mfg-services.sh   # this imitates what docker-compose.yml does
+docker-compose --project-name SCT up -d --no-build
 chk $? 'starting SDO SCT services'
-sleep 5   # give the containers a chance to start
+
+# To enable re-running this script w/o shutting down the docker containers, we have to delete the voucher row from rt_ownership_voucher because it has a
+# foreign key to the 1 row in the rt_customer_public_key, which we will be replacing in the next step.
+echo "Removing all rows from the rt_ownership_voucher table to enable redo..."
+docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "delete from rt_ownership_voucher"
+chk $? 'deleting rows from rt_ownership_voucher'
 
 # Add the customer public key to the mariadb
 echo "Adding owner public key $ownerPubKeyFile to the SCT services..."
 docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "call rt_add_customer_public_key('all','$(cat $ownerPubKeyFile)')"
 chk $? 'adding owner public key to SDO SCT services'
 # it can be listed with: docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "select customer_descriptor from rt_customer_public_key"
+# all of the tables can be listed with: docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "show tables"
 
 # Device initialization (and create the ownership voucher)
 echo "Running device initialization..."
@@ -190,6 +188,12 @@ deviceUuid=${deviceOcFile%.oc}
 echo "Device UUID: $deviceUuid"
 cd ../../..
 
+# At this point, the mariadb has content in these tables:
+#   mt_server_settings: 1 row with RV URL
+#   rt_customer_public_key: 1 row with all forms of customer public key concatenated
+#   rt_ownership_voucher: 1 row with ownership voucher
+#   mt_device_state: 1 row of device info
+
 # Extend the voucher to the owner and save it in the current dir (orginally done by SCT/sct-docker.sh)
 echo "Extending the voucher to the owner..."
 devSerialNum=$(docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo --skip-column-names -s -e "select device_serial_no from rt_ownership_voucher where customer_public_key_id is NULL")
@@ -205,8 +209,8 @@ fi
 # this is what extends the voucher to the owner, because the db already has the owner public key
 docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "call rt_assign_device_to_customer('$devSerialNum','all')"
 chk $? 'assign voucher to owner'
-echo "Device and owner data in the DB:"
-docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "select rt_ownership_voucher.device_serial_no, rt_customer_public_key.customer_descriptor from rt_ownership_voucher inner join rt_customer_public_key on rt_customer_public_key.customer_public_key_id=rt_ownership_voucher.customer_public_key_id"
+printf "Device serial and owner in the DB: "
+docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo --skip-column-names -s -e "select rt_ownership_voucher.device_serial_no, rt_customer_public_key.customer_descriptor from rt_ownership_voucher inner join rt_customer_public_key on rt_customer_public_key.customer_public_key_id=rt_ownership_voucher.customer_public_key_id"
 
 # get the voucher from the db
 if [[ -f voucher.json ]]; then
@@ -229,7 +233,6 @@ if [[ "$deviceUuid" != "$voucherDevUuid" ]]; then
     echo "Error: the device uuid in creds/saved ($deviceUuid) does not equal the device uuid in the voucher ($voucherDevUuid)"
     exit 4
 fi
-echo "The extended ownership voucher is in voucher.json"
 
 # Note: originally to-docker.sh would at this point put the voucher in the ocs db, but our hzn-voucher-import does that later
 
@@ -247,9 +250,13 @@ if [[ "$SDO_SAMPLE_MFG_KEEP_SVCS" == '1' || "$SDO_SAMPLE_MFG_KEEP_SVCS" == 'true
     echo "Leaving SCT services running, because SDO_SAMPLE_MFG_KEEP_SVCS=$SDO_SAMPLE_MFG_KEEP_SVCS"
 else
     echo "Shutting down SDO SCT services..."
-    #docker-compose --project-name SCT down
-    docker rm -f $SDO_MFG_DOCKER_IMAGE && docker rm -f $SDO_MARIADB_DOCKER_CONTAINER && docker network rm $DOCKER_NETWORK
+    docker-compose --project-name SCT down
     chk $? 'shutting down SDO SCT services'
 fi
 
+echo '-------------------------------------------------'
+echo "Device UUID: $deviceUuid"
+echo '-------------------------------------------------'
+
+echo "The extended ownership voucher is in file: voucher.json"
 echo "Device manufacturing initialization complete."

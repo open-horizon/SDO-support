@@ -34,8 +34,8 @@ services:
       # CATALINA_OPTS: -D<add any additional tomcat options here, if needed>
     healthcheck:
       # Modify port here if it was changed above.
-      test: CMD curl -f http://localhost:8039/api/version
-      interval: 20s
+      test: curl -f http://localhost:8039/api/version
+      interval: 10s
       timeout: 10s
       retries: 1
     depends_on:
@@ -71,6 +71,6 @@ services:
     healthcheck:
       # Modify user/password to match your configuration.
       test: mysql --user=sdo --password=sdo -e 'use intel_sdo; select * from v_rt_customer_public_key;'
-      interval: 30s
+      interval: 5s
       timeout: 10s
-      retries: 15
+      retries: 25
