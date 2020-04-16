@@ -11,14 +11,17 @@
 usage() {
     exitCode=${1:-0}
     cat << EndOfMessage
-Usage: ${0##*/} <priv-key-file> [<customer-pub-key-file>]
+Usage: ${0##*/} <mfg-priv-key-file> [<owner-pub-key-file>]
 
 Arguments:
-  <priv-key-file>  Device manufacturer private key?
-  <owner-pub-key-file>  Device customer/owner public key. If not specified, it will use a sample public key.
+  <mfg-priv-key-file>  Device manufacturer private key. For dev/test/demo can use Services/SCT/keys/sdo.p12
+  <owner-pub-key-file>  Device customer/owner public key. If not specified, it will use a sample public key (only valid for dev/test/demo)
 
-Environment Variables that must be set:
-  SDO_RV_DEV_IP (will no longer be required when using the real RV service)
+Required Environment Variables:
+  SDO_RV_URL: usually the dev RV running in the sdo-owner-services. To use the real Intel RV service, set to http://sdo-sbx.trustedservices.intel.com or http://sdo.trustedservices.intel.com and register your public key with Intel.
+
+Optional Environment Variables:
+  SDO_SAMPLE_MFG_KEEP_SVCS: set to 'true' to skip shutting down the mfg docker containers. This is faster if running this script repeatedly.
 
 ${0##*/} must be run in a directory where it has access to create a few files and directories.
 EndOfMessage
@@ -30,25 +33,15 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
 elif [[ -z "$1" ]]; then
     usage 1
 fi
-: ${SDO_RV_DEV_IP:?}
+: ${SDO_RV_URL:?}
 
 privateKeyFile="$1"   # not yet sure what this is
-rvIp="$SDO_RV_DEV_IP"   #todo: the mfg won't have to specify this when using the real/intel RV
+rvUrl="$SDO_RV_URL"
 sampleMfgRepo=${SDO_SAMPLE_MFG_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/master}
 ownerPubKeyFile=${2:-$sampleMfgRepo/sample-mfg/owner-key.pub}
 
 dbUser='sdo_admin'
 dbPw='sdo'
-
-if [[ ! -f $privateKeyFile ]]; then
-    echo "Error: $privateKeyFile does not exist"
-    exit 1
-fi
-
-if [[ ${ownerPubKeyFile:0:4} != 'http' && ! -f $ownerPubKeyFile ]]; then
-    echo "Error: $ownerPubKeyFile does not exist"
-    exit 1
-fi
 
 # Only echo this if VERBOSE is 1 or true
 verbose() {
@@ -102,43 +95,47 @@ parseVoucher() {
     echo "${uuid:0:8}-${uuid:8:4}-${uuid:12:4}-${uuid:16:4}-${uuid:20}"
 }
 
-confirmcmds grep curl docker docker-compose java
+confirmcmds grep curl ping docker docker-compose java
 
-# Set the SCT hostname used to find the SCT services to be the local host (only if its not already set)
-#todo: is this actually needed?
-echo "Adding SCT to /etc/hosts, if not there ..."
-grep -qxF '127.0.0.1 SCT' /etc/hosts || sudo sh -c "echo '127.0.0.1 SCT' >> /etc/hosts"
-chk $? 'adding SCT to /etc/hosts'
-
-#todo: remove this when it is time to use the real RV and OwnerSDO
-echo "Adding '$rvIp RVSDO OwnerSDO' to /etc/hosts, if not there ..."
-if grep -q RVSDO /etc/hosts; then
-    # In case we are using a different RV IP than before
-    [ $(uname) == "Darwin" ] || sudo sed -i -e "s/^.\+ RVSDO.*$/$rvIp RVSDO OwnerSDO/" /etc/hosts
-else
-    sudo sh -c "echo \"$rvIp RVSDO OwnerSDO\" >> /etc/hosts"
+# Initial checking of input
+if [[ ! -f $privateKeyFile ]]; then
+    echo "Error: $privateKeyFile does not exist"
+    exit 1
 fi
-chk $? 'adding RVSDO OwnerSDO to /etc/hosts'
-
-# Get the other files we need from our git repo
-echo "Getting run-sdo-mfg-services.sh from $sampleMfgRepo ..."
-#set -x
-httpCode=$(curl -w "%{http_code}" --progress-bar -o Dockerfile-mariadb $sampleMfgRepo/sample-mfg/Dockerfile-mariadb)
-chkHttp $? $httpCode 'getting sample-mfg/Dockerfile-mariadb'
-httpCode=$(curl -w "%{http_code}" --progress-bar -o Dockerfile-manufacturer $sampleMfgRepo/sample-mfg/Dockerfile-manufacturer)
-chkHttp $? $httpCode 'getting sample-mfg/Dockerfile-manufacturer'
-httpCode=$(curl -w "%{http_code}" --progress-bar -o docker-compose.yml $sampleMfgRepo/sample-mfg/docker-compose.yml)
-chkHttp $? $httpCode 'getting sample-mfg/docker-compose.yml'
-# { set +x; } 2>/dev/null
 
 # The owner public key is either a URL we retrieve, or a file we use as-is
 mkdir -p keys
 if [[ ${ownerPubKeyFile:0:4} == 'http' ]]; then
     echo "Getting $ownerPubKeyFile ..."
-    curl --progress-bar -o keys/owner-key.pub $ownerPubKeyFile
-    chk $? 'getting owner public key'
+    httpCode=$(curl -w "%{http_code}" --progress-bar -o keys/owner-key.pub $ownerPubKeyFile)
+    chkHttp $? $httpCode 'getting owner public key'
     ownerPubKeyFile='keys/owner-key.pub'
+elif [[ ! -f $ownerPubKeyFile ]]; then
+    echo "Error: $ownerPubKeyFile does not exist"
+    exit 1
 fi
+
+# Ensure RV hostname is resolvable and pingable
+rvHost=${rvUrl#http*://}   # strip protocol
+rvHost=${rvHost%:*}   # strip optional port
+if ! ping -c 1 -w 5 $rvHost > /dev/null 2>&1 ; then
+    echo "Error: host $rvHost is not resolvable or pingable"
+    exit 1
+fi
+
+# If node is registered (if you have run this script before), then unregister it
+if which hzn >/dev/null; then
+    if [[ $(hzn node list 2>&1 | jq -r '.configstate.state' 2>&1) == 'configured' ]]; then
+        hzn unregister -f
+    fi
+fi
+
+# Get the other files we need from our git repo
+echo "Getting $sampleMfgRepo/sample-mfg/docker-compose.yml ..."
+#set -x
+httpCode=$(curl -w "%{http_code}" --progress-bar -o docker-compose.yml $sampleMfgRepo/sample-mfg/docker-compose.yml)
+chkHttp $? $httpCode 'getting sample-mfg/docker-compose.yml'
+# { set +x; } 2>/dev/null
 
 # Copy the mfg private key to keys/sdo.p12, unless it is already there
 if [[ $privateKeyFile != 'keys/sdo.p12' && $privateKeyFile != './keys/sdo.p12' ]]; then
@@ -157,13 +154,18 @@ echo "starting the SDO SCT services (will take about 75 seconds)..."
 docker-compose --project-name SCT up -d --no-build
 chk $? 'starting SDO SCT services'
 
+# Services/SCT/mt_config.sql puts RVSDO in the mt_server_settings as the RV hostname. Update that to the correct value.
+echo "Updating the RV hostname in the mt_server_settings table..."
+docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "update mt_server_settings set rendezvous_info = '$rvUrl' where id = 1"
+chk $? 'updating RV hostname in mt_server_settings'
+
 # To enable re-running this script w/o shutting down the docker containers, we have to delete the voucher row from rt_ownership_voucher because it has a
 # foreign key to the 1 row in the rt_customer_public_key, which we will be replacing in the next step.
 echo "Removing all rows from the rt_ownership_voucher table to enable redo..."
 docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "delete from rt_ownership_voucher"
 chk $? 'deleting rows from rt_ownership_voucher'
 
-# Add the customer public key to the mariadb
+# Add the customer/owner public key to the mariadb
 echo "Adding owner public key $ownerPubKeyFile to the SCT services..."
 docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "call rt_add_customer_public_key('all','$(cat $ownerPubKeyFile)')"
 chk $? 'adding owner public key to SDO SCT services'
@@ -190,7 +192,7 @@ cd ../../..
 
 # At this point, the mariadb has content in these tables:
 #   mt_server_settings: 1 row with RV URL
-#   rt_customer_public_key: 1 row with all forms of customer public key concatenated
+#   rt_customer_public_key: 1 row with all forms of customer/owner public key concatenated
 #   rt_ownership_voucher: 1 row with ownership voucher
 #   mt_device_state: 1 row of device info
 

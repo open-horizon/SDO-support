@@ -18,11 +18,6 @@ if [[ -z "$HZN_EXCHANGE_URL" || -z "$HZN_FSS_CSSURL" || -z "$HZN_ORG_ID" || -z "
     echo "Error: all of these environment variables must be set: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID, HZN_MGMT_HUB_CERT, SDO_OWNER_SVC_HOST"
 fi
 
-# Define the hostnames the services use to find each other (this must be done here and not in the Dockerfile)
-#todo: is OwnerSDO needed?
-#todo: change this when it is time to use the real RV
-echo "127.0.0.1 RVSDO OwnerSDO" >> /etc/hosts
-
 # So to0scheduler will point RV (and by extension, the device) to the correct OPS host.
 sed -i -e "s/^com.intel.sdo.to0.ownersign.to1d.bo.dns1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.dns1=$SDO_OWNER_SVC_HOST/" to0scheduler/config/application.properties
 

@@ -51,7 +51,7 @@ confirmcmds() {
     done
 }
 
-# Generate a random node token
+# Generate a random node token - not used because the ocs-api POST voucher returns this, but kept here for reference
 #generateNodeToken() {
 #    cat /dev/urandom | env LC_CTYPE=C tr -dc 'a-zA-Z0-9' | fold -w 45 | head -n 1   # stolen from agent-install.sh
 #    chk $? 'generate node token'
@@ -77,7 +77,7 @@ createNodePolicy() {
 # Main
 confirmcmds hzn jq # base64 hexdump fold
 
-# We are assuming ocs-api was started with the correct env vars, so we don't have to run POST /api/config
+# We are assuming ocs-api was started with the correct env vars to create then non-device-specific files, so we don't have to run POST /api/config
 
 # Import voucher and get node id and token
 echo "Importing voucher: POST $HZN_SDO_SVC_URL/voucher ..."

@@ -27,9 +27,6 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     exit 1
 fi
 
-# These env vars are required
-#: ${HZN_EXCHANGE_URL:?} ${HZN_FSS_CSSURL:?} ${HZN_MGMT_HUB_CERT:?} ${HZN_ORG_ID:?} ${HZN_EXCHANGE_USER_AUTH:?}
-
 VERSION="${1:-latest}"
 
 # Manufacturer container values (from SCT docker-compose.yml)

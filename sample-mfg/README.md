@@ -12,12 +12,10 @@ These sample scripts and docker images enable you to develop/test/demo the SDO o
   cd -
   ```
 
-  Note: We also got the SDO Services.tar file from Intel and extracted these files from the `SCT` sub-directory and committed them into our git repo in the `sample-mfg` sub-directory:
+  Note: We also got the SDO Services.tar file from Intel and extracted this file from the `SCT` sub-directory and committed it into our git repo in the `sample-mfg` sub-directory:
 
   ```bash
   docker-compose.yml
-  Dockerfile-manufacturer
-  Dockerfile-mariadb
   ```
 
 1. Build the SDO manufacturer services:
@@ -43,7 +41,7 @@ cd $HOME/sdo
 scp $SDO_BUILD_USER_AND_HOST:src/github.com/open-horizon/SDO-support/sample-mfg/Services/SCT/keys/sdo.p12 keys
 scp $SDO_BUILD_USER_AND_HOST:src/github.com/open-horizon/SDO-support/sample-mfg/sdo_device_binaries_linux_x64.tar.gz .
 tar -zxvf sdo_device_binaries_linux_x64.tar.gz
-curl -sS --progress-bar -o simulate-mfg.sh $SDO_SAMPLE_MFG_REPO/sample-mfg/simulate-mfg.sh
+curl --progress-bar -o simulate-mfg.sh $SDO_SAMPLE_MFG_REPO/sample-mfg/simulate-mfg.sh
 chmod +x simulate-mfg.sh
 export SDO_RV_DEV_IP=<local-dev-rv>   # if using that
 export VERBOSE=true   # if you want

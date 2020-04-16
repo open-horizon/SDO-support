@@ -43,7 +43,7 @@ The software in this git repository makes it easy to use SDO edge devices with o
   ```bash
   # ensure all of the typical hzn environment variables are set, then:
   mkdir $HOME/sdo; cd $HOME/sdo
-  curl -sS --progress-bar -o Makefile https://raw.githubusercontent.com/open-horizon/SDO-support/master/Makefile
+  curl --progress-bar -o Makefile https://raw.githubusercontent.com/open-horizon/SDO-support/master/Makefile
   VERSION=latest make -W sdo-owner-services -W ocs-api/linux/ocs-api -W 'ocs-api/*.go' -W 'ocs-api/*/*.go' pull-sdo-owner-services run-sdo-owner-services
   docker logs -f sdo-owner-services
   ```

@@ -5,20 +5,18 @@
 usage() {
     exitCode=${1:-0}
     cat << EndOfMessage
-Usage: ${0##*/} <service-url>
+Usage: ${0##*/} [<service-url>]
+
+Arguments:
+  <service-url>  (Optional) Wait until this service starts.
 EndOfMessage
     exit $exitCode
 }
 
-if [[ -z $1 || $1 == '-h' || $1 == '--help' ]]; then usage 0; fi
+if [[ $1 == '-h' || $1 == '--help' ]]; then usage 0; fi
 
-serviceUrl=$1
+serviceUrl="$1"
 #jsonFile=$2  #for testing
-
-interval=2
-
-# These env vars are required
-#: ${HZN_EXCHANGE_URL:?} ${HZN_MGMT_HUB_CERT_PATH:?} ${HZN_ORG_ID:?} ${HZN_EXCHANGE_USER_AUTH:?}
 
 # Check the exit code passed in and exit if non-zero
 chk() {
@@ -43,6 +41,7 @@ confirmcmds() {
     done
 }
 
+# Used when watch the agreements for serviceUrl. Returns 1 of: none, negotiating, started
 getAgreementState() {
     local json=$(hzn agreement list)
     #local json=$(cat $jsonFile)  # for testing
@@ -64,7 +63,14 @@ getAgreementState() {
 }
 
 # Main
-confirmcmds hzn jq
+confirmcmds jq
+
+# If node is registered (if you have run this script before), then unregister it
+if which hzn >/dev/null; then
+    if [[ $(hzn node list 2>&1 | jq -r '.configstate.state' 2>&1) == 'configured' ]]; then
+        hzn unregister -f
+    fi
+fi
 
 # "Boot" device to have SDO get it registered with the management hub
 if [[ ! -d 'sdo_sdk_binaries_linux_x64' ]]; then
@@ -75,8 +81,14 @@ cd sdo_sdk_binaries_linux_x64/demo/device
 ./device
 chk $? 'booting device'
 
-# Keep checking agreements and use a poor man's state machine
+# If they didn't specify a serviceUrl agreement to watch for, then we are done
+if [[ -z "$serviceUrl" ]]; then
+    exit
+fi
+
+# Keep checking agreements and use a poor man's state machine to keep the user informed about the progress of the serviceUrl agreement
 #prevState='started'  # for testing
+interval=2
 while true; do
     case $(getAgreementState) in
         none)
@@ -101,5 +113,6 @@ while true; do
     sleep $interval
 done
 
+# We only get here if the agreement for serviceUrl was finished (service executing)
 echo "To see the service log: hzn service log -f $serviceUrl"
 

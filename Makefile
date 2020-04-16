@@ -5,16 +5,6 @@ export VERSION ?= 0.7.0
 export DOCKER_REGISTRY ?= openhorizon
 export SDO_DOCKER_IMAGE ?= sdo-owner-services
 
-#SDO_OCS_DB_HOST_DIR ?= $(PWD)/ocs-db
-# this is where OCS needs it to be
-#SDO_OCS_DB_CONTAINER_DIR ?= /root/ocs/config/db
-#OCS_API_PORT ?= 9008
-
-# These can't be overridden easily
-#SDO_RV_PORT = 8040
-#SDO_TO0_PORT = 8049
-#SDO_OPS_PORT = 8042
-
 # can override this in the environment, e.g. set it to: --no-cache
 DOCKER_OPTS ?=
 
