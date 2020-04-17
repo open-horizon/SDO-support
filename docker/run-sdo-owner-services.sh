@@ -3,9 +3,17 @@
 # Run the sdo-owner-services container on the Horizon management hub (IoT platform/owner.
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
-    echo "Usage: ${0##*/} [<image-version>]"
-    echo "Required environment variables: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID, HZN_MGMT_HUB_CERT, HZN_EXCHANGE_USER_AUTH"
-    echo "Recommended environment variables: DOCKER_REGISTRY, SDO_DOCKER_IMAGE"
+    cat << EndOfMessage
+Usage: ${0##*/} [<image-version>] [<owner-private-key>]
+
+Arguments:
+  <image-version>  The image tag to use. Defaults to 'latest'
+  <owner-private-key>  The private key the user has created to use with the sdo-owner-services. Must supply the corresponding public key to sample-mfg/simulate-mfg.sh. If the private key isn't specified here, the default is 
+
+Required environment variables: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID, HZN_MGMT_HUB_CERT, HZN_EXCHANGE_USER_AUTH
+
+Recommended environment variables: DOCKER_REGISTRY, SDO_DOCKER_IMAGE
+EndOfMessage
     exit 1
 fi
 

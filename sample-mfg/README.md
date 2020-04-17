@@ -36,15 +36,13 @@ This simulates the process of a manufacturer initializing a device with SDO and 
 
 ```bash
 apt update && apt install -y openjdk-11-jre-headless docker docker-compose
-mkdir -p $HOME/sdo/keys
-cd $HOME/sdo
-scp $SDO_BUILD_USER_AND_HOST:src/github.com/open-horizon/SDO-support/sample-mfg/Services/SCT/keys/sdo.p12 keys
+mkdir -p $HOME/sdo && cd $HOME/sdo
 scp $SDO_BUILD_USER_AND_HOST:src/github.com/open-horizon/SDO-support/sample-mfg/sdo_device_binaries_linux_x64.tar.gz .
 tar -zxvf sdo_device_binaries_linux_x64.tar.gz
 curl --progress-bar -o simulate-mfg.sh $SDO_SAMPLE_MFG_REPO/sample-mfg/simulate-mfg.sh
 chmod +x simulate-mfg.sh
-export SDO_RV_DEV_IP=<local-dev-rv>   # if using that
+export SDO_RV_URL=http://<hzn-sdo-owner-svcs-host>:8040   # if using that
 export VERBOSE=true   # if you want
-# Note: sdo.p12 is a sample manufacturer key. For device owners and IoT platform vendors it is ok to use this for dev/test/demo.
-./simulate-mfg.sh keys/sdo.p12
+# Note: if you don't specify a mfg private key as the 1st arg, it will use a sample manufacturer key. For device owners and IoT platform vendors it is ok to use this for dev/test/demo.
+./simulate-mfg.sh
 ```

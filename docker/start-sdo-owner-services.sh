@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Used inside the sdo-owner-services container to start all of the SDO services the Horizon management hub (IoT platform/owner) needs.
+# Used *inside* the sdo-owner-services container to start all of the SDO services the Horizon management hub (IoT platform/owner) needs.
 
 # These can be passed in via CLI args or env vars
 ocsDbDir="${1:-$SDO_OCS_DB_PATH}"
@@ -22,9 +22,14 @@ fi
 sed -i -e "s/^com.intel.sdo.to0.ownersign.to1d.bo.dns1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.dns1=$SDO_OWNER_SVC_HOST/" to0scheduler/config/application.properties
 
 # Need to move this file into the ocs db *after* the docker run mount is done
-#todo: how is it really supposed to get here?
+# If the user specified their own owner private key, run-sdo-owner-services.sh will mount it at ocs/config/owner-keystore.p12, otherwise use the default
 mkdir -p $ocsDbDir/v1/creds
-mv ocs/config/owner-keystore.p12 $ocsDbDir/v1/creds
+if [[ -f 'ocs/config/owner-keystore.p12' ]]; then
+    mv ocs/config/owner-keystore.p12 $ocsDbDir/v1/creds
+else
+    # Use the default that Dockerfile stored, ocs/config/sample-owner-keystore.p12, but name it owner-keystore.p12
+    mv ocs/config/sample-owner-keystore.p12 $ocsDbDir/v1/creds/owner-keystore.p12
+fi
 
 # Run all of the services
 echo "Starting rendezvous service..."

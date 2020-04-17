@@ -7,7 +7,7 @@ services:
 
   manufacturer:
     build:
-      context: .
+      context: $PWD/../sdo_sdk_binaries_linux_x64/SupplyChainTools/docker_manufacturer
       dockerfile: Dockerfile-manufacturer
     image: manufacturer
     container_name: manufacturer
@@ -37,17 +37,19 @@ services:
       # CATALINA_OPTS: -D<add any additional tomcat options here, if needed>
     healthcheck:
       # Modify port here if it was changed above.
-      test: curl -f http://localhost:8039/api/version
-      interval: 10s
-      timeout: 10s
-      retries: 1
+      #test: curl -f http://localhost:8039/api/version
+      #interval: 10s
+      #timeout: 10s
+      #retries: 1
+      # BP: the healthcheck from Intel is always failing - they are investigating. In the mean time, disable it
+      disable: true
     depends_on:
       mariadb:
         condition: service_healthy
 
   mariadb:
     build:
-      context: .
+      context: $PWD/../sdo_sdk_binaries_linux_x64/SupplyChainTools/docker_manufacturer
       dockerfile: Dockerfile-mariadb
       # Uncomment and edit proxy configuration if your environment requires proxies.
       # args:
@@ -75,5 +77,5 @@ services:
       # Modify user/password to match your configuration.
       test: mysql --user=sdo --password=sdo -e 'use intel_sdo; select * from v_rt_customer_public_key;'
       interval: 5s
-      timeout: 10s
-      retries: 25
+      timeout: 3s
+      retries: 10

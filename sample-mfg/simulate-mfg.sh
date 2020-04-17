@@ -11,11 +11,11 @@
 usage() {
     exitCode=${1:-0}
     cat << EndOfMessage
-Usage: ${0##*/} <mfg-priv-key-file> [<owner-pub-key-file>]
+Usage: ${0##*/} [<mfg-priv-key-file>] [<owner-pub-key-file>]
 
 Arguments:
-  <mfg-priv-key-file>  Device manufacturer private key. For dev/test/demo can use Services/SCT/keys/sdo.p12
-  <owner-pub-key-file>  Device customer/owner public key. If not specified, it will use a sample public key (only valid for dev/test/demo)
+  <mfg-priv-key-file>  Device manufacturer private key. If not specified, it will use SDO-support/sample-mfg/keys/sample-mfg-key.p12 (only valid for dev/test/demo)
+  <owner-pub-key-file>  Device customer/owner public key. If not specified, it will use SDO-support/keys/sample-owner-key.pub (only valid for dev/test/demo)
 
 Required Environment Variables:
   SDO_RV_URL: usually the dev RV running in the sdo-owner-services. To use the real Intel RV service, set to http://sdo-sbx.trustedservices.intel.com or http://sdo.trustedservices.intel.com and register your public key with Intel.
@@ -30,15 +30,13 @@ EndOfMessage
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     usage 0
-elif [[ -z "$1" ]]; then
-    usage 1
 fi
 : ${SDO_RV_URL:?}
 
-privateKeyFile="$1"   # not yet sure what this is
-rvUrl="$SDO_RV_URL"
 sampleMfgRepo=${SDO_SAMPLE_MFG_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/master}
-ownerPubKeyFile=${2:-$sampleMfgRepo/sample-mfg/owner-key.pub}
+privateKeyFile=${1:-$sampleMfgRepo/sample-mfg/keys/sample-mfg-key.p12}
+ownerPubKeyFile=${2:-$sampleMfgRepo/keys/sample-owner-key.pub}
+rvUrl="$SDO_RV_URL"
 
 dbUser='sdo_admin'
 dbPw='sdo'
@@ -98,13 +96,19 @@ parseVoucher() {
 confirmcmds grep curl ping docker docker-compose java
 
 # Initial checking of input
-if [[ ! -f $privateKeyFile ]]; then
+# The mfg private key is either a URL we retrieve, or a file we use as-is
+mkdir -p keys
+if [[ ${privateKeyFile:0:4} == 'http' ]]; then
+    echo "Getting $privateKeyFile ..."
+    httpCode=$(curl -w "%{http_code}" --progress-bar -o keys/sdo.p12 $privateKeyFile)
+    chkHttp $? $httpCode 'getting mfg private key'
+    privateKeyFile='keys/sdo.p12'
+elif [[ ! -f $privateKeyFile ]]; then
     echo "Error: $privateKeyFile does not exist"
     exit 1
 fi
 
 # The owner public key is either a URL we retrieve, or a file we use as-is
-mkdir -p keys
 if [[ ${ownerPubKeyFile:0:4} == 'http' ]]; then
     echo "Getting $ownerPubKeyFile ..."
     httpCode=$(curl -w "%{http_code}" --progress-bar -o keys/owner-key.pub $ownerPubKeyFile)
@@ -137,7 +141,7 @@ httpCode=$(curl -w "%{http_code}" --progress-bar -o docker-compose.yml $sampleMf
 chkHttp $? $httpCode 'getting sample-mfg/docker-compose.yml'
 # { set +x; } 2>/dev/null
 
-# Copy the mfg private key to keys/sdo.p12, unless it is already there
+# Copy the mfg private key to the place docker-compose looks for it (keys/sdo.p12), unless it is already there
 if [[ $privateKeyFile != 'keys/sdo.p12' && $privateKeyFile != './keys/sdo.p12' ]]; then
     cp $privateKeyFile keys/sdo.p12
 fi
@@ -150,11 +154,12 @@ docker pull openhorizon/sct_mariadb:latest
 docker tag openhorizon/sct_mariadb:latest sct_mariadb:latest
 
 echo "starting the SDO SCT services (will take about 75 seconds)..."
-# need to explicitly set the project name, because it was built under Services/SCT which by default sets the project name to SCT
+# need to explicitly set the project name, because it was built with that project name (see Makefile)
 docker-compose --project-name SCT up -d --no-build
 chk $? 'starting SDO SCT services'
 
-# Services/SCT/mt_config.sql puts RVSDO in the mt_server_settings as the RV hostname. Update that to the correct value.
+# sdo_sdk_binaries_linux_x64/SupplyChainTools/docker_manufacturer/mt_config.sql puts http://sdo-sbx.trustedservices.intel.com:80 in the mt_server_settings table
+# as the RV URL. Update that to the value the user wants to use.
 echo "Updating the RV hostname in the mt_server_settings table..."
 docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "update mt_server_settings set rendezvous_info = '$rvUrl' where id = 1"
 chk $? 'updating RV hostname in mt_server_settings'

@@ -1,10 +1,18 @@
 FROM registry.access.redhat.com/ubi8/ubi-minimal:8.0
+
+# Builds a composite docker service that contains the following services:
+#   Intel SDO development/test rendezvous service
+#   Intel SDO to0scheduler service
+#   Intel SDO OPS (Owner Protocol Service)
+#   Intel SDO OCS (Owner Companion Service)
+#   Open-horizon ocs-api (OCS REST API)
+
 # Building a UBI image:
 #   https://access.redhat.com/articles/4238681
 #   https://playbook.cloudpaklab.ibm.com/ubi-faq/#Q_Can_I_addenable_additional_package_repositories_for_UBI_images
 
 # docker build requirements:
-#   The build must be done in the top dir of the git repo
+#   The build must be done in the top dir of the SDO-support git repo
 #   Untar the SDO distribution tar file to sdo_sdk_binaries_linux_x64 in the top dir (can not be a sym link)
 
 # docker run requirements:
@@ -60,8 +68,8 @@ COPY sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/to0scheduler $WORKDIR/to0sched
 COPY sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/ocs $WORKDIR/ocs/
 # Note: the $WORKDIR/ocs/config/db subdir of the copy above will get hidden by the ocs db mount when the container starts.
 #       The only file we care about is creds/owner-keystore.p12, so put that in ocs/config for now and start-sdo-owner-services.sh will move it in place.
-#todo: owner-keystore.p12 is for owner attestation, so i think we need to have the Horizon customer input this
-COPY sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/ocs/config/db/v1/creds/owner-keystore.p12 $WORKDIR/ocs/config/
+# This is only the default owner private key used. They can specify their own key in run-sdo-owner-services.sh
+COPY keys/sample-owner-keystore.p12 $WORKDIR/ocs/config/sample-owner-keystore.p12
 # This mod for dev/test/demo makes the to0scheduler respond to changes more quickly, and let us use the same voucher over again
 RUN sed -i -e 's/^to0.scheduler.interval=.*$/to0.scheduler.interval=5/' -e 's/^to2.credential-reuse.enabled=.*$/to2.credential-reuse.enabled=true/' $WORKDIR/ocs/config/application.properties
 # This is where the external OCS DB files get mounted to
