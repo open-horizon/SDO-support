@@ -14,7 +14,8 @@ DOCKER_OPTS ?=
 default: $(SDO_MFG_DOCKER_IMAGE)
 
 # Build the sample SDO mfg services docker images. Need to use our own version of docker-compose.yml, and modify settings.xml and tomcat-users.xml, but used the rest of the files from the sdo sdk.
-# Note: even though Dockerfile-mariadb copies mt_config.sql into the container and that sets the RV URL in the DB, simulate-mfg.sh updates that table with the correct value specified by the user
+# Note: even though Dockerfile-mariadb copies mt_config.sql into the container and that sets the RV URL in the DB, simulate-mfg.sh updates that table with the correct value specified by the user.
+# Note: we use the original docker-compose.yml for building (because it is with the other files needed at build time) and only use our customized copy of docker-compose.yml at run time.
 sdo-mfg-services:
 	- docker rm -f $(SDO_MFG_DOCKER_IMAGE) $(SDO_MARIADB_DOCKER_IMAGE) 2> /dev/null || :
 	cd ../sdo_sdk_binaries_linux_x64/SupplyChainTools/docker_manufacturer \

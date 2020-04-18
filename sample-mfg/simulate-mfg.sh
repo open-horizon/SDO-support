@@ -15,7 +15,7 @@ Usage: ${0##*/} [<mfg-priv-key-file>] [<owner-pub-key-file>]
 
 Arguments:
   <mfg-priv-key-file>  Device manufacturer private key. If not specified, it will use SDO-support/sample-mfg/keys/sample-mfg-key.p12 (only valid for dev/test/demo)
-  <owner-pub-key-file>  Device customer/owner public key. If not specified, it will use SDO-support/keys/sample-owner-key.pub (only valid for dev/test/demo)
+  <owner-pub-key-file>  Device customer/owner public key. This is needed to extend the voucher to the owner. If not specified, it will use SDO-support/keys/sample-owner-key.pub (only valid for dev/test/demo)
 
 Required Environment Variables:
   SDO_RV_URL: usually the dev RV running in the sdo-owner-services. To use the real Intel RV service, set to http://sdo-sbx.trustedservices.intel.com or http://sdo.trustedservices.intel.com and register your public key with Intel.
