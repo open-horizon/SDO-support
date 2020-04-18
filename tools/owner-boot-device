@@ -1,0 +1,118 @@
+#!/bin/bash
+
+# Convenience script to simulate the owner booting a VM device
+
+usage() {
+    exitCode=${1:-0}
+    cat << EndOfMessage
+Usage: ${0##*/} [<service-url>]
+
+Arguments:
+  <service-url>  (Optional) Wait until this service starts.
+EndOfMessage
+    exit $exitCode
+}
+
+if [[ $1 == '-h' || $1 == '--help' ]]; then usage 0; fi
+
+serviceUrl="$1"
+#jsonFile=$2  #for testing
+
+# Check the exit code passed in and exit if non-zero
+chk() {
+    local exitCode=$1
+    local task=$2
+    local dontExit=$3   # set to 'continue' to not exit for this error
+    if [[ $exitCode == 0 ]]; then return; fi
+    echo "Error: exit code $exitCode from: $task"
+    if [[ $dontExit != 'continue' ]]; then
+        exit $exitCode
+    fi
+}
+
+# Verify that the prereq commands we need are installed
+confirmcmds() {
+    for c in $*; do
+        #echo "checking $c..."
+        if ! which $c >/dev/null; then
+            echo "Error: $c is not installed but required, exiting"
+            exit 2
+        fi
+    done
+}
+
+# Used when watch the agreements for serviceUrl. Returns 1 of: none, negotiating, started
+getAgreementState() {
+    local json=$(hzn agreement list)
+    #local json=$(cat $jsonFile)  # for testing
+    local agSvcUrl=$(jq -r '.[].workload_to_run.url' <<< $json)
+    #echo "agSvcUrl=${agSvcUrl}."
+    if [[ $agSvcUrl != $serviceUrl ]]; then
+        echo 'none'
+        return
+    fi
+
+    # We found at least a partial agreement for this service, so keep going
+    local exStartTime=$(jq -r '.[].agreement_execution_start_time' <<< $json)
+    #echo "exStartTime=$exStartTime."
+    if [[ -z $exStartTime ]]; then
+        echo 'negotiating'
+    else
+        echo 'started'
+    fi
+}
+
+# Main
+confirmcmds jq
+
+# If node is registered (if you have run this script before), then unregister it
+if which hzn >/dev/null; then
+    if [[ $(hzn node list 2>&1 | jq -r '.configstate.state' 2>&1) == 'configured' ]]; then
+        hzn unregister -f
+    fi
+fi
+
+# "Boot" device to have SDO get it registered with the management hub
+if [[ ! -d 'sdo_sdk_binaries_linux_x64' ]]; then
+    echo "Error: directory sdo_sdk_binaries_linux_x64 does not exist. Need to copy sdo_device_binaries_linux_x64.tar.gz here and unpack it."
+    exit 2
+fi
+cd sdo_sdk_binaries_linux_x64/demo/device
+./device
+chk $? 'booting device'
+
+# If they didn't specify a serviceUrl agreement to watch for, then we are done
+if [[ -z "$serviceUrl" ]]; then
+    exit
+fi
+
+# Keep checking agreements and use a poor man's state machine to keep the user informed about the progress of the serviceUrl agreement
+#prevState='started'  # for testing
+interval=2
+while true; do
+    case $(getAgreementState) in
+        none)
+            if [[ -z $prevState ]]; then printf "Waiting for agreement for $serviceUrl "   # very beginning
+            elif [[ $prevState == 'none' ]]; then printf '.'
+            else printf "\nAgreement cancelled. Waiting again for agreement for $serviceUrl "
+            fi
+            prevState='none'
+            ;;
+        negotiating)
+            if [[ -z $prevState || $prevState == 'none' ]]; then printf "\nAgreement negotiation for $serviceUrl started. Waiting for completion "
+            elif [[ $prevState == 'negotiating' ]]; then printf '.'
+            else printf "\nAgreement cancelled. Agreement negotiation for $serviceUrl started. Waiting for completion "
+            fi
+            prevState='negotiating'
+            ;;
+        started)
+            printf "\nAgreement negotiation completed and $serviceUrl is started.\n"
+            break
+            ;;
+        esac
+    sleep $interval
+done
+
+# We only get here if the agreement for serviceUrl was finished (service executing)
+echo "To see the service log: hzn service log -f $serviceUrl"
+

@@ -1,3 +1,6 @@
+# Note: this file was extracted from sdo_sdk_binaries_*_linux_x64.tar.gz, file sdo_sdk_binaries_*_linux_x64/SupplyChainTools/docker_manufacturer/docker-compose.yml
+#       and then customized with user, pw, etc. But the changes we need to make are only needed at container run time, not build time. So we use the original
+#       docker-compose.yml for building (because it is with the other files needed at build time) and only use this docker-compose.yml at run time.
 version: "2.2"
 
 services:
@@ -34,10 +37,12 @@ services:
       # CATALINA_OPTS: -D<add any additional tomcat options here, if needed>
     healthcheck:
       # Modify port here if it was changed above.
-      test: CMD curl -f http://MPSSDO:8039/api/version
-      interval: 20s
-      timeout: 10s
-      retries: 1
+      #test: curl -f http://localhost:8039/api/version
+      #interval: 10s
+      #timeout: 10s
+      #retries: 1
+      # BP: the healthcheck from Intel is always failing - they are investigating. In the mean time, disable it
+      disable: true
     depends_on:
       mariadb:
         condition: service_healthy
@@ -71,6 +76,6 @@ services:
     healthcheck:
       # Modify user/password to match your configuration.
       test: mysql --user=sdo --password=sdo -e 'use intel_sdo; select * from v_rt_customer_public_key;'
-      interval: 30s
-      timeout: 10s
-      retries: 15
+      interval: 5s
+      timeout: 3s
+      retries: 10

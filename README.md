@@ -2,11 +2,12 @@
 
 Edge devices built with [Intel SDO](https://software.intel.com/en-us/secure-device-onboard) (Secure Device Onboard) can be easily added to an open-horizon instance with true single-touch (plug the device in and power on).
 
-The software in this git repository makes it easy to use SDO edge devices with open-horizon. The horizon SDO support consists of 3 main components:
+The software in this git repository makes it easy to use SDO edge devices with open-horizon. The horizon SDO support consists of main components:
 
 1. A consolidated docker image of all of the SDO "owner" services (those that run in the horizon management hub). It also includes a small REST API that enables remote configuration of the SDO OCS owner service.
 1. A command to import an owner voucher into a horizon instance.
 1. A sample script to run the SDO manufacturing components (SCT - Supply Chain Tools) on a test VM device to initialize it with SDO, create the voucher, and extend it to the customer/owner.
+1. A script simulate booting the test VM device.
 
 ## Build the SDO Owner Services for the Open-horizon Management Hub
 
@@ -32,19 +33,13 @@ The software in this git repository makes it easy to use SDO edge devices with o
 
 ## Start the SDO Owner Services on the Open-horizon Management Hub
 
-1. On the management hub, pull the docker image:
-
-  ```bash
-  docker pull openhorizon/sdo-owner-services:latest
-  ```
-
-1. Run the docker image:
+1. On the management hub, run the docker image:
 
   ```bash
   # ensure all of the typical hzn environment variables are set, then:
   mkdir $HOME/sdo; cd $HOME/sdo
-  curl -sS --progress-bar -o Makefile https://raw.githubusercontent.com/open-horizon/SDO-support/master/Makefile
-  VERSION=latest make -W sdo-owner-services -W ocs-api/linux/ocs-api -W 'ocs-api/*.go' -W 'ocs-api/*/*.go' pull-sdo-owner-services run-sdo-owner-services
+  curl --progress-bar -o run-sdo-owner-services.sh https://raw.githubusercontent.com/open-horizon/SDO-support/master/docker/run-sdo-owner-services.sh
+  ./run-sdo-owner-services.sh   # can specify args: latest <owner-private-key-file>
   docker logs -f sdo-owner-services
   ```
 
@@ -54,10 +49,11 @@ To develop/test/demo the SDO owner services, you need to initialize a VM to simu
 
 ## Import the Ownership Voucher
 
-From an "admin" host, copy the `voucher.json` file from the device to here, then:
+From an "admin" host (one you run `hzn exchange` commands from), copy the `voucher.json` file from the device to here, then:
 
 ```bash
-tools/hzn-import-voucher voucher.json helloworld
+curl --progress-bar -o hzn-voucher-import https://raw.githubusercontent.com/open-horizon/SDO-support/master/tools/hzn-voucher-import
+./hzn-voucher-import voucher.json helloworld
 ```
 
 ## Configure the Device and Connect it to the Horizon Management Hub
@@ -65,9 +61,8 @@ tools/hzn-import-voucher voucher.json helloworld
 Back on your VM device:
 
 ```bash
-cd $HOME/sdo/sdo_sdk_binaries_linux_x64/demo/device
-./device
-hzn agreement list
-docker ps
+cd $HOME/sdo
+curl --progress-bar -o owner-boot-device https://raw.githubusercontent.com/open-horizon/SDO-support/master/tools/owner-boot-device
+./owner-boot-device ibm.helloworld
 hzn service log -f ibm.helloworld
 ```
