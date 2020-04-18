@@ -1,5 +1,5 @@
 # Note: this file was extracted from sdo_sdk_binaries_*_linux_x64.tar.gz,
-#       file do_sdk_binaries_*_linux_x64/SupplyChainTools/docker_manufacturer/docker-compose.yml
+#       file sdo_sdk_binaries_*_linux_x64/SupplyChainTools/docker_manufacturer/docker-compose.yml
 #       and then customized with user, pw, etc.
 version: "2.2"
 
@@ -7,7 +7,7 @@ services:
 
   manufacturer:
     build:
-      context: $PWD/../sdo_sdk_binaries_linux_x64/SupplyChainTools/docker_manufacturer
+      context: .
       dockerfile: Dockerfile-manufacturer
     image: manufacturer
     container_name: manufacturer
@@ -49,7 +49,7 @@ services:
 
   mariadb:
     build:
-      context: $PWD/../sdo_sdk_binaries_linux_x64/SupplyChainTools/docker_manufacturer
+      context: .
       dockerfile: Dockerfile-mariadb
       # Uncomment and edit proxy configuration if your environment requires proxies.
       # args:
