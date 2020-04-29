@@ -48,5 +48,8 @@ if [[ -n "$ownerPrivateKey" ]]; then
 fi
 # else inside the container start-sdo-owner-services.sh will use the default key file that Dockerfile set up
 
+# If VERSION==latest we have to make sure we pull the most recent
+docker pull $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
+
 # Run the service container
 docker run --name $SDO_DOCKER_IMAGE -dt -v $SDO_OCS_DB_HOST_DIR:$SDO_OCS_DB_CONTAINER_DIR $privateKeyMount -p $OCS_API_PORT:$OCS_API_PORT -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_TO0_PORT:$SDO_TO0_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "OCS_API_PORT=$OCS_API_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_ORG_ID=$HZN_ORG_ID" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" -e "HZN_EXCHANGE_USER_AUTH=$HZN_EXCHANGE_USER_AUTH" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION

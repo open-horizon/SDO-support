@@ -1,6 +1,6 @@
 FROM registry.access.redhat.com/ubi8/ubi-minimal:8.0
 
-# Builds a composite docker service that contains the following services:
+# Builds a composite docker service that the "owner" needs to run. Specifically it contains the following services:
 #   Intel SDO development/test rendezvous service
 #   Intel SDO to0scheduler service
 #   Intel SDO OPS (Owner Protocol Service)
@@ -52,6 +52,9 @@ RUN mkdir /usr/lib/jvm && \
 
 # this doesn't work here, because docker writes /etc/hosts when it starts the container
 #RUN echo "127.0.0.1 RVSDO OwnerSDO" >> /etc/hosts
+
+# Get the license file
+COPY LICENSE.txt /licenses/
 
 # Get rendezvous files. The rv subdir will be created automatically by COPY
 COPY sdo_sdk_binaries_linux_x64/demo/rendezvous/application.properties $WORKDIR/rv/
