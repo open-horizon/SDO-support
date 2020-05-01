@@ -10,7 +10,7 @@ Arguments:
   <image-version>  The image tag to use. Defaults to 'latest'
   <owner-private-key-file>  The p12 private key you have created to use with the sdo-owner-services. Must supply the corresponding public key to sample-mfg/simulate-mfg.sh. If the private key isn't specified here, the default is keys/sample-owner-keystore.p12
 
-Required environment variables: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID, HZN_MGMT_HUB_CERT, HZN_EXCHANGE_USER_AUTH
+Required environment variables: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID, HZN_MGMT_HUB_CERT (can be set to 'N/A' if the mgmt hub does no require a cert)
 
 Recommended environment variables: DOCKER_REGISTRY, SDO_DOCKER_IMAGE
 EndOfMessage
@@ -18,7 +18,11 @@ EndOfMessage
 fi
 
 # These env vars are required
-: ${HZN_EXCHANGE_URL:?} ${HZN_FSS_CSSURL:?} ${HZN_MGMT_HUB_CERT:?} ${HZN_ORG_ID:?} ${HZN_EXCHANGE_USER_AUTH:?}
+: ${HZN_EXCHANGE_URL:?} ${HZN_FSS_CSSURL:?} ${HZN_MGMT_HUB_CERT:?} ${HZN_ORG_ID:?}
+# If their mgmt hub doesn't need a self-signed cert, we chose to make them set HZN_MGMT_HUB_CERT to 'N/A' to ensure they didn't just forget to specify this env var
+if [[ $HZN_MGMT_HUB_CERT == 'N/A' || $HZN_MGMT_HUB_CERT == 'n/a' ]]; then
+    unset HZN_MGMT_HUB_CERT
+fi
 
 VERSION="${1:-latest}"
 ownerPrivateKey="$2"
@@ -52,4 +56,4 @@ fi
 docker pull $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
 
 # Run the service container
-docker run --name $SDO_DOCKER_IMAGE -dt -v $SDO_OCS_DB_HOST_DIR:$SDO_OCS_DB_CONTAINER_DIR $privateKeyMount -p $OCS_API_PORT:$OCS_API_PORT -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_TO0_PORT:$SDO_TO0_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "OCS_API_PORT=$OCS_API_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_ORG_ID=$HZN_ORG_ID" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" -e "HZN_EXCHANGE_USER_AUTH=$HZN_EXCHANGE_USER_AUTH" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
+docker run --name $SDO_DOCKER_IMAGE -dt -v $SDO_OCS_DB_HOST_DIR:$SDO_OCS_DB_CONTAINER_DIR $privateKeyMount -p $OCS_API_PORT:$OCS_API_PORT -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_TO0_PORT:$SDO_TO0_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "OCS_API_PORT=$OCS_API_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_ORG_ID=$HZN_ORG_ID" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
