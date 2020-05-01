@@ -7,15 +7,18 @@ ocsDbDir="${1:-$SDO_OCS_DB_PATH}"
 ocsApiPort="${2:-$OCS_API_PORT}"
 
 if [[ "$1" == "-h" || "$1" == "--help" || -z "$SDO_OCS_DB_PATH" || -z "$OCS_API_PORT" ]]; then
-    echo "Usage: ${0##*/} [<ocs-db-path>] [<ocs-api-port>]"
-    echo "Environment variables that can be used instead of CLI args: SDO_OCS_DB_PATH, OCS_API_PORT"
-    echo "Required environment variables: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID, HZN_MGMT_HUB_CERT"
+    cat << EndOfMessage
+Usage: ${0##*/} [<ocs-db-path>] [<ocs-api-port>]
+Environment variables that can be used instead of CLI args: SDO_OCS_DB_PATH, OCS_API_PORT
+Required environment variables: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID
+Recommended environment variables: HZN_MGMT_HUB_CERT (unless the mgmt hub uses http or a CA-trusted certificate)
+EndOfMessage
     exit 1
 fi
 
 # These env vars are needed by ocs-api to set up the common config files for ocs
-if [[ -z "$HZN_EXCHANGE_URL" || -z "$HZN_FSS_CSSURL" || -z "$HZN_ORG_ID" || -z "$HZN_MGMT_HUB_CERT" || -z "$SDO_OWNER_SVC_HOST" ]]; then
-    echo "Error: all of these environment variables must be set: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID, HZN_MGMT_HUB_CERT, SDO_OWNER_SVC_HOST"
+if [[ -z "$HZN_EXCHANGE_URL" || -z "$HZN_FSS_CSSURL" || -z "$HZN_ORG_ID" || -z "$SDO_OWNER_SVC_HOST" ]]; then
+    echo "Error: all of these environment variables must be set: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID, SDO_OWNER_SVC_HOST"
 fi
 
 # So to0scheduler will point RV (and by extension, the device) to the correct OPS host.

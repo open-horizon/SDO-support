@@ -11,7 +11,8 @@ var PsiJson = `[
   }
 ]`
 
-var SviJson1 = `[
+// this one is optional, that's why it is separate
+var SviJson1 = `
   {
     "module": "sdo_sys",
     "msg": "filedesc",
@@ -25,13 +26,15 @@ var SviJson1 = `[
     "valueLen": -1,
     "valueId": "agent-install.crt",
     "enc": "base64"
-  },
+  },`
+
+var SviJson2 = `
   {
     "module": "sdo_sys",
-   "msg": "filedesc",
-   "valueLen": -1,
-   "valueId": "agent-install-cfg_name",
-   "enc": "base64"
+    "msg": "filedesc",
+    "valueLen": -1,
+    "valueId": "agent-install-cfg_name",
+    "enc": "base64"
   },
   {
     "module": "sdo_sys",
@@ -74,7 +77,9 @@ var SviJson1 = `[
     "valueLen": -1,
     "valueId": "`
 
-var SviJson2 = `_exec",
+// need to put the uuid between these 2
+
+var SviJson3 = `_exec",
     "enc": "base64"
   }
-]`
+`

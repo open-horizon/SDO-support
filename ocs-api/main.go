@@ -112,7 +112,7 @@ func postConfigHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	}
-	if config.CfgVars.HZN_EXCHANGE_URL == "" || config.CfgVars.HZN_FSS_CSSURL == "" || config.CfgVars.HZN_ORG_ID == "" || len(config.Crt) <= 0 {
+	if config.CfgVars.HZN_EXCHANGE_URL == "" || config.CfgVars.HZN_FSS_CSSURL == "" || config.CfgVars.HZN_ORG_ID == "" { // config.Crt is allowed to be empty
 		http.Error(w, "Error: one of the required fields is missing in the request body", http.StatusBadRequest)
 		return
 	}
@@ -150,7 +150,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 
 	// If all of the common config files didn't get created at startup, tell them they have to run POST /api/config
 	valuesDir := OcsDbDir + "/v1/values"
-	if !outils.PathExists(valuesDir+"/agent-install.cfg") || !outils.PathExists(valuesDir+"/agent-install.crt") || !outils.PathExists(valuesDir+"/agent-install.sh") || !outils.PathExists(valuesDir+"/apt-repo-public.key") {
+	if !outils.PathExists(valuesDir+"/agent-install.cfg") || !outils.PathExists(valuesDir+"/agent-install.sh") || !outils.PathExists(valuesDir+"/apt-repo-public.key") { // agent-install.crt is optional
 		http.Error(w, "Error: not all of the common config files exist in the OCS DB. Run POST /api/config", http.StatusBadRequest)
 		return
 	}
@@ -203,7 +203,11 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	// Create the device download file (svi.json) and psi.json
 	fileName = deviceDir + "/svi.json"
 	outils.Verbose("POST /api/voucher: creating %s ...", fileName)
-	sviJson := data.SviJson1 + uuid.String() + data.SviJson2
+	sviJson1 := ""
+	if outils.PathExists(valuesDir + "/agent-install.crt") {
+		sviJson1 = data.SviJson1
+	}
+	sviJson := "[" + sviJson1 + data.SviJson2 + uuid.String() + data.SviJson3 + "]"
 	if err := ioutil.WriteFile(fileName, []byte(sviJson), 0644); err != nil {
 		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
 		return
@@ -223,15 +227,9 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create exec file
-	//todo: remove user creds when anax issue 1614 is implemented
-	userCreds := os.Getenv("HZN_EXCHANGE_USER_AUTH")
-	if userCreds == "" {
-		http.Error(w, "HZN_EXCHANGE_USER_AUTH not set", http.StatusInternalServerError)
-		return
-	}
 	aptRepo := "http://pkg.bluehorizon.network/linux/ubuntu"
 	aptChannel := "testing"
-	execCmd := outils.MakeExecCmd("bash agent-install.sh -i " + aptRepo + " -t " + aptChannel + " -j apt-repo-public.key -u " + userCreds + " -d " + uuid.String() + ":" + nodeToken + "")
+	execCmd := outils.MakeExecCmd("bash agent-install.sh -i " + aptRepo + " -t " + aptChannel + " -j apt-repo-public.key -d " + uuid.String() + ":" + nodeToken + "")
 	fileName = OcsDbDir + "/v1/values/" + uuid.String() + "_exec"
 	outils.Verbose("POST /api/voucher: creating %s ...", fileName)
 	if err := ioutil.WriteFile(fileName, []byte(execCmd), 0644); err != nil {
@@ -254,33 +252,6 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	valuesDir := OcsDbDir + "/v1/values"
 	var fileName, data string
 
-	// Create agent-install.cfg and its name file
-	var exchUrl, fssUrl, orgId string
-	if config != nil {
-		exchUrl = config.CfgVars.HZN_EXCHANGE_URL
-		fssUrl = config.CfgVars.HZN_FSS_CSSURL
-		orgId = config.CfgVars.HZN_ORG_ID
-	} else if outils.IsEnvVarSet("HZN_EXCHANGE_URL") && outils.IsEnvVarSet("HZN_FSS_CSSURL") && outils.IsEnvVarSet("HZN_ORG_ID") {
-		exchUrl = os.Getenv("HZN_EXCHANGE_URL")
-		fssUrl = os.Getenv("HZN_FSS_CSSURL")
-		orgId = os.Getenv("HZN_ORG_ID")
-	}
-	if exchUrl != "" && fssUrl != "" && orgId != "" {
-		fileName = valuesDir + "/agent-install.cfg"
-		outils.Verbose("Creating %s ...", fileName)
-		data = "HZN_EXCHANGE_URL=" + exchUrl + "\nHZN_FSS_CSSURL=" + fssUrl + "\nHZN_ORG_ID=" + orgId + "\nHZN_MGMT_HUB_CERT_PATH=agent-install.crt\n"
-		if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
-			return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
-		}
-	}
-
-	fileName = valuesDir + "/agent-install-cfg_name"
-	outils.Verbose("Creating %s ...", fileName)
-	data = "agent-install.cfg"
-	if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
-		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
-	}
-
 	// Create agent-install.crt and its name file
 	var crt []byte
 	if config != nil {
@@ -298,11 +269,42 @@ func createConfigFiles(config *Config) *outils.HttpError {
 		if err := ioutil.WriteFile(fileName, []byte(crt), 0644); err != nil {
 			return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 		}
+
+		fileName = valuesDir + "/agent-install-crt_name"
+		outils.Verbose("Creating %s ...", fileName)
+		data = "agent-install.crt"
+		if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
+			return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
+		}
 	}
 
-	fileName = valuesDir + "/agent-install-crt_name"
+	// Create agent-install.cfg and its name file
+	var exchUrl, fssUrl, orgId string
+	if config != nil {
+		exchUrl = config.CfgVars.HZN_EXCHANGE_URL
+		fssUrl = config.CfgVars.HZN_FSS_CSSURL
+		orgId = config.CfgVars.HZN_ORG_ID
+	} else if outils.IsEnvVarSet("HZN_EXCHANGE_URL") && outils.IsEnvVarSet("HZN_FSS_CSSURL") && outils.IsEnvVarSet("HZN_ORG_ID") {
+		exchUrl = os.Getenv("HZN_EXCHANGE_URL")
+		fssUrl = os.Getenv("HZN_FSS_CSSURL")
+		orgId = os.Getenv("HZN_ORG_ID")
+	}
+	if exchUrl != "" && fssUrl != "" && orgId != "" {
+		fileName = valuesDir + "/agent-install.cfg"
+		outils.Verbose("Creating %s ...", fileName)
+		data = "HZN_EXCHANGE_URL=" + exchUrl + "\nHZN_FSS_CSSURL=" + fssUrl + "\nHZN_ORG_ID=" + orgId + "\n"
+		if len(crt) > 0 {
+			// only add this if we actually created the agent-install.crt file above
+			data += "HZN_MGMT_HUB_CERT_PATH=agent-install.crt\n"
+		}
+		if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
+			return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
+		}
+	}
+
+	fileName = valuesDir + "/agent-install-cfg_name"
 	outils.Verbose("Creating %s ...", fileName)
-	data = "agent-install.crt"
+	data = "agent-install.cfg"
 	if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 	}

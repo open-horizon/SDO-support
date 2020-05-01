@@ -1,9 +1,10 @@
 SHELL ?= /bin/bash -e
 # Set this before building the ocs-api binary and sdo-owner-services (for now they use the samme version number)
-export VERSION ?= 0.8.0
+export VERSION ?= 0.9.1
 
 export DOCKER_REGISTRY ?= openhorizon
 export SDO_DOCKER_IMAGE ?= sdo-owner-services
+SDO_IMAGE_LABELS ?= --label "vendor=IBM" --label "name=$(SDO_DOCKER_IMAGE)" --label "version=$(VERSION)" --label "release=$(shell git rev-parse --short HEAD)" --label "summary=Open Horizon SDO support image" --label "description=The SDO owner services run in the context of the open-horizon management hub"
 
 # can override this in the environment, e.g. set it to: --no-cache
 DOCKER_OPTS ?=
@@ -28,7 +29,7 @@ run-ocs-api: ocs-api/ocs-api
 # Build the SDO services docker image - see the build environment requirements listed in docker/Dockerfile
 $(SDO_DOCKER_IMAGE): ocs-api/linux/ocs-api
 	- docker rm -f $(SDO_DOCKER_IMAGE) 2> /dev/null || :
-	docker build -t $(DOCKER_REGISTRY)/$@:$(VERSION) $(DOCKER_OPTS) -f docker/Dockerfile .
+	docker build -t $(DOCKER_REGISTRY)/$@:$(VERSION) $(SDO_IMAGE_LABELS) $(DOCKER_OPTS) -f docker/Dockerfile .
 
 # Run the SDO services docker container
 # If you want to run the image w/o rebuilding: make -W sdo-owner-services -W ocs-api/linux/ocs-api run-sdo-owner-services
