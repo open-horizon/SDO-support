@@ -21,6 +21,8 @@ REST API server to configure the SDO OCS (Owner Companion Service) DB files for 
 // These global vars are necessary because the handler functions are not given any context
 var OcsDbDir string
 var GetVoucherRegex = regexp.MustCompile(`^/api/voucher/([^/]+)$`)
+var CurrentOrgId string
+var CurrentExchangeUrl string
 
 type CfgVarsStruct struct {
 	HZN_EXCHANGE_URL string `json:"HZN_EXCHANGE_URL"`
@@ -53,8 +55,7 @@ func main() {
 
 	// Create all of the common config files, if we have the necessary env vars to do so
 	if httpErr := createConfigFiles(nil); httpErr != nil {
-		outils.Error("creating common config files, HTTP code: %d, error: %s", httpErr.Code, httpErr.Error())
-		// this isn't fatal because they can try again with POST /api/config
+		outils.Fatal(3, "creating common config files, HTTP code: %d, error: %s", httpErr.Code, httpErr.Error())
 	}
 
 	//http.HandleFunc("/", rootHandler)
@@ -83,7 +84,7 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 
 // Route Handlers --------------------------------------------------------------------------------------------------
 
-//============= GET /api/voucher/{device-id} =============
+//============= GET /api/version =============
 // Returns the ocs-api version (in plain text, not json)
 func getVersionHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("GET /api/version ...")
@@ -100,6 +101,15 @@ func getVersionHandler(w http.ResponseWriter, r *http.Request) {
 // Sets ocs-api configuration that is not specific to any specific device
 func postConfigHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("POST /api/config ...")
+
+	// Authentication for this REST API is based on the *current* config, not the new config
+	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeUrl, CurrentOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	} else if !authenticated {
+		http.Error(w, "invalid exchange credentials provided", http.StatusUnauthorized)
+		return
+	}
 
 	if httpErr := outils.IsValidPostJson(r); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
@@ -131,6 +141,14 @@ func postConfigHandler(w http.ResponseWriter, r *http.Request) {
 func getVoucherHandler(deviceUuid string, w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("GET /api/voucher/%s ...", deviceUuid)
 
+	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeUrl, CurrentOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	} else if !authenticated {
+		http.Error(w, "invalid exchange credentials provided", http.StatusUnauthorized)
+		return
+	}
+
 	// Read voucher.json from the db
 	voucherFileName := OcsDbDir + "/v1/devices/" + deviceUuid + "/voucher.json"
 	voucherBytes, err := ioutil.ReadFile(voucherFileName)
@@ -148,8 +166,16 @@ func getVoucherHandler(deviceUuid string, w http.ResponseWriter, r *http.Request
 func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("POST /api/voucher ...")
 
-	// If all of the common config files didn't get created at startup, tell them they have to run POST /api/config
 	valuesDir := OcsDbDir + "/v1/values"
+	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeUrl, CurrentOrgId, valuesDir+"/agent-install.crt"); httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	} else if !authenticated {
+		http.Error(w, "invalid exchange credentials provided", http.StatusUnauthorized)
+		return
+	}
+
+	// If all of the common config files didn't get created at startup, tell them they have to run POST /api/config
 	if !outils.PathExists(valuesDir+"/agent-install.cfg") || !outils.PathExists(valuesDir+"/agent-install.sh") || !outils.PathExists(valuesDir+"/apt-repo-public.key") { // agent-install.crt is optional
 		http.Error(w, "Error: not all of the common config files exist in the OCS DB. Run POST /api/config", http.StatusBadRequest)
 		return
@@ -279,20 +305,20 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	}
 
 	// Create agent-install.cfg and its name file
-	var exchUrl, fssUrl, orgId string
+	var fssUrl string
 	if config != nil {
-		exchUrl = config.CfgVars.HZN_EXCHANGE_URL
+		CurrentExchangeUrl = config.CfgVars.HZN_EXCHANGE_URL
 		fssUrl = config.CfgVars.HZN_FSS_CSSURL
-		orgId = config.CfgVars.HZN_ORG_ID
+		CurrentOrgId = config.CfgVars.HZN_ORG_ID
 	} else if outils.IsEnvVarSet("HZN_EXCHANGE_URL") && outils.IsEnvVarSet("HZN_FSS_CSSURL") && outils.IsEnvVarSet("HZN_ORG_ID") {
-		exchUrl = os.Getenv("HZN_EXCHANGE_URL")
+		CurrentExchangeUrl = os.Getenv("HZN_EXCHANGE_URL")
 		fssUrl = os.Getenv("HZN_FSS_CSSURL")
-		orgId = os.Getenv("HZN_ORG_ID")
+		CurrentOrgId = os.Getenv("HZN_ORG_ID")
 	}
-	if exchUrl != "" && fssUrl != "" && orgId != "" {
+	if CurrentExchangeUrl != "" && fssUrl != "" && CurrentOrgId != "" {
 		fileName = valuesDir + "/agent-install.cfg"
 		outils.Verbose("Creating %s ...", fileName)
-		data = "HZN_EXCHANGE_URL=" + exchUrl + "\nHZN_FSS_CSSURL=" + fssUrl + "\nHZN_ORG_ID=" + orgId + "\n"
+		data = "HZN_EXCHANGE_URL=" + CurrentExchangeUrl + "\nHZN_FSS_CSSURL=" + fssUrl + "\nHZN_ORG_ID=" + CurrentOrgId + "\n"
 		if len(crt) > 0 {
 			// only add this if we actually created the agent-install.crt file above
 			data += "HZN_MGMT_HUB_CERT_PATH=agent-install.crt\n"
