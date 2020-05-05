@@ -1,6 +1,6 @@
 SHELL ?= /bin/bash -e
 # Set this before building the ocs-api binary and sdo-owner-services (for now they use the samme version number)
-export VERSION ?= 0.9.2
+export VERSION ?= 0.9.3
 
 export DOCKER_REGISTRY ?= openhorizon
 export SDO_DOCKER_IMAGE ?= sdo-owner-services
