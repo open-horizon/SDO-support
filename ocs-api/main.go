@@ -20,7 +20,7 @@ REST API server to configure the SDO OCS (Owner Companion Service) DB files for 
 
 // These global vars are necessary because the handler functions are not given any context
 var OcsDbDir string
-var GetVoucherRegex = regexp.MustCompile(`^/api/voucher/([^/]+)$`)
+var GetVoucherRegex = regexp.MustCompile(`^/api/vouchers/([^/]+)$`)
 var CurrentOrgId string
 var CurrentExchangeUrl string
 
@@ -75,7 +75,9 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 		postConfigHandler(w, r)
 	} else if matches := GetVoucherRegex.FindStringSubmatch(r.URL.Path); r.Method == "GET" && len(matches) >= 2 {
 		getVoucherHandler(matches[1], w, r)
-	} else if r.Method == "POST" && r.URL.Path == "/api/voucher" {
+	} else if r.Method == "GET" && r.URL.Path == "/api/vouchers" {
+		getVouchersHandler(w, r)
+	} else if r.Method == "POST" && (r.URL.Path == "/api/vouchers" || r.URL.Path == "/api/voucher") { //todo: backward compat until we update hzn voucher import
 		postVoucherHandler(w, r)
 	} else {
 		http.Error(w, "Route "+r.URL.Path+" not found", http.StatusNotFound)
@@ -136,10 +138,10 @@ func postConfigHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-//============= GET /api/voucher/{device-id} =============
+//============= GET /api/vouchers/{device-id} =============
 // Reads/returns an already imported voucher
 func getVoucherHandler(deviceUuid string, w http.ResponseWriter, r *http.Request) {
-	outils.Verbose("GET /api/voucher/%s ...", deviceUuid)
+	outils.Verbose("GET /api/vouchers/%s ...", deviceUuid)
 
 	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeUrl, CurrentOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
@@ -161,10 +163,42 @@ func getVoucherHandler(deviceUuid string, w http.ResponseWriter, r *http.Request
 	outils.WriteResponse(http.StatusOK, w, voucherBytes)
 }
 
-//============= POST /api/voucher =============
+//============= GET /api/vouchers =============
+// Reads/returns an already imported voucher
+func getVouchersHandler(w http.ResponseWriter, r *http.Request) {
+	outils.Verbose("GET /api/vouchers ...")
+
+	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeUrl, CurrentOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	} else if !authenticated {
+		http.Error(w, "invalid exchange credentials provided", http.StatusUnauthorized)
+		return
+	}
+
+	// Read the v1/devices/ directory in the db
+	vouchersDirName := OcsDbDir + "/v1/devices"
+	files, err := ioutil.ReadDir(vouchersDirName)
+	if err != nil {
+		http.Error(w, "Error reading "+vouchersDirName+" directory: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var vouchers []string
+	for _, file := range files {
+		if file.IsDir() {
+			vouchers = append(vouchers, file.Name())
+		}
+	}
+
+	// Send voucher to client
+	outils.WriteJsonResponse(http.StatusOK, w, vouchers)
+}
+
+//============= POST /api/vouchers =============
 // Imports a voucher (can be called again for an existing voucher and will update/overwrite)
 func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
-	outils.Verbose("POST /api/voucher ...")
+	outils.Verbose("POST /api/vouchers ...")
 
 	valuesDir := OcsDbDir + "/v1/values"
 	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeUrl, CurrentOrgId, valuesDir+"/agent-install.crt"); httpErr != nil {
@@ -211,7 +245,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error converting GUID to UUID: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	outils.Verbose("POST /api/voucher: device UUID: %s", uuid.String())
+	outils.Verbose("POST /api/vouchers: device UUID: %s", uuid.String())
 
 	// Put the voucher in the OCS DB
 	deviceDir := OcsDbDir + "/v1/devices/" + uuid.String()
@@ -220,7 +254,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fileName := deviceDir + "/voucher.json"
-	outils.Verbose("POST /api/voucher: creating %s ...", fileName)
+	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
 	if err := ioutil.WriteFile(fileName, bodyBytes, 0644); err != nil {
 		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
 		return
@@ -228,7 +262,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Create the device download file (svi.json) and psi.json
 	fileName = deviceDir + "/svi.json"
-	outils.Verbose("POST /api/voucher: creating %s ...", fileName)
+	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
 	sviJson1 := ""
 	if outils.PathExists(valuesDir + "/agent-install.crt") {
 		sviJson1 = data.SviJson1
@@ -239,7 +273,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fileName = deviceDir + "/psi.json"
-	outils.Verbose("POST /api/voucher: creating %s ...", fileName)
+	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
 	if err := ioutil.WriteFile(fileName, []byte(data.PsiJson), 0644); err != nil {
 		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
 		return
@@ -257,7 +291,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	aptChannel := "testing"
 	execCmd := outils.MakeExecCmd("bash agent-install.sh -i " + aptRepo + " -t " + aptChannel + " -j apt-repo-public.key -d " + uuid.String() + ":" + nodeToken + "")
 	fileName = OcsDbDir + "/v1/values/" + uuid.String() + "_exec"
-	outils.Verbose("POST /api/voucher: creating %s ...", fileName)
+	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
 	if err := ioutil.WriteFile(fileName, []byte(execCmd), 0644); err != nil {
 		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
 		return

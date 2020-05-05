@@ -72,7 +72,7 @@ func ReadJsonBody(r *http.Request, bodyStruct interface{}) *HttpError {
 	return nil
 }
 
-// Response to the client with this code and body
+// Respond to the client with this code and body struct
 func WriteJsonResponse(httpCode int, w http.ResponseWriter, bodyStruct interface{}) {
 	dataJson, err := json.Marshal(bodyStruct)
 	if err != nil {
@@ -82,7 +82,7 @@ func WriteJsonResponse(httpCode int, w http.ResponseWriter, bodyStruct interface
 	WriteResponse(httpCode, w, dataJson)
 }
 
-// Respond to the client with this code and body
+// Respond to the client with this code and body bytes
 func WriteResponse(httpCode int, w http.ResponseWriter, bodyBytes []byte) {
 	w.WriteHeader(httpCode) // seems like this has to be before writing the body
 	w.Header().Set("Content-Type", "application/json")
