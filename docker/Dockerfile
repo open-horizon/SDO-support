@@ -48,22 +48,24 @@ RUN curl -sS -o epel-release-latest-8.noarch.rpm https://dl.fedoraproject.org/pu
     groupadd -g 1000 sdouser && adduser -u 1000 -g sdouser sdouser
 
 # Install openjdk-11. The tar.gz file is 193 MB, unpacked is 297 MB
-RUN curl -sS -o openjdk-11_linux-x64_bin.tar.gz https://download.java.net/java/ga/jdk11/openjdk-11_linux-x64_bin.tar.gz && \
-    sha256sum openjdk-11_linux-x64_bin.tar.gz && \
-    tar xzvf openjdk-11_linux-x64_bin.tar.gz && \
-    rm openjdk-11_linux-x64_bin.tar.gz && \
-    mkdir /usr/lib/jvm && \
-    mv jdk-11 /usr/lib/jvm/openjdk-11-manual-installation/ && \
-    update-alternatives --install /usr/bin/java java /usr/lib/jvm/openjdk-11-manual-installation/bin/java 1 && \
-    update-alternatives --install /usr/bin/javac javac /usr/lib/jvm/openjdk-11-manual-installation/bin/javac 1
+#RUN curl -sS -o openjdk-11_linux-x64_bin.tar.gz https://download.java.net/java/ga/jdk11/openjdk-11_linux-x64_bin.tar.gz && \
+#    sha256sum openjdk-11_linux-x64_bin.tar.gz && \
+#    tar xzvf openjdk-11_linux-x64_bin.tar.gz && \
+#    rm openjdk-11_linux-x64_bin.tar.gz && \
+#    mkdir /usr/lib/jvm && \
+#    mv jdk-11 /usr/lib/jvm/openjdk-11-manual-installation/ && \
+#    update-alternatives --install /usr/bin/java java /usr/lib/jvm/openjdk-11-manual-installation/bin/java 1 && \
+#    update-alternatives --install /usr/bin/javac javac /usr/lib/jvm/openjdk-11-manual-installation/bin/javac 1
+
 # Install openjdk-11-jre. The tar.gz file is 43 MB, unpacked is 124 MB
-#RUN curl -sS -o openjre-11_linux-x64_bin.tar.gz https://cdn.azul.com/zulu/bin/zulu11.39.15-ca-jre11.0.7-linux_x64.tar.gz && \
-#    sha256sum openjre-11_linux-x64_bin.tar.gz && \
-#    tar xzvf openjre-11_linux-x64_bin.tar.gz && \
-#    rm openjre-11_linux-x64_bin.tar.gz && \
-#    mkdir -p /usr/lib/jvm && \
-#    mv zulu11.*-linux_x64 /usr/lib/jvm/openjre-11-manual-installation && \
-#    update-alternatives --install /usr/bin/java java /usr/lib/jvm/openjre-11-manual-installation/bin/java 1
+# Note: with SDO 1.7, it is necessary to use java 11.0.4 or earlier, because there is an issue with the SDO bouncycastle version and 11.0.5 and above
+RUN curl -sS -o openjre-11_linux-x64_bin.tar.gz https://cdn.azul.com/zulu/bin/zulu11.33.15-ca-jre11.0.4-linux_x64.tar.gz && \
+    sha256sum openjre-11_linux-x64_bin.tar.gz && \
+    tar xzvf openjre-11_linux-x64_bin.tar.gz && \
+    rm openjre-11_linux-x64_bin.tar.gz && \
+    mkdir -p /usr/lib/jvm && \
+    mv zulu11.*-linux_x64 /usr/lib/jvm/openjre-11-manual-installation && \
+    update-alternatives --install /usr/bin/java java /usr/lib/jvm/openjre-11-manual-installation/bin/java 1
 
 # this doesn't work here, because docker writes /etc/hosts when it starts the container
 #RUN echo "127.0.0.1 RVSDO OwnerSDO" >> /etc/hosts

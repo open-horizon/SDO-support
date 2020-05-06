@@ -1,11 +1,12 @@
 SHELL ?= /bin/bash -e
 # Set this before building the ocs-api binary and sdo-owner-services (for now they use the samme version number)
-export VERSION ?= 0.9.5
+export VERSION ?= 0.9.7
 
 export DOCKER_REGISTRY ?= openhorizon
 export SDO_DOCKER_IMAGE ?= sdo-owner-services
-#SDO_IMAGE_LABELS ?= --label "vendor=IBM" --label "name=$(SDO_DOCKER_IMAGE)" --label "version=$(VERSION)" --label "release=$(shell git rev-parse --short HEAD)" --label "summary=Open Horizon SDO support image" --label "description=The SDO owner services run in the context of the open-horizon management hub"
-SDO_IMAGE_LABELS ?= --label 'vendor=IBM name=$(SDO_DOCKER_IMAGE) version=$(VERSION) release=$(shell git rev-parse --short HEAD) summary="Open Horizon SDO support image" description="The SDO owner services run in the context of the open-horizon management hub"'
+SDO_IMAGE_LABELS ?= --label "vendor=IBM" --label "name=$(SDO_DOCKER_IMAGE)" --label "version=$(VERSION)" --label "release=$(shell git rev-parse --short HEAD)" --label "summary=Open Horizon SDO support image" --label "description=The SDO owner services run in the context of the open-horizon management hub"
+# This doesn't work. According to https://docs.docker.com/engine/reference/builder/#label it is not necessary to put all of the labels in a single image layer
+#SDO_IMAGE_LABELS ?= --label 'vendor=IBM name=$(SDO_DOCKER_IMAGE) version=$(VERSION) release=$(shell git rev-parse --short HEAD) summary="Open Horizon SDO support image" description="The SDO owner services run in the context of the open-horizon management hub"'
 
 # can override this in the environment, e.g. set it to: --no-cache
 DOCKER_OPTS ?=
