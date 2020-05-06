@@ -34,10 +34,11 @@ fi
 
 DOCKER_REGISTRY=${DOCKER_REGISTRY:-openhorizon}
 SDO_DOCKER_IMAGE=${SDO_DOCKER_IMAGE:-sdo-owner-services}
+containerHome=/home/sdouser
 
-SDO_OCS_DB_HOST_DIR=${SDO_OCS_DB_HOST_DIR:-$PWD/ocs-db}
+#SDO_OCS_DB_HOST_DIR=${SDO_OCS_DB_HOST_DIR:-$PWD/ocs-db}  # we are now using a named volume instead of a host dir
 # this is where OCS needs it to be
-SDO_OCS_DB_CONTAINER_DIR=${SDO_OCS_DB_CONTAINER_DIR:-/root/ocs/config/db}
+SDO_OCS_DB_CONTAINER_DIR=${SDO_OCS_DB_CONTAINER_DIR:-$containerHome/ocs/config/db}
 OCS_API_PORT=${OCS_API_PORT:-9008}
 # These can't be overridden easily
 SDO_RV_PORT=${SDO_RV_PORT:-8040}
@@ -48,7 +49,7 @@ SDO_OPS_PORT=${SDO_OPS_PORT:-8042}
 SDO_OWNER_SVC_HOST=${SDO_OWNER_SVC_HOST:-$(hostname)}
 
 if [[ -n "$ownerPrivateKey" ]]; then
-    privateKeyMount="-v $PWD/$ownerPrivateKey:/root/ocs/config/owner-keystore.p12:ro"
+    privateKeyMount="-v $PWD/$ownerPrivateKey:$containerHome/ocs/config/owner-keystore.p12:ro"
 fi
 # else inside the container start-sdo-owner-services.sh will use the default key file that Dockerfile set up
 
@@ -56,4 +57,4 @@ fi
 docker pull $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
 
 # Run the service container
-docker run --name $SDO_DOCKER_IMAGE -dt -v $SDO_OCS_DB_HOST_DIR:$SDO_OCS_DB_CONTAINER_DIR $privateKeyMount -p $OCS_API_PORT:$OCS_API_PORT -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_TO0_PORT:$SDO_TO0_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "OCS_API_PORT=$OCS_API_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_ORG_ID=$HZN_ORG_ID" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
+docker run --name $SDO_DOCKER_IMAGE -dt --mount "type=volume,src=sdo-ocs-db,dst=$SDO_OCS_DB_CONTAINER_DIR" $privateKeyMount -p $OCS_API_PORT:$OCS_API_PORT -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_TO0_PORT:$SDO_TO0_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "OCS_API_PORT=$OCS_API_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_ORG_ID=$HZN_ORG_ID" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
