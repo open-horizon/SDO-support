@@ -15,16 +15,17 @@ FROM registry.access.redhat.com/ubi8/ubi-minimal:8.0
 #   The build must be done in the top dir of the SDO-support git repo
 #   Untar the SDO distribution tar file to sdo_sdk_binaries_linux_x64 in the top dir (can not be a sym link)
 
-# docker run requirements:
+# docker run requirements (see run-sdo-owner-services.sh):
 #   Mount a named docker volume at WORKDIR/ocs/config/db
 #   Pass in the env vars required by start-sdo-owner-services.sh
 #   Expose the ports in the EXPOSE ports below
 
 # Image size reduction todos (0.9.3 is 1.03GB):
-# x reduce layers by combining steps (originally 36 steps, now 20)
-# x use microdnf --nodocs as much as possible (0.9.4 712 MB)
-# - install jre instead of jdk
-# - run all sdo services in same tomcat instance
+# Following https://docs.docker.com/develop/dev-best-practices/ and others, e.g. https://www.ardanlabs.com/blog/2020/02/docker-images-part1-reducing-image-size.html
+# (done) reduce layers by combining steps (originally 36 steps, now 20)
+# (done) use microdnf --nodocs as much as possible (0.9.5 712 MB)
+# (waiting on intel response) install jre instead of jdk
+# (waiting on intel info) run all sdo services in same tomcat instance
 
 # WORKDIR: the working dir for the 2nd half of this file, and what all of the services will run from, SDO_OCS_DB_PATH: the ocs service read this. OCS_API_PORT and VERBOSE can be overridden on docker run.
 ENV WORKDIR=/home/sdouser
