@@ -75,6 +75,7 @@ WORKDIR $WORKDIR
 
 # Get the license file
 COPY LICENSE.txt /licenses/
+COPY sdo_sdk_binaries_linux_x64/NOTICES/SDOIotPlatformSDK/* /licenses/SDOIotPlatformSDK/
 
 # Get rendezvous files. The rv subdir will be created automatically by COPY
 # Note: need to use uid and gid to be able to build on non-linux hosts
