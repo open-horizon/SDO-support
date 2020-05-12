@@ -23,4 +23,4 @@ if command -v tee >/dev/null 2>&1; then
 else
     exec ./agent-install.sh "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" 2>&1 > $logFile
 fi
-exit 2   # it only gets here if exec failed
+#exit 2   # it only gets here if exec failed
