@@ -12,6 +12,9 @@ if [[ $# -ne $numRequiredArgs ]]; then
     exit 2
 fi
 
+# When SDO transfers agent-install.sh to the device, it does not make it executable
+chmod 755 agent-install.sh
+
 # If tee is installed, use it so the output can go to both stdout/stderr and the log file
 if command -v tee >/dev/null 2>&1; then
     # Note: the individual arg variables need to be listed like this and quoted to handle spaces in an arg
