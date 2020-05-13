@@ -289,7 +289,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	// Create exec file
 	aptRepo := "http://pkg.bluehorizon.network/linux/ubuntu"
 	aptChannel := "testing"
-	execCmd := outils.MakeExecCmd("bash agent-install.sh -i " + aptRepo + " -t " + aptChannel + " -j apt-repo-public.key -d " + uuid.String() + ":" + nodeToken + "")
+	execCmd := outils.MakeExecCmd("bash agent-install-wrapper.sh -i " + aptRepo + " -t " + aptChannel + " -j apt-repo-public.key -d " + uuid.String() + ":" + nodeToken)
 	fileName = OcsDbDir + "/v1/values/" + uuid.String() + "_exec"
 	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
 	if err := ioutil.WriteFile(fileName, []byte(execCmd), 0644); err != nil {
@@ -380,6 +380,25 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	fileName = valuesDir + "/agent-install-sh_name"
 	outils.Verbose("Creating %s ...", fileName)
 	data = "agent-install.sh"
+	if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
+		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
+	}
+
+	// Download and create agent-install-wrapper.sh and its name file
+	urlBase := os.Getenv("SDO_SUPPORT_REPO")
+	if urlBase == "" {
+		urlBase = "https://raw.githubusercontent.com/open-horizon/SDO-support/master" // the default
+	}
+	url = urlBase + "/ocs-api/agent-install-wrapper.sh"
+	fileName = valuesDir + "/agent-install-wrapper.sh"
+	outils.Verbose("Downloading %s to %s ...", url, fileName)
+	if err := outils.DownloadFile(url, fileName, 0755); err != nil {
+		return outils.NewHttpError(http.StatusInternalServerError, "could not download "+url+" to "+fileName+": "+err.Error())
+	}
+
+	fileName = valuesDir + "/agent-install-wrapper-sh_name"
+	outils.Verbose("Creating %s ...", fileName)
+	data = "agent-install-wrapper.sh"
 	if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 	}

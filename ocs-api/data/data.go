@@ -73,6 +73,20 @@ var SviJson2 = `
   },
   {
     "module": "sdo_sys",
+    "msg": "filedesc",
+    "valueLen": -1,
+    "valueId": "agent-install-wrapper-sh_name",
+    "enc": "base64"
+  },
+  {
+    "module": "sdo_sys",
+    "msg": "write",
+    "valueLen": -1,
+    "valueId": "agent-install-wrapper.sh",
+    "enc": "base64"
+  },
+  {
+    "module": "sdo_sys",
     "msg": "exec",
     "valueLen": -1,
     "valueId": "`
