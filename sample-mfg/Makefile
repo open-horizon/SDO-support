@@ -6,7 +6,7 @@ SDO_MFG_DOCKER_IMAGE ?= manufacturer
 SDO_MARIADB_DOCKER_IMAGE ?= sct_mariadb
 SDO_MFG_USER ?= sdo
 SDO_MFG_PW ?= sdo
-SDO_SDK_DIR ?= ../sdo_sdk_binaries_linux_x64/SupplyChainTools/docker_manufacturer
+SDO_SCT_MFG_DIR ?= ../sdo_sdk_binaries_linux_x64/SupplyChainTools/docker_manufacturer
 
 # can override this in the environment, e.g. set it to: --no-cache
 DOCKER_OPTS ?=
@@ -18,7 +18,7 @@ default: $(SDO_MFG_DOCKER_IMAGE)
 # Note: we use the original docker-compose.yml for building (because it is with the other files needed at build time) and only use our customized copy of docker-compose.yml at run time.
 sdo-mfg-services:
 	- docker rm -f $(SDO_MFG_DOCKER_IMAGE) $(SDO_MARIADB_DOCKER_IMAGE) 2> /dev/null || :
-	cd ../sdo_sdk_binaries_linux_x64/SupplyChainTools/docker_manufacturer \
+	cd $(SDO_SCT_MFG_DIR) \
 	  && sed -e 's/<your admin username>/$(SDO_MFG_USER)/' -e 's/<your admin password>/$(SDO_MFG_PW)/' settings.xml > settings.new && mv settings.new settings.xml \
 	  && sed -e 's/<your admin username>/$(SDO_MFG_USER)/' -e 's/<your admin password>/$(SDO_MFG_PW)/' tomcat-users.xml > tomcat-users.new && mv tomcat-users.new tomcat-users.xml \
 	  && docker-compose build
