@@ -135,9 +135,19 @@ if which hzn >/dev/null; then
 fi
 
 # Get the other files we need from our git repo
+deviceBinaryDir='sdo_device_binaries_1.7_linux_x64'
+if [[ ! -d $deviceBinaryDir ]]; then
+    deviceBinaryTar="$deviceBinaryDir.tar.gz"
+    deviceBinaryUrl="https://github.com/open-horizon/SDO-support/releases/download/sdo_device_binaries_1.7/$deviceBinaryTar"
+    echo "Getting and unpacking $deviceBinaryDir ..."
+    httpCode=$(curl -w "%{http_code}" --progress-bar -L -O $deviceBinaryUrl)
+    chkHttp $? $httpCode "getting $deviceBinaryTar"
+    tar -zxvf $deviceBinaryTar
+fi
+
 echo "Getting $sampleMfgRepo/sample-mfg/docker-compose.yml ..."
 #set -x
-httpCode=$(curl -w "%{http_code}" --progress-bar -o docker-compose.yml $sampleMfgRepo/sample-mfg/docker-compose.yml)
+httpCode=$(curl -w "%{http_code}" --progress-bar -O $sampleMfgRepo/sample-mfg/docker-compose.yml)
 chkHttp $? $httpCode 'getting sample-mfg/docker-compose.yml'
 # { set +x; } 2>/dev/null
 
@@ -177,9 +187,10 @@ chk $? 'adding owner public key to SDO SCT services'
 # it can be listed with: docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "select customer_descriptor from rt_customer_public_key"
 # all of the tables can be listed with: docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "show tables"
 
+#todo: not for sdo_di
 # Device initialization (and create the ownership voucher)
 echo "Running device initialization..."
-cd sdo_sdk_binaries_linux_x64/demo/device
+cd $deviceBinaryDir/demo/device
 # comment out this property to put the device in DI mode
 sed -i -e 's/^com.intel.sdo.device.credentials=/#com.intel.sdo.device.credentials=/' application.properties
 chk $? 'modifying device application.properties for DI'
@@ -194,6 +205,7 @@ cd ../..
 deviceUuid=${deviceOcFile%.oc}
 echo "Device UUID: $deviceUuid"
 cd ../../..
+#todo: else: ./sdo_di –df <.dalp file> –su <manufacturing toolkit IP> -sp <manufacturing toolkit port> -mi <m string>
 
 # At this point, the mariadb has content in these tables:
 #   mt_server_settings: 1 row with RV URL
@@ -243,8 +255,9 @@ fi
 
 # Note: originally to-docker.sh would at this point put the voucher in the ocs db, but our hzn-voucher-import does that later
 
+#todo: not with sdo_di!!! When booting, use sdo_to
 # Switch the device into owner mode
-cd sdo_sdk_binaries_linux_x64/demo/device
+cd $deviceBinaryDir/demo/device
 echo "Switching the device into owner mode with credential file $deviceOcFile ..."
 mv creds/saved/$deviceOcFile creds
 chk $? 'moving device .oc file'

@@ -30,6 +30,20 @@ chk() {
     fi
 }
 
+# Check both the exit code and http code passed in and exit if non-zero
+chkHttp() {
+    local exitCode=$1
+    local httpCode=$2
+    local task=$3
+    local dontExit=$4   # set to 'continue' to not exit for this error
+    chk $exitCode $task
+    if [[ $httpCode == 200 ]]; then return; fi
+    echo "Error: http code $httpCode from: $task"
+    if [[ $dontExit != 'continue' ]]; then
+        exit $httpCode
+    fi
+}
+
 # Verify that the prereq commands we need are installed
 confirmcmds() {
     for c in $*; do
@@ -73,11 +87,16 @@ if which hzn >/dev/null; then
 fi
 
 # "Boot" device to have SDO get it registered with the management hub
-if [[ ! -d 'sdo_sdk_binaries_linux_x64' ]]; then
-    echo "Error: directory sdo_sdk_binaries_linux_x64 does not exist. Need to copy sdo_device_binaries_linux_x64.tar.gz here and unpack it."
-    exit 2
+deviceBinaryDir='sdo_device_binaries_1.7_linux_x64'
+if [[ ! -d $deviceBinaryDir ]]; then
+    deviceBinaryTar="$deviceBinaryDir.tar.gz"
+    deviceBinaryUrl="https://github.com/open-horizon/SDO-support/releases/download/sdo_device_binaries_1.7/$deviceBinaryTar"
+    echo "Getting and unpacking $deviceBinaryDir ..."
+    httpCode=$(curl -w "%{http_code}" --progress-bar -L -O $deviceBinaryUrl)
+    chkHttp $? $httpCode "getting $deviceBinaryTar"
+    tar -zxvf $deviceBinaryTar
 fi
-cd sdo_sdk_binaries_linux_x64/demo/device
+cd $deviceBinaryDir/demo/device
 ./device
 chk $? 'booting device'
 
