@@ -37,6 +37,7 @@ sampleMfgRepo=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon
 privateKeyFile=${1:-$sampleMfgRepo/sample-mfg/keys/sample-mfg-key.p12}
 ownerPubKeyFile=${2:-$sampleMfgRepo/keys/sample-owner-key.pub}
 rvUrl="$SDO_RV_URL"
+useNativeClient=${SDO_DEVICE_USE_NATIVE_CLIENT:-false}   # future: add cmd line flag for this too
 
 dbUser='sdo_admin'
 dbPw='sdo'
@@ -187,25 +188,39 @@ chk $? 'adding owner public key to SDO SCT services'
 # it can be listed with: docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "select customer_descriptor from rt_customer_public_key"
 # all of the tables can be listed with: docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "show tables"
 
-#todo: not for sdo_di
 # Device initialization (and create the ownership voucher)
 echo "Running device initialization..."
-cd $deviceBinaryDir/demo/device
-# comment out this property to put the device in DI mode
-sed -i -e 's/^com.intel.sdo.device.credentials=/#com.intel.sdo.device.credentials=/' application.properties
-chk $? 'modifying device application.properties for DI'
-# this property is already set how we want it: com.intel.sdo.di.uri=http://localhost:8039
+if [[ $useNativeClient == 'true' ]]; then
+    echo "Using native client"
+    if [[ $(whoami) != 'root' ]]; then
+        echo "Error: must be root to the SDO native client"
+        exit 2
+    fi
+    cd $deviceBinaryDir/SDOClientIntel/hostapp_linux
+    dalp='../sdo_7.dalp'   # or try ../sdo_8.dalp
+    miFlag='-mi bp-sdo-intel-nuc'
+    #miFlag="-mi <generate-uuid>"
+    ./sdo_di –df $dalp –su 127.0.0.1 -sp 8039 $miFlag
+    chk $? 'running native DI'
+    cd ../../..
+else
+    echo "Using java client"
+    cd $deviceBinaryDir/demo/device
+    # comment out this property to put the device in DI mode
+    sed -i -e 's/^com.intel.sdo.device.credentials=/#com.intel.sdo.device.credentials=/' application.properties
+    chk $? 'modifying device application.properties for DI'
+    # this property is already set how we want it: com.intel.sdo.di.uri=http://localhost:8039
 
-# this creates an ownership voucher and puts it in the mariadb rt_ownership_voucher table
-./device
-chk $? 'running DI'
-cd creds/saved
-deviceOcFile=$(ls -t *.oc | head -1)   # get the most recently created credentials
-cd ../..
-deviceUuid=${deviceOcFile%.oc}
-echo "Device UUID: $deviceUuid"
-cd ../../..
-#todo: else: ./sdo_di –df <.dalp file> –su <manufacturing toolkit IP> -sp <manufacturing toolkit port> -mi <m string>
+    # this creates an ownership voucher and puts it in the mariadb rt_ownership_voucher table
+    ./device
+    chk $? 'running java DI'
+    cd creds/saved
+    deviceOcFile=$(ls -t *.oc | head -1)   # get the most recently created credentials
+    cd ../..
+    deviceOcFileUuid=${deviceOcFile%.oc}
+    echo "Device UUID: $deviceOcFileUuid"
+    cd ../../..
+fi
 
 # At this point, the mariadb has content in these tables:
 #   mt_server_settings: 1 row with RV URL
@@ -223,7 +238,7 @@ if [[ $numSerialNums -ne 1 ]]; then
     echo "Error: found $numSerialNums device serial numbers in the SCT DB, instead of 1"
     exit 4
 fi
-# devSerialNum is different from the deviceUuid
+# devSerialNum is different from the UUID
 
 # this is what extends the voucher to the owner, because the db already has the owner public key
 docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "call rt_assign_device_to_customer('$devSerialNum','all')"
@@ -248,22 +263,23 @@ fi
 
 # Verify that the device UUID in the voucher is the same as what we found above
 voucherDevUuid=$(parseVoucher voucher.json)
-if [[ "$deviceUuid" != "$voucherDevUuid" ]]; then
-    echo "Error: the device uuid in creds/saved ($deviceUuid) does not equal the device uuid in the voucher ($voucherDevUuid)"
+if [[ -n "$deviceOcFileUuid" && "$deviceOcFileUuid" != "$voucherDevUuid" ]]; then
+    echo "Error: the device uuid in creds/saved ($deviceOcFileUuid) does not equal the device uuid in the voucher ($voucherDevUuid)"
     exit 4
 fi
 
 # Note: originally to-docker.sh would at this point put the voucher in the ocs db, but our hzn-voucher-import does that later
 
-#todo: not with sdo_di!!! When booting, use sdo_to
-# Switch the device into owner mode
-cd $deviceBinaryDir/demo/device
-echo "Switching the device into owner mode with credential file $deviceOcFile ..."
-mv creds/saved/$deviceOcFile creds
-chk $? 'moving device .oc file'
-sed -i -e "s|^#*com.intel.sdo.device.credentials=.*$|com.intel.sdo.device.credentials=creds/$deviceOcFile|" application.properties
-chk $? 'switching device to owner mode'
-cd ../../..
+if [[ $useNativeClient == 'false' ]]; then
+    # Switch the device into owner mode
+    cd $deviceBinaryDir/demo/device
+    echo "Switching the device into owner mode with credential file $deviceOcFile ..."
+    mv creds/saved/$deviceOcFile creds
+    chk $? 'moving device .oc file'
+    sed -i -e "s|^#*com.intel.sdo.device.credentials=.*$|com.intel.sdo.device.credentials=creds/$deviceOcFile|" application.properties
+    chk $? 'switching device to owner mode'
+    cd ../../..
+fi
 
 # Shutdown mfg services
 if [[ "$SDO_SAMPLE_MFG_KEEP_SVCS" == '1' || "$SDO_SAMPLE_MFG_KEEP_SVCS" == 'true' ]]; then
@@ -275,7 +291,7 @@ else
 fi
 
 echo '-------------------------------------------------'
-echo "Device UUID: $deviceUuid"
+echo "Device UUID: $voucherDevUuid"
 echo '-------------------------------------------------'
 
 echo "The extended ownership voucher is in file: voucher.json"

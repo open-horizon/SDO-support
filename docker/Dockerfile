@@ -102,9 +102,9 @@ COPY --chown=1000:1000 sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/ops $WORKDIR
 COPY --chown=1000:1000 ocs-api/linux/ocs-api docker/start-sdo-owner-services.sh $WORKDIR/
 
 # Note: these don't actually expose the port, they just serve as documentation about the -p flags docker run should use
-# RV: 8040, to0scheduler: 8049, OPS: 8042, Our ocs-api: 9008
-# Note: the OCS traffic is all internal to this container, so don't need to expose 9009
-EXPOSE 8040  8049  8042  9008
+# RV: 8040, OPS: 8042, Our ocs-api: 9008
+# Note: the OCS and to0scheduler traffic is all internal to this container, so don't need to expose 9009 and 8049, respectively
+EXPOSE 8040  8042  9008
 
 # Pass db path and ocs-api port in as env vars, so they can be set via docker run if desired
 CMD $WORKDIR/start-sdo-owner-services.sh

@@ -4,7 +4,7 @@
 # Not using killall, so we do not require it to be installed.
 
 # Find the pid of the ui to kill
-pid=$(ps aux|grep ocs-api|grep -v grep|grep -v 'stop-ocs-api'|awk '{print $2}')
+pid=$(ps aux|grep ocs-api|grep -v grep|grep -v 'stop-ocs-api'|grep -v 'run-ocs-api'|awk '{print $2}')
 
 if [[ $? -ne 0 ]]; then
 	echo "error finding ocs-api process id"  # stderr should have already displayed

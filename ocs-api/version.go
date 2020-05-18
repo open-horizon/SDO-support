@@ -1,1 +1,1 @@
-package main; const OCS_API_VERSION = "0.9.9"
+package main; const OCS_API_VERSION = "1.0.0"

@@ -1,6 +1,6 @@
 SHELL ?= /bin/bash -e
 # Set this before building the ocs-api binary and sdo-owner-services (for now they use the samme version number)
-export VERSION ?= 0.9.9
+export VERSION ?= 1.0.0
 
 export DOCKER_REGISTRY ?= openhorizon
 export SDO_DOCKER_IMAGE ?= sdo-owner-services
@@ -13,19 +13,21 @@ DOCKER_OPTS ?=
 
 default: $(SDO_DOCKER_IMAGE)
 
-ocs-api/ocs-api: ocs-api/*.go ocs-api/*/*.go Makefile
-	echo 'package main; const OCS_API_VERSION = "$(VERSION)"' > ocs-api/version.go
-	glide --quiet install
-	(cd ocs-api && go build -o ocs-api)
-
+# Build the ocs rest api for linux for the sdo-owner-services container
 ocs-api/linux/ocs-api: ocs-api/*.go ocs-api/*/*.go Makefile
 	echo 'package main; const OCS_API_VERSION = "$(VERSION)"' > ocs-api/version.go
 	glide --quiet install
 	mkdir -p ocs-api/linux
 	(cd ocs-api && GOOS=linux go build -o linux/ocs-api)
 
+# For building and running the ocs rest api on mac for debugging
+ocs-api/ocs-api: ocs-api/*.go ocs-api/*/*.go Makefile
+	echo 'package main; const OCS_API_VERSION = "$(VERSION)"' > ocs-api/version.go
+	glide --quiet install
+	(cd ocs-api && go build -o ocs-api)
+
 run-ocs-api: ocs-api/ocs-api
-	tools/stop-ocs-api.sh || true
+	- tools/stop-ocs-api.sh || :
 	tools/start-ocs-api.sh
 
 # Build the SDO services docker image - see the build environment requirements listed in docker/Dockerfile

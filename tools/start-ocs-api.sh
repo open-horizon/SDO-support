@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Start the open-horizon SDO OCS API (not in a container)
+# Start the open-horizon SDO OCS API, not in a container, for debugging
 
 runEnv=${1:-dev}
 port=${SDO_OCS_API_PORT:-9008}
@@ -11,6 +11,7 @@ elif [[ "$runEnv" == "dev" ]]; then
 	# We assume they run this in the SDO-support github dir
 	ocsDbDir=${SDO_OCS_API_DB_DIR:-ocs-api/ocs-db}    # this should be at the level ocs/config/db
 	mkdir -p $ocsDbDir
+	export VERBOSE='true'
 	ocs-api/ocs-api $port $ocsDbDir &  # stdout and stderr will go to the terminal session
 	if [[ $? -eq 0 ]]; then
 		echo "ocs-api/ocs-api started, browse http://localhost:$port/api"

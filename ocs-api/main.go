@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 
 	"github.com/google/uuid"
@@ -46,10 +47,10 @@ func main() {
 	outils.SetVerbose()
 
 	// Ensure we can get to the db, and create the necessary subdirs, if necessary
-	if err := os.MkdirAll(OcsDbDir+"/v1/devices", 0755); err != nil {
+	if err := os.MkdirAll(OcsDbDir+"/v1/devices", 0750); err != nil {
 		outils.Fatal(3, "could not create directory %s: %v", OcsDbDir+"/v1/devices", err)
 	}
-	if err := os.MkdirAll(OcsDbDir+"/v1/values", 0755); err != nil {
+	if err := os.MkdirAll(OcsDbDir+"/v1/values", 0750); err != nil {
 		outils.Fatal(3, "could not create directory %s: %v", OcsDbDir+"/v1/values", err)
 	}
 
@@ -153,7 +154,7 @@ func getVoucherHandler(deviceUuid string, w http.ResponseWriter, r *http.Request
 
 	// Read voucher.json from the db
 	voucherFileName := OcsDbDir + "/v1/devices/" + deviceUuid + "/voucher.json"
-	voucherBytes, err := ioutil.ReadFile(voucherFileName)
+	voucherBytes, err := ioutil.ReadFile(filepath.Clean(voucherFileName))
 	if err != nil {
 		http.Error(w, "Error reading "+voucherFileName+": "+err.Error(), http.StatusBadRequest)
 		return
@@ -178,13 +179,13 @@ func getVouchersHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Read the v1/devices/ directory in the db
 	vouchersDirName := OcsDbDir + "/v1/devices"
-	files, err := ioutil.ReadDir(vouchersDirName)
+	files, err := ioutil.ReadDir(filepath.Clean(vouchersDirName))
 	if err != nil {
 		http.Error(w, "Error reading "+vouchersDirName+" directory: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	var vouchers []string
+	vouchers := []string{}
 	for _, file := range files {
 		if file.IsDir() {
 			vouchers = append(vouchers, file.Name())
@@ -249,13 +250,13 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Put the voucher in the OCS DB
 	deviceDir := OcsDbDir + "/v1/devices/" + uuid.String()
-	if err := os.MkdirAll(deviceDir, 0755); err != nil {
+	if err := os.MkdirAll(deviceDir, 0750); err != nil {
 		http.Error(w, "could not create directory "+deviceDir+": "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	fileName := deviceDir + "/voucher.json"
 	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
-	if err := ioutil.WriteFile(fileName, bodyBytes, 0644); err != nil {
+	if err := ioutil.WriteFile(filepath.Clean(fileName), bodyBytes, 0644); err != nil {
 		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -268,13 +269,13 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		sviJson1 = data.SviJson1
 	}
 	sviJson := "[" + sviJson1 + data.SviJson2 + uuid.String() + data.SviJson3 + "]"
-	if err := ioutil.WriteFile(fileName, []byte(sviJson), 0644); err != nil {
+	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(sviJson), 0644); err != nil {
 		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	fileName = deviceDir + "/psi.json"
 	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
-	if err := ioutil.WriteFile(fileName, []byte(data.PsiJson), 0644); err != nil {
+	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(data.PsiJson), 0644); err != nil {
 		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -292,7 +293,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	execCmd := outils.MakeExecCmd("bash agent-install-wrapper.sh -i " + aptRepo + " -t " + aptChannel + " -j apt-repo-public.key -d " + uuid.String() + ":" + nodeToken)
 	fileName = OcsDbDir + "/v1/values/" + uuid.String() + "_exec"
 	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
-	if err := ioutil.WriteFile(fileName, []byte(execCmd), 0644); err != nil {
+	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(execCmd), 0644); err != nil {
 		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -326,14 +327,14 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	if len(crt) > 0 {
 		fileName = valuesDir + "/agent-install.crt"
 		outils.Verbose("Creating %s ...", fileName)
-		if err := ioutil.WriteFile(fileName, []byte(crt), 0644); err != nil {
+		if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(crt), 0644); err != nil {
 			return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 		}
 
 		fileName = valuesDir + "/agent-install-crt_name"
 		outils.Verbose("Creating %s ...", fileName)
 		data = "agent-install.crt"
-		if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
+		if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(data), 0644); err != nil {
 			return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 		}
 	}
@@ -365,7 +366,7 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	fileName = valuesDir + "/agent-install-cfg_name"
 	outils.Verbose("Creating %s ...", fileName)
 	data = "agent-install.cfg"
-	if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
+	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(data), 0644); err != nil {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 	}
 
@@ -373,14 +374,14 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	url := "https://raw.githubusercontent.com/open-horizon/anax/master/agent-install/agent-install.sh"
 	fileName = valuesDir + "/agent-install.sh"
 	outils.Verbose("Downloading %s to %s ...", url, fileName)
-	if err := outils.DownloadFile(url, fileName, 0755); err != nil {
+	if err := outils.DownloadFile(url, fileName, 0750); err != nil {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not download "+url+" to "+fileName+": "+err.Error())
 	}
 
 	fileName = valuesDir + "/agent-install-sh_name"
 	outils.Verbose("Creating %s ...", fileName)
 	data = "agent-install.sh"
-	if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
+	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(data), 0644); err != nil {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 	}
 
@@ -392,14 +393,14 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	url = urlBase + "/ocs-api/agent-install-wrapper.sh"
 	fileName = valuesDir + "/agent-install-wrapper.sh"
 	outils.Verbose("Downloading %s to %s ...", url, fileName)
-	if err := outils.DownloadFile(url, fileName, 0755); err != nil {
+	if err := outils.DownloadFile(url, fileName, 0750); err != nil {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not download "+url+" to "+fileName+": "+err.Error())
 	}
 
 	fileName = valuesDir + "/agent-install-wrapper-sh_name"
 	outils.Verbose("Creating %s ...", fileName)
 	data = "agent-install-wrapper.sh"
-	if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
+	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(data), 0644); err != nil {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 	}
 
@@ -414,7 +415,7 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	fileName = valuesDir + "/apt-repo-public-key_name"
 	outils.Verbose("Creating %s ...", fileName)
 	data = "apt-repo-public.key"
-	if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
+	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(data), 0644); err != nil {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 	}
 

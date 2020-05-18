@@ -17,6 +17,7 @@ if [[ $1 == '-h' || $1 == '--help' ]]; then usage 0; fi
 
 serviceUrl="$1"
 #jsonFile=$2  #for testing
+useNativeClient=${SDO_DEVICE_USE_NATIVE_CLIENT:-false}   # future: add cmd line flag for this too
 
 # Check the exit code passed in and exit if non-zero
 chk() {
@@ -96,9 +97,23 @@ if [[ ! -d $deviceBinaryDir ]]; then
     chkHttp $? $httpCode "getting $deviceBinaryTar"
     tar -zxvf $deviceBinaryTar
 fi
-cd $deviceBinaryDir/demo/device
-./device
-chk $? 'booting device'
+if [[ $useNativeClient == 'true' ]]; then
+    echo "Booting with native client..."
+    if [[ $(whoami) != 'root' ]]; then
+        echo "Error: must be root to the SDO native client"
+        exit 2
+    fi
+    cd $deviceBinaryDir/SDOClientIntel/hostapp_linux
+    ./sdo_to
+    chk $? 'booting with sdo_to'
+    cd ../../..
+else
+    echo "Booting with java client..."
+    cd $deviceBinaryDir/demo/device
+    ./device
+    chk $? 'booting with java device'
+    cd ../../..
+fi
 
 # If they didn't specify a serviceUrl agreement to watch for, then we are done
 if [[ -z "$serviceUrl" ]]; then
