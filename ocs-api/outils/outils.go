@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -211,17 +212,29 @@ func ExchangeAuthenticate(r *http.Request, currentExchangeUrl, currentOrgId, cer
 		certPath = certificatePath
 	}
 
-	// Invoke exchange to confirm the client has user creds in the org of the creds, and that it is the same org this service is configured for.
-	// To do this do POST /orgs/{orgid}/user/{username}/confirm. Note: this check is not supported for the exchange root creds.
-	if orgId != currentOrgId {
-		return false, NewHttpError(http.StatusUnauthorized, "the org id of the credentials ("+orgId+") does not match the org id the SDO owner service is configured for ("+currentOrgId+")")
+	var url, method string
+	var goodStatusCode int
+	if orgAndUser == "root/root" {
+		// Special case of exchange root user: in this case it is ok for the creds org to be different from the request org
+		//To do this do GET /orgs/{orgid}/users
+		method = http.MethodGet
+		url = fmt.Sprintf("%v/orgs/%v/users", currentExchangeUrl, currentOrgId)
+		goodStatusCode = http.StatusOK
+	} else {
+		// Non-root creds: Invoke exchange to confirm the client has user creds in the org of the creds, and that it is the same org this service is configured for.
+		// To do this do POST /orgs/{orgid}/users/{username}/confirm. Note: this is not supported for the exchange root creds.
+		if orgId != currentOrgId {
+			return false, NewHttpError(http.StatusUnauthorized, "the org id of the credentials ("+orgId+") does not match the org id the SDO owner service is configured for ("+currentOrgId+")")
+		}
+		method = http.MethodPost
+		url = fmt.Sprintf("%v/orgs/%v/users/%v/confirm", currentExchangeUrl, orgId, user)
+		goodStatusCode = http.StatusCreated
 	}
-	url := fmt.Sprintf("%v/orgs/%v/users/%v/confirm", currentExchangeUrl, orgId, user)
-	apiMsg := fmt.Sprintf("%v %v", http.MethodPost, url)
+	apiMsg := fmt.Sprintf("%v %v", method, url)
 	Verbose("confirming credentials via %s", apiMsg)
 
 	// Create an outgoing HTTP request for the exchange.
-	req, err := http.NewRequest(http.MethodPost, url, nil)
+	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
 		return false, NewHttpError(http.StatusInternalServerError, "unable to create HTTP request for %s, error: %v", apiMsg, err)
 	}
@@ -238,7 +251,7 @@ func ExchangeAuthenticate(r *http.Request, currentExchangeUrl, currentOrgId, cer
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return false, NewHttpError(http.StatusInternalServerError, "unable to send HTTP request for %s, error: %v", apiMsg, err)
-	} else if resp.StatusCode == http.StatusCreated {
+	} else if resp.StatusCode == goodStatusCode {
 		return true, nil
 	} else if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
 		return false, nil
@@ -304,7 +317,7 @@ func TrustIcpCert(transport *http.Transport, certPath string) *HttpError {
 	}
 
 	// Case 3:
-	icpCert, err := ioutil.ReadFile(certPath)
+	icpCert, err := ioutil.ReadFile(filepath.Clean(certPath))
 	if err != nil {
 		NewHttpError(http.StatusInternalServerError, "Encountered error reading ICP cert file %v: %v", certPath, err)
 	}

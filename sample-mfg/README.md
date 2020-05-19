@@ -34,11 +34,7 @@ These steps only need to be performed by developers of this project.
 1. Now create the small tar file that will be needed on each simulated device:
 
   ```bash
-  mkdir -p sdo_device_binaries_1.7_linux_x64/{cri,demo,NOTICES}
-  cp -a ../sdo_sdk_binaries_linux_x64/demo/device sdo_device_binaries_1.7_linux_x64/demo/
-  cp -a ../sdo_sdk_binaries_linux_x64/NOTICES/CRI sdo_device_binaries_1.7_linux_x64/NOTICES/
-  ls -l sdo_device_binaries_1.7_linux_x64/cri/device-1.7*.jar   # confirm you put the rebuilt device jar in the correct place
-  tar -zcvf sdo_device_binaries_1.7_linux_x64.tar.gz sdo_device_binaries_1.7_linux_x64
+  make sdo_device_binaries_1.7_linux_x64.tar.gz
   ```
 
 1. Upload the tar file to https://github.com/open-horizon/SDO-support/releases with the title `SDO device binaries 1.7`, so the tar file download URL will be https://github.com/open-horizon/SDO-support/releases/download/sdo_device_binaries_1.7/sdo_device_binaries_1.7_linux_x64.tar.gz

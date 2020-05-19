@@ -24,12 +24,15 @@ FROM registry.access.redhat.com/ubi8/ubi-minimal:8.0
 # Following https://docs.docker.com/develop/dev-best-practices/ and others, e.g. https://www.ardanlabs.com/blog/2020/02/docker-images-part1-reducing-image-size.html
 # (done) reduce layers by combining steps (originally 36 steps, now 20)
 # (done) use microdnf --nodocs as much as possible (0.9.5 712 MB)
-# (waiting on intel response) install jre instead of jdk
-# (waiting on intel info) run all sdo services in same tomcat instance
+# (done) install jre instead of jdk
+# (future) run all sdo services in same tomcat instance
 
-# WORKDIR: the working dir for the 2nd half of this file, and what all of the services will run from, SDO_OCS_DB_PATH: the ocs service read this. OCS_API_PORT and VERBOSE can be overridden on docker run.
+# Note: if ENV variables are used in this Dockerfile, they can not effectively be overridden by docker run
+# WORKDIR: the working dir for the 2nd half of this file, and what all of the services will run from, SDO_OCS_DB_PATH: the ocs service read this. SDO_OCS_API_PORT and VERBOSE can be overridden on docker run.
 ENV WORKDIR=/home/sdouser
-ENV SDO_OCS_DB_PATH=$WORKDIR/ocs/config/db   OCS_API_PORT=9008   VERBOSE=true
+ENV SDO_OCS_DB_PATH=$WORKDIR/ocs/config/db
+# These env vars are only used at runtime (by start-sdo-owner-services.sh), so can be overridden by docker run
+ENV SDO_RV_PORT=8040   SDO_OPS_PORT=8042   SDO_OCS_API_PORT=9008   VERBOSE=true
 
 # Working during during the installations
 WORKDIR /root
@@ -90,9 +93,7 @@ COPY --chown=1000:1000 sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/ocs $WORKDIR
 # This is only the default owner private key. It will be moved into ocs/config/db/v1/creds by start-sdo-owner-servic es.sh if they don't specify their own key in run-sdo-owner-services.sh
 COPY --chown=1000:1000 keys/sample-owner-keystore.p12 $WORKDIR/ocs/config/sample-owner-keystore.p12
 
-# This sed is for dev/test/demo and makes the to0scheduler respond to changes more quickly, and let us use the same voucher over again
 # SDO_OCS_DB_PATH is where the named volume will get mounted to. Create the subdirs, and make sure we own everything
-RUN sed -i -e 's/^to0.scheduler.interval=.*$/to0.scheduler.interval=5/' -e 's/^to2.credential-reuse.enabled=.*$/to2.credential-reuse.enabled=true/' $WORKDIR/ocs/config/application.properties
 RUN mkdir -p $SDO_OCS_DB_PATH/v1/{creds,devices,values} && chown -R 1000:1000 $SDO_OCS_DB_PATH
 
 # Get OPS files
@@ -101,10 +102,10 @@ COPY --chown=1000:1000 sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/ops $WORKDIR
 # Get our ocs-api binary and startup script
 COPY --chown=1000:1000 ocs-api/linux/ocs-api docker/start-sdo-owner-services.sh $WORKDIR/
 
-# Note: these don't actually expose the port, they just serve as documentation about the -p flags docker run should use
-# RV: 8040, to0scheduler: 8049, OPS: 8042, Our ocs-api: 9008
-# Note: the OCS traffic is all internal to this container, so don't need to expose 9009
-EXPOSE 8040  8049  8042  9008
+# Note: the EXPOSE stmt doesn't actually expose the port, it just serves as documentation about the -p flags docker run should use. We may override these values, so just let docker run set them.
+#EXPOSE 8040  8042  9008
+# RV: 8040, OPS: 8042, Our ocs-api: 9008
+# Note: the OCS and to0scheduler traffic is all internal to this container, so don't need to expose 9009 and 8049, respectively
 
 # Pass db path and ocs-api port in as env vars, so they can be set via docker run if desired
 CMD $WORKDIR/start-sdo-owner-services.sh
