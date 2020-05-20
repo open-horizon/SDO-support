@@ -11,7 +11,7 @@ apt update && apt install -y openjdk-11-jre-headless docker docker-compose
 mkdir -p $HOME/sdo && cd $HOME/sdo
 curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/sample-mfg/simulate-mfg.sh
 chmod +x simulate-mfg.sh
-export SDO_RV_URL=http://<hzn-sdo-owner-svcs-host>:8040   # if using that
+export SDO_RV_URL=<external-rv-url>
 # Note: if you don't specify a mfg private key as the 1st arg, it will use a sample manufacturer key. For device owners and IoT platform vendors it is ok to use this for dev/test/demo.
 ./simulate-mfg.sh    # can specify args: <mfg-priv-key-file> <owner-pub-key-file>
 ```

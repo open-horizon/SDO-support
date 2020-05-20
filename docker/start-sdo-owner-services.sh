@@ -12,6 +12,7 @@ ocsDbDir="${1:-$SDO_OCS_DB_PATH}"
 ocsApiPort="${2:-${SDO_OCS_API_PORT:-$ocsApiPortDefault}}"
 
 opsPort=${SDO_OPS_PORT:-$opsPortDefault}
+opsExternalPort=${SDO_OPS_EXTERNAL_PORT:-$opsPort}
 rvPort=${SDO_RV_PORT:-$rvPortDefault}
 
 if [[ "$1" == "-h" || "$1" == "--help" || -z "$SDO_OCS_DB_PATH" || -z "$SDO_OCS_API_PORT" ]]; then
@@ -20,6 +21,7 @@ Usage: ${0##*/} [<ocs-db-path>] [<ocs-api-port>]
 Environment variables that can be used instead of CLI args: SDO_OCS_DB_PATH, SDO_OCS_API_PORT
 Required environment variables: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID
 Recommended environment variables: HZN_MGMT_HUB_CERT (unless the mgmt hub uses http or a CA-trusted certificate)
+Additional environment variables: SDO_RV_PORT, SDO_OPS_PORT, SDO_OPS_EXTERNAL_PORT
 EndOfMessage
     exit 1
 fi
@@ -29,7 +31,8 @@ if [[ -z "$HZN_EXCHANGE_URL" || -z "$HZN_FSS_CSSURL" || -z "$HZN_ORG_ID" || -z "
     echo "Error: all of these environment variables must be set: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID, SDO_OWNER_SVC_HOST"
 fi
 
-echo "Using ports: RV: $rvPort, OPS: $opsPort, OCS-API: $ocsApiPort"
+echo "Using ports: RV: $rvPort, OPS: $opsPort, OPS external: $opsExternalPort, OCS-API: $ocsApiPort"
+echo "Using external SDO_OWNER_SVC_HOST: $SDO_OWNER_SVC_HOST (for now only used for external OPS host)"
 
 # So to0scheduler will point RV (and by extension, the device) to the correct OPS host. Can be a hostname or IP address
 if [[ $SDO_OWNER_SVC_HOST =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -43,10 +46,12 @@ fi
 # If using a non-default port number for OPS, configure both ops and to0scheduler with that value
 if [[ "$opsPort" != "$opsPortDefault" ]]; then
     sed -i -e "s/^server.port=.*$/server.port=$opsPort/" ops/config/application.properties
-    sed -i -e "s/^com.intel.sdo.to0.ownersign.to1d.bo.port1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.port1=$opsPort/" to0scheduler/config/application.properties
+fi
+if [[ "$opsExternalPort" != "$opsPortDefault" ]]; then
+    sed -i -e "s/^com.intel.sdo.to0.ownersign.to1d.bo.port1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.port1=$opsExternalPort/" to0scheduler/config/application.properties
 fi
 
-# If using a non-default port number for RV, configure RV with that value
+# If using a non-default port number for the RV to listen on inside the container, configure RV with that value
 if [[ "$rvPort" != "$rvPortDefault" ]]; then
     sed -i -e "s/^server.port=.*$/server.port=$rvPort/" rv/application.properties
 fi
