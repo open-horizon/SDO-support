@@ -36,7 +36,7 @@ fi
 sampleMfgRepo=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/master}
 privateKeyFile=${1:-$sampleMfgRepo/sample-mfg/keys/sample-mfg-key.p12}
 ownerPubKeyFile=${2:-$sampleMfgRepo/keys/sample-owner-key.pub}
-rvUrl="$SDO_RV_URL"
+rvUrl="$SDO_RV_URL"   # the external rv url that the device should reach it at
 useNativeClient=${SDO_DEVICE_USE_NATIVE_CLIENT:-false}   # future: add cmd line flag for this too
 
 dbUser='sdo_admin'

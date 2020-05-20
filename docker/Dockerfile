@@ -33,6 +33,7 @@ ENV WORKDIR=/home/sdouser
 ENV SDO_OCS_DB_PATH=$WORKDIR/ocs/config/db
 # These env vars are only used at runtime (by start-sdo-owner-services.sh), so can be overridden by docker run
 ENV SDO_RV_PORT=8040   SDO_OPS_PORT=8042   SDO_OCS_API_PORT=9008   VERBOSE=true
+ENV SDO_OPS_EXTERNAL_PORT=$SDO_OPS_PORT
 
 # Working during during the installations
 WORKDIR /root

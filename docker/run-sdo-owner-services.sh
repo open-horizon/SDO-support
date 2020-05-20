@@ -10,7 +10,7 @@ Arguments:
   <image-version>  The image tag to use. Defaults to 'latest'
   <owner-private-key-file>  The p12 private key you have created to use with the sdo-owner-services. Must supply the corresponding public key to sample-mfg/simulate-mfg.sh. If the private key isn't specified here, the default is keys/sample-owner-keystore.p12
 
-Required environment variables: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID, HZN_MGMT_HUB_CERT (can be set to 'N/A' if the mgmt hub does no require a cert)
+Required environment variables: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID, HZN_MGMT_HUB_CERT (can be set to 'N/A' if the mgmt hub does not require a cert)
 
 Recommended environment variables: DOCKER_REGISTRY, SDO_DOCKER_IMAGE
 EndOfMessage
@@ -41,12 +41,13 @@ containerHome=/home/sdouser
 SDO_OCS_DB_CONTAINER_DIR=${SDO_OCS_DB_CONTAINER_DIR:-$containerHome/ocs/config/db}
 
 export SDO_OCS_API_PORT=${SDO_OCS_API_PORT:-9008}
-export SDO_RV_PORT=${SDO_RV_PORT:-8040}
-export SDO_OPS_PORT=${SDO_OPS_PORT:-8042}
+export SDO_RV_PORT=${SDO_RV_PORT:-8040}   # the port RV should listen on *inside* the container
+export SDO_OPS_PORT=${SDO_OPS_PORT:-8042}   # the port OPS should listen on *inside* the container
+export SDO_OPS_EXTERNAL_PORT=${SDO_OPS_EXTERNAL_PORT:-$SDO_OPS_PORT}   # the external port the device should use to contact OPS
 #SDO_TO0_PORT=${SDO_TO0_PORT:-8049}  # the to0scheduler traffic is all internal to our container, so doesn't need to be overridden
 
 # Define the OPS hostname the to0scheduler tells RV to direct the booting device to
-SDO_OWNER_SVC_HOST=${SDO_OWNER_SVC_HOST:-$(hostname)}
+SDO_OWNER_SVC_HOST=${SDO_OWNER_SVC_HOST:-$(hostname)}   # currently only used for OPS
 
 if [[ -n "$ownerPrivateKey" ]]; then
     privateKeyMount="-v $PWD/$ownerPrivateKey:$containerHome/ocs/config/owner-keystore.p12:ro"
@@ -57,4 +58,4 @@ fi
 docker pull $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
 
 # Run the service container
-docker run --name $SDO_DOCKER_IMAGE -dt --mount "type=volume,src=sdo-ocs-db,dst=$SDO_OCS_DB_CONTAINER_DIR" $privateKeyMount -p $SDO_OCS_API_PORT:$SDO_OCS_API_PORT -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "SDO_OCS_API_PORT=$SDO_OCS_API_PORT" -e "SDO_RV_PORT=$SDO_RV_PORT" -e "SDO_OPS_PORT=$SDO_OPS_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_ORG_ID=$HZN_ORG_ID" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" -e "SDO_SUPPORT_REPO=$SDO_SUPPORT_REPO" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
+docker run --name $SDO_DOCKER_IMAGE -dt --mount "type=volume,src=sdo-ocs-db,dst=$SDO_OCS_DB_CONTAINER_DIR" $privateKeyMount -p $SDO_OCS_API_PORT:$SDO_OCS_API_PORT -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "SDO_OCS_API_PORT=$SDO_OCS_API_PORT" -e "SDO_RV_PORT=$SDO_RV_PORT" -e "SDO_OPS_PORT=$SDO_OPS_PORT" -e "SDO_OPS_EXTERNAL_PORT=$SDO_OPS_EXTERNAL_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_ORG_ID=$HZN_ORG_ID" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" -e "SDO_SUPPORT_REPO=$SDO_SUPPORT_REPO" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
