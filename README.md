@@ -64,10 +64,40 @@ These steps only need to be performed by developers of this project.
 
 If the SDO owner services docker image is not already running on the Horizon management hub, or you want to run a newer/test version:
 
-```bash
-# ensure all of the typical hzn environment variables are set, then:
-mkdir $HOME/sdo; cd $HOME/sdo
-curl --progress-bar -o run-sdo-owner-services.sh https://raw.githubusercontent.com/open-horizon/SDO-support/master/docker/run-sdo-owner-services.sh
-./run-sdo-owner-services.sh   # can specify args: latest <owner-private-key-file>
-docker logs -f sdo-owner-services
-```
+1. Get `run-sdo-owner-services.sh`:
+
+  ```bash
+  mkdir $HOME/sdo; cd $HOME/sdo
+  curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/master/docker/run-sdo-owner-services.sh
+  ```
+
+1. Review the usage with `run-sdo-owner-services.sh -h` and ensure you set all of the necessary environment variables correctly.
+
+1. Start the SDO owner services docker image and view the log:
+
+  ```bash
+  ./run-sdo-owner-services.sh   # can specify args: latest <owner-private-key-file>
+  docker logs -f sdo-owner-services
+  ```
+
+### Verify the SDO Owner Services API Endpoints
+
+These simple SDO APIs verify that the services within the docker container are accessible and responding properly:
+
+1. Query the OCS API version:
+
+  ```bash
+  curl -sS $HZN_SDO_SVC_URL/version && echo
+  ```
+
+1. Query the ownership vouchers that have already been imported (initially it will be an empty list):
+
+  ```bash
+  curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" $HZN_SDO_SVC_URL/vouchers | jq
+  ```
+
+1. "Ping" the development rendezvous server:
+
+  ```bash
+  curl -sS -w "%{http_code}" -X POST $SDO_RV_URL/mp/113/msg/20 | jq
+  ```
