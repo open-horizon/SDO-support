@@ -77,5 +77,5 @@ services:
       # Modify user/password to match your configuration.
       test: mysql --user=sdo --password=sdo -e 'use intel_sdo; select * from v_rt_customer_public_key;'
       interval: 5s
-      timeout: 3s
-      retries: 10
+      timeout: 4s
+      retries: 20

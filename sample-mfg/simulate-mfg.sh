@@ -21,6 +21,7 @@ Required Environment Variables:
   SDO_RV_URL: usually the dev RV running in the sdo-owner-services. To use the real Intel RV service, set to http://sdo-sbx.trustedservices.intel.com or http://sdo.trustedservices.intel.com and register your public key with Intel.
 
 Optional Environment Variables:
+  HZN_MGMT_HUB_CERT - the base64 encoded content of the SDO owner services self-signed certificate (if it requires that). This is normally not necessary, because the SDO protocols are secure over HTTP.
   SDO_SAMPLE_MFG_KEEP_SVCS: set to 'true' to skip shutting down the mfg docker containers. This is faster if running this script repeatedly.
 
 ${0##*/} must be run in a directory where it has access to create a few files and directories.
@@ -86,6 +87,13 @@ confirmcmds() {
     done
 }
 
+ensureWeAreRoot() {
+    if [[ $(whoami) != 'root' ]]; then
+        echo "Error: must be root to run ${0##*/} with these options."
+        exit 2
+    fi
+}
+
 # Parses the voucher to get the UUID of the device (which will be our node id)
 parseVoucher() {
     local voucherFile=$1
@@ -101,7 +109,7 @@ confirmcmds grep curl ping docker docker-compose java
 mkdir -p keys
 if [[ ${privateKeyFile:0:4} == 'http' ]]; then
     echo "Getting $privateKeyFile ..."
-    httpCode=$(curl -w "%{http_code}" --progress-bar -o keys/sdo.p12 $privateKeyFile)
+    httpCode=$(curl -w "%{http_code}" --progress-bar -L -o keys/sdo.p12 $privateKeyFile)
     chkHttp $? $httpCode 'getting mfg private key'
     privateKeyFile='keys/sdo.p12'
 elif [[ ! -f $privateKeyFile ]]; then
@@ -112,7 +120,7 @@ fi
 # The owner public key is either a URL we retrieve, or a file we use as-is
 if [[ ${ownerPubKeyFile:0:4} == 'http' ]]; then
     echo "Getting $ownerPubKeyFile ..."
-    httpCode=$(curl -w "%{http_code}" --progress-bar -o keys/owner-key.pub $ownerPubKeyFile)
+    httpCode=$(curl -w "%{http_code}" --progress-bar -L -o keys/owner-key.pub $ownerPubKeyFile)
     chkHttp $? $httpCode 'getting owner public key'
     ownerPubKeyFile='keys/owner-key.pub'
 elif [[ ! -f $ownerPubKeyFile ]]; then
@@ -126,6 +134,18 @@ rvHost=${rvHost%:*}   # strip optional port
 if ! ping -c 1 -w 5 $rvHost > /dev/null 2>&1 ; then
     echo "Error: host $rvHost is not resolvable or pingable"
     exit 1
+fi
+
+# If they specified a self-signed cert, ensure we are root, then trust the cert.
+# Note: this is a concession for some dev/test environments that may require it. Normally the device manufacturer won't initialize the device with a self-signed cert.
+#       If the sdo owner service requires a self-signed cert for https, it should also listen on http, which is secure for the sdo protocol.
+if [[ -n $HZN_MGMT_HUB_CERT ]]; then
+    ensureWeAreRoot
+    confirmcmds update-ca-certificates
+    echo "Trusting HZN_MGMT_HUB_CERT ..."
+    echo "$HZN_MGMT_HUB_CERT" | base64 --decode > /usr/local/share/ca-certificates/sdo-mgmt-hub.crt
+    update-ca-certificates
+    chk $? 'trusting HZN_MGMT_HUB_CERT'
 fi
 
 # If node is registered (if you have run this script before), then unregister it
@@ -148,7 +168,7 @@ fi
 
 echo "Getting $sampleMfgRepo/sample-mfg/docker-compose.yml ..."
 #set -x
-httpCode=$(curl -w "%{http_code}" --progress-bar -O $sampleMfgRepo/sample-mfg/docker-compose.yml)
+httpCode=$(curl -w "%{http_code}" --progress-bar -L -O $sampleMfgRepo/sample-mfg/docker-compose.yml)
 chkHttp $? $httpCode 'getting sample-mfg/docker-compose.yml'
 # { set +x; } 2>/dev/null
 
@@ -192,10 +212,7 @@ chk $? 'adding owner public key to SDO SCT services'
 echo "Running device initialization..."
 if [[ $useNativeClient == 'true' ]]; then
     echo "Using native client"
-    if [[ $(whoami) != 'root' ]]; then
-        echo "Error: must be root to the SDO native client"
-        exit 2
-    fi
+    ensureWeAreRoot
     cd $deviceBinaryDir/SDOClientIntel/hostapp_linux
     dalp='../sdo_7.dalp'   # or try ../sdo_8.dalp
     miFlag='-mi bp-sdo-intel-nuc'

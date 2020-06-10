@@ -1,20 +1,6 @@
 # Sample SDO Manufacturer Scripts and Docker Images
 
-These sample scripts and docker images enable you to develop/test/demo the SDO owner services by initializing a VM to simulate an SDO device and creating an ownership voucher.
-
-## Use the Sample SDO Manufacturer Services to Initialize a Device and Extend the Voucher
-
-This simulates the process of a manufacturer initializing a device with SDO and credentials, creating an ownership voucher, and extending it to the owner. Do these things on the VM device to be initialized:
-
-```bash
-apt update && apt install -y openjdk-11-jre-headless docker docker-compose
-mkdir -p $HOME/sdo && cd $HOME/sdo
-curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/sample-mfg/simulate-mfg.sh
-chmod +x simulate-mfg.sh
-export SDO_RV_URL=<external-rv-url>
-# Note: if you don't specify a mfg private key as the 1st arg, it will use a sample manufacturer key. For device owners and IoT platform vendors it is ok to use this for dev/test/demo.
-./simulate-mfg.sh    # can specify args: <mfg-priv-key-file> <owner-pub-key-file>
-```
+These sample scripts and docker images enable you to develop/test/demo the SDO owner services by initializing a VM to simulate an SDO-enabled  device and creating an ownership voucher. See the [../README.md](../README.md) for instructions on how to use them in the context of the overall SDO process.
 
 ## Developers Only
 

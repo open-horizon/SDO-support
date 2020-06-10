@@ -10,9 +10,20 @@ Arguments:
   <image-version>  The image tag to use. Defaults to 'latest'
   <owner-private-key-file>  The p12 private key you have created to use with the sdo-owner-services. Must supply the corresponding public key to sample-mfg/simulate-mfg.sh. If the private key isn't specified here, the default is keys/sample-owner-keystore.p12
 
-Required environment variables: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID, HZN_MGMT_HUB_CERT (can be set to 'N/A' if the mgmt hub does not require a cert)
+Required environment variables:
+  HZN_EXCHANGE_URL - the external URL of the exchange (used for authentication delegation and in the configuration of the device)
+  HZN_FSS_CSSURL - the external URL of CSS (used in the configuration of the device)
+  HZN_ORG_ID - the exchange cluster org id (used for authentication delegation)
+  HZN_MGMT_HUB_CERT - the base64 encoded content of the management hub cluster self-signed certificate (can be set to 'N/A' if the mgmt hub does not require a cert)
 
-Recommended environment variables: DOCKER_REGISTRY, SDO_DOCKER_IMAGE
+Recommended environment variables:
+  SDO_OWNER_SVC_HOST - external hostname or IP that the RV should tell the device to reach OPS at. Defaults to the host's hostname but that is only sufficient if it is resolvable and externally accessible.
+
+Additional environment variables (that do not usually need to be set):
+  SDO_RV_PORT - port number RV should listen on *inside* the container. Default is 8040.
+  SDO_OPS_PORT - port number OPS should listen on *inside* the container. Default is 8042.
+  SDO_OPS_EXTERNAL_PORT - external port number that RV should tell the device to reach OPS at. Defaults to the internal OPS port number.
+  SDO_OCS_API_PORT - port number OCS-API should listen on *inside* the container. Default is 9008.
 EndOfMessage
     exit 1
 fi
