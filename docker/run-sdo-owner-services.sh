@@ -17,13 +17,13 @@ Required environment variables:
   HZN_MGMT_HUB_CERT - the base64 encoded content of the management hub cluster self-signed certificate (can be set to 'N/A' if the mgmt hub does not require a cert)
 
 Recommended environment variables:
-  SDO_OWNER_SVC_HOST - external hostname or IP that RV should tell the device to reach OPS at. Defaults to the host's hostname but that is only sufficient if it is resolvable and externally accessible.
-  SDO_OPS_EXTERNAL_PORT - external port that RV should tell the device to reach OPS at. Defaults to the internal OPS port default 8042.
+  SDO_OWNER_SVC_HOST - external hostname or IP that the RV should tell the device to reach OPS at. Defaults to the host's hostname but that is only sufficient if it is resolvable and externally accessible.
 
 Additional environment variables (that do not usually need to be set):
-  SDO_RV_PORT - port RV should listen on *inside* the container. Default is 8040.
-  SDO_OPS_PORT - port OPS should listen on *inside* the container. Default is 8042.
-  SDO_OCS_API_PORT - port OCS-API should listen on *inside* the container. Default is 9008.
+  SDO_RV_PORT - port number RV should listen on *inside* the container. Default is 8040.
+  SDO_OPS_PORT - port number OPS should listen on *inside* the container. Default is 8042.
+  SDO_OPS_EXTERNAL_PORT - external port number that RV should tell the device to reach OPS at. Defaults to the internal OPS port number.
+  SDO_OCS_API_PORT - port number OCS-API should listen on *inside* the container. Default is 9008.
 EndOfMessage
     exit 1
 fi
