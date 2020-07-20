@@ -40,6 +40,7 @@ The SDO owner services are packaged as a single docker container that can be run
   ```bash
   mkdir $HOME/sdo; cd $HOME/sdo
   curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/master/docker/run-sdo-owner-services.sh
+  chmod +x run-sdo-owner-services.sh
   ```
 
 1. Run `./run-sdo-owner-services.sh -h` to see the usage, and set all of the necessary environment variables.
