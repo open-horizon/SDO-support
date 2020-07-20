@@ -43,9 +43,9 @@ The SDO owner services are packaged as a single docker container that can be run
   chmod +x run-sdo-owner-services.sh
   ```
 
-1. Run `./run-sdo-owner-services.sh -h` to see the usage, and set all of the necessary environment variables.
+2. Run `./run-sdo-owner-services.sh -h` to see the usage, and set all of the necessary environment variables.
 
-1. Start the SDO owner services docker container and view the log:
+3. Start the SDO owner services docker container and view the log:
 
   ```bash
   ./run-sdo-owner-services.sh
@@ -62,13 +62,13 @@ The SDO owner services are packaged as a single docker container that can be run
   curl -sS $HZN_SDO_SVC_URL/version && echo
   ```
 
-1. Query the ownership vouchers that have already been imported (initially it will be an empty list):
+2. Query the ownership vouchers that have already been imported (initially it will be an empty list):
 
   ```bash
   curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" $HZN_SDO_SVC_URL/vouchers | jq
   ```
 
-1. "Ping" the development rendezvous server:
+3. "Ping" the development rendezvous server:
 
   ```bash
   curl -sS -w "%{http_code}" -X POST $SDO_RV_URL/mp/113/msg/20 | jq
@@ -81,7 +81,7 @@ The sample script called `simulate-mfg.sh` simulates the process of a manufactur
 ```bash
 apt update && apt install -y openjdk-11-jre-headless docker docker-compose
 mkdir -p $HOME/sdo && cd $HOME/sdo
-curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/sample-mfg/simulate-mfg.sh
+curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/master/sample-mfg/simulate-mfg.sh
 chmod +x simulate-mfg.sh
 export SDO_RV_URL=http://<sdo-owner-svcs-host>:8040
 ./simulate-mfg.sh
@@ -92,7 +92,7 @@ export SDO_RV_URL=http://<sdo-owner-svcs-host>:8040
 The ownership voucher created for the device in the previous step needs to be imported to the SDO owner services. **On the Horizon admin host**:
 
 1. When you purchase a physical SDO-enabled device, you receive an ownership voucher from the manufacturer. In the case of the VM device you have configured to simulate an SDO-enabled device, the analogous step is to copy the file `~/sdo/voucher.json` from your VM device to here.
-1. Import the ownership voucher, specifying that this device should be initialized with policy to run the helloworld example edge service:
+2. Import the ownership voucher, specifying that this device should be initialized with policy to run the helloworld example edge service:
 
   ```bash
   hzn voucher import voucher.json -e helloworld
@@ -110,16 +110,13 @@ When an SDO-enabled device boots, it starts the SDO process which contacts the S
   chmod +x owner-boot-device
   ```
 
-1. Run the `owner-boot-device` script. This starts the SDO process the normally runs when an SDO-enabled device is booted.
+2. Run the `owner-boot-device` script. This starts the SDO process the normally runs when an SDO-enabled device is booted.
 
   ```bash
-  cd $HOME/sdo
-  curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/master/tools/owner-boot-device
-  chmod +x owner-boot-device
   ./owner-boot-device ibm.helloworld
   ```
 
-1. Your VM device is now configured as a Horizon edge node and registered with your Horizon management hub to run the helloworld example edge service. View the log of the edge service:
+3. Your VM device is now configured as a Horizon edge node and registered with your Horizon management hub to run the helloworld example edge service. View the log of the edge service:
 
   ```bash
   hzn service log -f ibm.helloworld
@@ -138,14 +135,14 @@ These steps only need to be performed by developers of this project.
   mv sdo_sdk_binaries_1.7.*_linux_x64 sdo_sdk_binaries_linux_x64
   ```
 
-1. Build the docker container that will run all of the SDO services needed for Open Horizon:
+2. Build the docker container that will run all of the SDO services needed for Open Horizon:
 
   ```bash
   # first update the VERSION variable value in Makefile, then:
   make sdo-owner-services
   ```
 
-1. After testing the service, push it to docker hub:
+3. After testing the service, push it to docker hub:
 
   ```bash
   make publish-sdo-owner-services
