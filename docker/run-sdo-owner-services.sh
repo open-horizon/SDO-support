@@ -7,7 +7,7 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
 Usage: ${0##*/} [<image-version>] [<owner-private-key-file>]
 
 Arguments:
-  <image-version>  The image tag to use. Defaults to 'latest'
+  <image-version>  The image tag to use. Defaults to 'stable'
   <owner-private-key-file>  The p12 private key you have created to use with the sdo-owner-services. Must supply the corresponding public key to sample-mfg/simulate-mfg.sh. If the private key isn't specified here, the default is keys/sample-owner-keystore.p12
 
 Required environment variables:
@@ -35,7 +35,7 @@ if [[ $HZN_MGMT_HUB_CERT == 'N/A' || $HZN_MGMT_HUB_CERT == 'n/a' ]]; then
     unset HZN_MGMT_HUB_CERT
 fi
 
-VERSION="${1:-latest}"
+VERSION="${1:-stable}"
 ownerPrivateKey="$2"
 if [[ -n "$ownerPrivateKey" && ! -f "$ownerPrivateKey" ]]; then
     echo "Error: specified owner-private-key-file '$ownerPrivateKey' does not exist."
@@ -65,7 +65,7 @@ if [[ -n "$ownerPrivateKey" ]]; then
 fi
 # else inside the container start-sdo-owner-services.sh will use the default key file that Dockerfile set up
 
-# If VERSION==latest we have to make sure we pull the most recent
+# If VERSION is a generic tag like latest, stable, or testing we have to make sure we pull the most recent
 docker pull $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
 
 # Run the service container

@@ -19,4 +19,4 @@ The instructions for doing this are in **Intel-SDO-IoT-Platform-Integration-SDK-
 Once you have created your key pair, pass them as arguments to these scripts:
 
 - `sample-mfg/simulate-mfg.sh sample-mfg/keys/sample-mfg-key.p12 <owner-pub-key-file>`
-- `docker/run-sdo-owner-services.sh latest <owner-private-key-file>`
+- `docker/run-sdo-owner-services.sh stable <owner-private-key-file>`

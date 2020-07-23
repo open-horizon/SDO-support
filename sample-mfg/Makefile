@@ -25,16 +25,26 @@ sdo-mfg-services:
 
 # Note: we currently use docker-compose up to run the containers.
 
-# Push the SDO services docker image to the registry
+# Push the SDO mfg docker images to the registry
 publish-sdo-mfg-services:
 	docker tag $(SDO_MFG_DOCKER_IMAGE):$(MFG_VERSION) $(DOCKER_REGISTRY)/$(SDO_MFG_DOCKER_IMAGE):$(MFG_VERSION)
 	docker push $(DOCKER_REGISTRY)/$(SDO_MFG_DOCKER_IMAGE):$(MFG_VERSION)
 	docker tag $(SDO_MARIADB_DOCKER_IMAGE):$(MFG_VERSION) $(DOCKER_REGISTRY)/$(SDO_MARIADB_DOCKER_IMAGE):$(MFG_VERSION)
 	docker push $(DOCKER_REGISTRY)/$(SDO_MARIADB_DOCKER_IMAGE):$(MFG_VERSION)
 
+# Push the SDO mfg docker images to the registry with stable tag
+promote-sdo-mfg-services:
+	docker tag $(SDO_MFG_DOCKER_IMAGE):$(MFG_VERSION) $(DOCKER_REGISTRY)/$(SDO_MFG_DOCKER_IMAGE):stable
+	docker push $(DOCKER_REGISTRY)/$(SDO_MFG_DOCKER_IMAGE):stable
+	docker tag $(SDO_MARIADB_DOCKER_IMAGE):$(MFG_VERSION) $(DOCKER_REGISTRY)/$(SDO_MARIADB_DOCKER_IMAGE):stable
+	docker push $(DOCKER_REGISTRY)/$(SDO_MARIADB_DOCKER_IMAGE):stable
+
+# Use this if you are on a machine where you did not build the images
 pull-sdo-mfg-services:
 	docker pull $(DOCKER_REGISTRY)/$(SDO_MFG_DOCKER_IMAGE):$(MFG_VERSION)
+	docker tag $(DOCKER_REGISTRY)/$(SDO_MFG_DOCKER_IMAGE):$(MFG_VERSION) $(SDO_MFG_DOCKER_IMAGE):$(MFG_VERSION) 
 	docker pull $(DOCKER_REGISTRY)/$(SDO_MARIADB_DOCKER_IMAGE):$(MFG_VERSION)
+	docker tag $(DOCKER_REGISTRY)/$(SDO_MARIADB_DOCKER_IMAGE):$(MFG_VERSION) $(SDO_MARIADB_DOCKER_IMAGE):$(MFG_VERSION)
 
 sdo_device_binaries_1.7_linux_x64.tar.gz: $(shell echo ../sdo_sdk_binaries_linux_x64/{demo/device,NOTICES/CRI,SDOClientIntel/hostapp_linux/*,SDOClientIntel/{sdo_7.dalp,sdo_8.dalp}}) sdo_device_binaries_1.7_linux_x64/cri/device-1.7*.jar
 	mkdir -p sdo_device_binaries_1.7_linux_x64/{cri,demo,SDOClientIntel,NOTICES/CRI}
