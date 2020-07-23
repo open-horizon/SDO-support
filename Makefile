@@ -49,6 +49,13 @@ publish-$(SDO_DOCKER_IMAGE):
 	docker tag $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION) $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):latest
 	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):latest
 
+# Push the SDO services docker image to the registry as stable
+promote-$(SDO_DOCKER_IMAGE):
+	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
+	docker tag $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION) $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):stable
+	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):stable
+
+# Use this if you are on a machine where you did not build the image
 pull-$(SDO_DOCKER_IMAGE):
 	docker pull $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
 
@@ -56,6 +63,6 @@ clean:
 	go clean
 	rm -f ocs-api/ocs-api ocs-api/linux/ocs-api
 	- docker rm -f $(SDO_DOCKER_IMAGE) 2> /dev/null || :
-	- docker rmi $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):{$(VERSION),latest} 2> /dev/null || :
+	- docker rmi $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):{$(VERSION),latest,stable} 2> /dev/null || :
 
 .PHONY: default run-ocs-api clean

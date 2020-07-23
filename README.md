@@ -39,7 +39,7 @@ The SDO owner services are packaged as a single docker container that can be run
 
   ```bash
   mkdir $HOME/sdo; cd $HOME/sdo
-  curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/master/docker/run-sdo-owner-services.sh
+  curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/stable/docker/run-sdo-owner-services.sh
   chmod +x run-sdo-owner-services.sh
   ```
 
@@ -81,7 +81,7 @@ The sample script called `simulate-mfg.sh` simulates the process of a manufactur
 ```bash
 apt update && apt install -y openjdk-11-jre-headless docker docker-compose
 mkdir -p $HOME/sdo && cd $HOME/sdo
-curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/master/sample-mfg/simulate-mfg.sh
+curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/stable/sample-mfg/simulate-mfg.sh
 chmod +x simulate-mfg.sh
 export SDO_RV_URL=http://<sdo-owner-svcs-host>:8040
 ./simulate-mfg.sh
@@ -106,7 +106,7 @@ When an SDO-enabled device boots, it starts the SDO process which contacts the S
 
   ```bash
   cd $HOME/sdo
-  curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/master/tools/owner-boot-device
+  curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/stable/tools/owner-boot-device
   chmod +x owner-boot-device
   ```
 

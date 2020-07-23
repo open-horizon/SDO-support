@@ -21,6 +21,7 @@ Required Environment Variables:
   SDO_RV_URL: usually the dev RV running in the sdo-owner-services. To use the real Intel RV service, set to http://sdo-sbx.trustedservices.intel.com or http://sdo.trustedservices.intel.com and register your public key with Intel.
 
 Optional Environment Variables:
+  SDO_MFG_IMAGE_TAG - version of the manufacturer and sct_mariadb docker images that should be used. Defaults to 'stable'.
   HZN_MGMT_HUB_CERT - the base64 encoded content of the SDO owner services self-signed certificate (if it requires that). This is normally not necessary, because the SDO protocols are secure over HTTP.
   SDO_SAMPLE_MFG_KEEP_SVCS: set to 'true' to skip shutting down the mfg docker containers. This is faster if running this script repeatedly.
 
@@ -34,7 +35,9 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
 fi
 : ${SDO_RV_URL:?}
 
-sampleMfgRepo=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/master}
+SDO_MFG_IMAGE_TAG=${SDO_MFG_IMAGE_TAG:-stable}
+
+sampleMfgRepo=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/stable}
 privateKeyFile=${1:-$sampleMfgRepo/sample-mfg/keys/sample-mfg-key.p12}
 ownerPubKeyFile=${2:-$sampleMfgRepo/keys/sample-owner-key.pub}
 rvUrl="$SDO_RV_URL"   # the external rv url that the device should reach it at
@@ -179,10 +182,10 @@ fi
 
 # Start mfg services (originally done by SCT/startup-docker.sh)
 echo "Pulling and tagging the SDO SCT services..."
-docker pull openhorizon/manufacturer:latest
-docker tag openhorizon/manufacturer:latest manufacturer:latest
-docker pull openhorizon/sct_mariadb:latest
-docker tag openhorizon/sct_mariadb:latest sct_mariadb:latest
+docker pull openhorizon/manufacturer:$SDO_MFG_IMAGE_TAG
+docker tag openhorizon/manufacturer:$SDO_MFG_IMAGE_TAG manufacturer:latest
+docker pull openhorizon/sct_mariadb:$SDO_MFG_IMAGE_TAG
+docker tag openhorizon/sct_mariadb:$SDO_MFG_IMAGE_TAG sct_mariadb:latest
 
 echo "starting the SDO SCT services (will take about 75 seconds)..."
 # need to explicitly set the project name, because it was built with that project name (see Makefile)

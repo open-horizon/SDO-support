@@ -388,7 +388,7 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	// Download and create agent-install-wrapper.sh and its name file
 	urlBase := os.Getenv("SDO_SUPPORT_REPO")
 	if urlBase == "" {
-		urlBase = "https://raw.githubusercontent.com/open-horizon/SDO-support/master" // the default
+		urlBase = "https://raw.githubusercontent.com/open-horizon/SDO-support/stable" // the default
 	}
 	url = urlBase + "/ocs-api/agent-install-wrapper.sh"
 	fileName = valuesDir + "/agent-install-wrapper.sh"
