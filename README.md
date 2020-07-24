@@ -43,7 +43,7 @@ The SDO owner services are packaged as a single docker container that can be run
   chmod +x run-sdo-owner-services.sh
   ```
 
-2. Run `./run-sdo-owner-services.sh -h` to see the usage, and set all of the necessary environment variables. Export your environment variables `HZN_EXCHANGE_URL`, `HZN_FSS_CSSURL`, `HZN_ORG_ID`, and `HZN_EXCHANGE_USER_AUTH` for the subsequent steps.
+2. Run `./run-sdo-owner-services.sh -h` to see the usage, and set all of the necessary environment variables. 
 
    ```bash
    export HZN_EXCHANGE_URL=https://<cluster-url>/edge-exchange/v1
@@ -52,7 +52,7 @@ The SDO owner services are packaged as a single docker container that can be run
    export HZN_EXCHANGE_USER_AUTH=iamapikey:<api-key>
    ```
 
-3. You will also need the `agent-install.crt` file that can be acquired by going through documentation detailing how to [install the Horizon agent on your edge device](https://www-03preprod.ibm.com/support/knowledgecenter/SSFKVV_4.0/devices/installing/registration.html)
+3. As part of installing the Horizon management hub, you should have run [edgeNodeFiles.sh](https://github.com/open-horizon/anax/blob/master/agent-install/edgeNodeFiles.sh) which created a tar file containing `agent-install.crt`. Use that to export this environment variable:
 
    ```bash
    export HZN_MGMT_HUB_CERT=$(cat agent-install.crt | base64)
@@ -72,6 +72,8 @@ The SDO owner services are packaged as a single docker container that can be run
 1. Export your environment variables for `HZN_SDO_SVC_URL` and `SDO_RV_URL` for the subsequent steps.
 
    ```bash
+   export HZN_ORG_ID=mycluster
+   export HZN_EXCHANGE_USER_AUTH=iamapikey:<api-key>
    export HZN_SDO_SVC_URL=http://<SDO_OWNER_SVC_HOST>:9008/api
    export SDO_RV_URL=http://<SDO_OWNER_SVC_HOST>:8040
    ```
