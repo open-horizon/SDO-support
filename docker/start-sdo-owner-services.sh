@@ -37,10 +37,12 @@ echo "Using external SDO_OWNER_SVC_HOST: $SDO_OWNER_SVC_HOST (for now only used 
 # So to0scheduler will point RV (and by extension, the device) to the correct OPS host. Can be a hostname or IP address
 if [[ $SDO_OWNER_SVC_HOST =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     # IP address
-    sed -i -e "s/^com.intel.sdo.to0.ownersign.to1d.bo.i1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.i1=$SDO_OWNER_SVC_HOST/" -e "s/^com.intel.sdo.to0.ownersign.to1d.bo.dns1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.dns1=/" to0scheduler/config/application.properties
+    #sed -i -e "s/^com.intel.sdo.to0.ownersign.to1d.bo.i1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.i1=$SDO_OWNER_SVC_HOST/" -e "s/^com.intel.sdo.to0.ownersign.to1d.bo.dns1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.dns1=/" to0scheduler/config/application.properties
+    sed -i -e "s/^ip=.*$/ip=$SDO_OWNER_SVC_HOST/" -e "s/^dns=.*$/dns=/" to0scheduler/config/redirect.properties
 else
     # hostname
-    sed -i -e "s/^com.intel.sdo.to0.ownersign.to1d.bo.dns1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.dns1=$SDO_OWNER_SVC_HOST/" to0scheduler/config/application.properties
+    #sed -i -e "s/^com.intel.sdo.to0.ownersign.to1d.bo.dns1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.dns1=$SDO_OWNER_SVC_HOST/" to0scheduler/config/application.properties
+    sed -i -e "s/^dns=.*$/dns=$SDO_OWNER_SVC_HOST/" to0scheduler/config/redirect.properties
 fi
 
 # If using a non-default port number for OPS, configure both ops and to0scheduler with that value
@@ -48,7 +50,8 @@ if [[ "$opsPort" != "$opsPortDefault" ]]; then
     sed -i -e "s/^server.port=.*$/server.port=$opsPort/" ops/config/application.properties
 fi
 if [[ "$opsExternalPort" != "$opsPortDefault" ]]; then
-    sed -i -e "s/^com.intel.sdo.to0.ownersign.to1d.bo.port1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.port1=$opsExternalPort/" to0scheduler/config/application.properties
+    #sed -i -e "s/^com.intel.sdo.to0.ownersign.to1d.bo.port1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.port1=$opsExternalPort/" to0scheduler/config/application.properties
+    sed -i -e "s/^port=.*$/port=$opsExternalPort/" to0scheduler/config/redirect.properties
 fi
 
 # If using a non-default port number for the RV to listen on inside the container, configure RV with that value
@@ -57,6 +60,7 @@ if [[ "$rvPort" != "$rvPortDefault" ]]; then
 fi
 
 # This sed is for dev/test/demo and makes the to0scheduler respond to changes more quickly, and let us use the same voucher over again
+#todo: should we not do this for production? If so, add an env var that will do this for dev/test
 sed -i -e 's/^to0.scheduler.interval=.*$/to0.scheduler.interval=5/' -e 's/^to2.credential-reuse.enabled=.*$/to2.credential-reuse.enabled=true/' ocs/config/application.properties
 
 # Need to move this file into the ocs db *after* the docker run mount is done

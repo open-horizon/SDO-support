@@ -371,7 +371,11 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	}
 
 	// Download and create agent-install.sh and its name file
-	url := "https://raw.githubusercontent.com/open-horizon/anax/master/agent-install/agent-install.sh"
+	urlBase := os.Getenv("ANAX_REPO")
+	if urlBase == "" {
+		urlBase = "https://raw.githubusercontent.com/open-horizon/anax/stable" // the default
+	}
+	url = urlBase + "/agent-install/agent-install.sh"
 	fileName = valuesDir + "/agent-install.sh"
 	outils.Verbose("Downloading %s to %s ...", url, fileName)
 	if err := outils.DownloadFile(url, fileName, 0750); err != nil {
@@ -386,7 +390,7 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	}
 
 	// Download and create agent-install-wrapper.sh and its name file
-	urlBase := os.Getenv("SDO_SUPPORT_REPO")
+	urlBase = os.Getenv("SDO_SUPPORT_REPO")
 	if urlBase == "" {
 		urlBase = "https://raw.githubusercontent.com/open-horizon/SDO-support/stable" // the default
 	}

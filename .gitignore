@@ -1,8 +1,10 @@
 /ocs-api/ocs-api
 /ocs-api/linux/
 /ocs-api/ocs-db/
-/sdo_sdk_binaries_linux_x64/
-#/sdo_addons/
+
+# Where the SDO 1.8 tar files are downloaded to
+/sdo/
+
 /vendor/
 /.vscode/
 
