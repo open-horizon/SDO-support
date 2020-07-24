@@ -69,7 +69,7 @@ The SDO owner services are packaged as a single docker container that can be run
 
 **On a Horizon "admin" host** run these simple SDO APIs to verify that the services within the docker container are accessible and responding properly. (A Horizon admin host is one that has the `horizon-cli` package, which provides the `hzn` command, and has the environment variables `HZN_EXCHANGE_URL`, `HZN_SDO_SVC_URL`, `HZN_ORG_ID`, and `HZN_EXCHANGE_USER_AUTH` set correctly for your Horizon management hub.)
 
-1. Export your environment variables for `HZN_SDO_SVC_URL` and `SDO_RV_URL` for the subsequent steps.
+1. Export your environment variables for the subsequent steps.
 
    ```bash
    export HZN_ORG_ID=mycluster
