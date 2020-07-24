@@ -43,7 +43,7 @@ The SDO owner services are packaged as a single docker container that can be run
   chmod +x run-sdo-owner-services.sh
   ```
 
-2. Run `./run-sdo-owner-services.sh -h` to see the usage, and set all of the necessary environment variables. Export your environment variables `HZN_EXCHANGE_URL`, `HZN_SDO_SVC_URL`, `HZN_ORG_ID`, and `HZN_EXCHANGE_USER_AUTH` for the subsequent steps.
+2. Run `./run-sdo-owner-services.sh -h` to see the usage, and set all of the necessary environment variables. Export your environment variables `HZN_EXCHANGE_URL`, `HZN_FSS_CSSURL`, `HZN_ORG_ID`, and `HZN_EXCHANGE_USER_AUTH` for the subsequent steps.
 
    ```bash
    export HZN_EXCHANGE_URL=https://<cluster-url>/edge-exchange/v1
