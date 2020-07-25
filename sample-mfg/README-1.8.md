@@ -10,7 +10,7 @@ These steps only need to be performed by developers of this project.
 
 ### Build a tar file of the SDO files needed on the device
 
-1. Now create the small tar file that will be needed on each simulated device:
+1. Create the small tar file that will be needed on each simulated device:
 
   ```bash
   make sdo_device_binaries_1.8_linux_x64.tar.gz

@@ -85,12 +85,12 @@ COPY --chown=1000:1000 sdo/pri-v1.8.0/rendezvous/* $WORKDIR/rv/
 
 # Get to0scheduler files
 #COPY --chown=1000:1000 sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/to0scheduler $WORKDIR/to0scheduler/
-COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.8.0/to0scheduler/* $WORKDIR/to0scheduler/
+COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.8.0/to0scheduler $WORKDIR/to0scheduler/
 
 # Get OCS files
 # Note: we don't want the contents of ocs/config/db, that is excluded in the .dockerignore file
 #COPY --chown=1000:1000 sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/ocs $WORKDIR/ocs/
-COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.8.0/ocs/* $WORKDIR/ocs/
+COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.8.0/ocs $WORKDIR/ocs/
 # This is only the default owner private key. It will be moved into ocs/config/db/v1/creds by start-sdo-owner-servic es.sh if they don't specify their own key in run-sdo-owner-services.sh
 COPY --chown=1000:1000 keys/sample-owner-keystore.p12 $WORKDIR/ocs/config/sample-owner-keystore.p12
 
@@ -99,7 +99,7 @@ RUN mkdir -p $SDO_OCS_DB_PATH/v1/{creds,devices,values} && chown -R 1000:1000 $S
 
 # Get OPS files
 #COPY --chown=1000:1000 sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/ops $WORKDIR/ops/
-COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.8.0/ops/* $WORKDIR/ops/
+COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.8.0/ops $WORKDIR/ops/
 
 # Get our ocs-api binary and startup script
 COPY --chown=1000:1000 ocs-api/linux/ocs-api docker/start-sdo-owner-services.sh $WORKDIR/

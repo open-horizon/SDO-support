@@ -16,14 +16,12 @@ default: $(SDO_DOCKER_IMAGE)
 # Build the ocs rest api for linux for the sdo-owner-services container
 ocs-api/linux/ocs-api: ocs-api/*.go ocs-api/*/*.go Makefile
 	echo 'package main; const OCS_API_VERSION = "$(VERSION)"' > ocs-api/version.go
-	glide --quiet install
 	mkdir -p ocs-api/linux
 	(cd ocs-api && GOOS=linux go build -o linux/ocs-api)
 
 # For building and running the ocs rest api on mac for debugging
 ocs-api/ocs-api: ocs-api/*.go ocs-api/*/*.go Makefile
 	echo 'package main; const OCS_API_VERSION = "$(VERSION)"' > ocs-api/version.go
-	glide --quiet install
 	(cd ocs-api && go build -o ocs-api)
 
 run-ocs-api: ocs-api/ocs-api
@@ -43,13 +41,19 @@ run-$(SDO_DOCKER_IMAGE): $(SDO_DOCKER_IMAGE)
 	- docker rm -f $(SDO_DOCKER_IMAGE) 2> /dev/null || :
 	docker/run-sdo-owner-services.sh $(VERSION)
 
-# Push the SDO services docker image to the registry
+# Push the SDO services docker image to the registry and tag as testing
+push-$(SDO_DOCKER_IMAGE):
+	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
+	docker tag $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION) $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):testing
+	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):testing
+
+# Push the SDO services docker image to the registry and tag as latest
 publish-$(SDO_DOCKER_IMAGE):
 	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
 	docker tag $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION) $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):latest
 	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):latest
 
-# Push the SDO services docker image to the registry as stable
+# Push the SDO services docker image to the registry and tag as stable
 promote-$(SDO_DOCKER_IMAGE):
 	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
 	docker tag $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION) $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):stable

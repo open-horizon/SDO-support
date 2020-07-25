@@ -375,7 +375,7 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	if urlBase == "" {
 		urlBase = "https://raw.githubusercontent.com/open-horizon/anax/stable" // the default
 	}
-	url = urlBase + "/agent-install/agent-install.sh"
+	url := urlBase + "/agent-install/agent-install.sh"
 	fileName = valuesDir + "/agent-install.sh"
 	outils.Verbose("Downloading %s to %s ...", url, fileName)
 	if err := outils.DownloadFile(url, fileName, 0750); err != nil {
