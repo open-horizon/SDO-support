@@ -20,13 +20,22 @@ These steps only need to be performed by developers of this project.
 
 ### Build the Sample SDO Manufacturer Docker Images
 
-1. Build the SDO manufacturer services:
+1. Download this tar file from [Intel SDO Release 1.8](https://github.com/secure-device-onboard/release/releases/tag/v1.8.0) to directory `../sdo/` and uppack it:
+
+  ```bash
+  mkdir -p ../sdo && cd ../sdo
+  curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.8.0/supply-chain-tools-v1.8.0.tar.gz
+  tar -zxf supply-chain-tools-v1.8.0.tar.gz
+  cd ../sample-mfg
+  ```
+
+2. Build the SDO manufacturer services:
 
   ```bash
   make sdo-mfg-services
   ```
 
-2. After testing the services, push them to docker hub:
+3. After testing the services, push them to docker hub:
 
   ```bash
   make publish-sdo-mfg-services

@@ -60,15 +60,18 @@ confirmcmds() {
 getAgreementState() {
     local json=$(hzn agreement list)
     #local json=$(cat $jsonFile)  # for testing
-    local agSvcUrl=$(jq -r '.[].workload_to_run.url' <<< $json)
-    #echo "agSvcUrl=${agSvcUrl}."
-    if [[ $agSvcUrl != $serviceUrl ]]; then
+    local agSvcUrls=$(jq -r '.[].workload_to_run.url' <<< $json)
+    #echo "agSvcUrls=${agSvcUrls}."
+    #if [[ $agSvcUrls != $serviceUrl ]]; then
+    # Need to handle the case where there are multiple agreement. See if at least 1 is for this service
+    if ! echo "$agSvcUrls" | grep -qw "$serviceUrl"; then
         echo 'none'
         return
     fi
 
-    # We found at least a partial agreement for this service, so keep going
-    local exStartTime=$(jq -r '.[].agreement_execution_start_time' <<< $json)
+    # We found at least a partial agreement for this service, so see how far along the agreement is
+    #local exStartTime=$(jq -r '.[].agreement_execution_start_time' <<< $json)
+    local exStartTime=$(jq -r '.[] | select(.workload_to_run.url=="'$serviceUrl'") | .agreement_execution_start_time' <<< $json)
     #echo "exStartTime=$exStartTime."
     if [[ -z $exStartTime ]]; then
         echo 'negotiating'
@@ -88,10 +91,10 @@ if which hzn >/dev/null; then
 fi
 
 # "Boot" device to have SDO get it registered with the management hub
-deviceBinaryDir='sdo_device_binaries_1.7_linux_x64'
+deviceBinaryDir='sdo_device_binaries_1.8_linux_x64'
 if [[ ! -d $deviceBinaryDir ]]; then
     deviceBinaryTar="$deviceBinaryDir.tar.gz"
-    deviceBinaryUrl="https://github.com/open-horizon/SDO-support/releases/download/sdo_device_binaries_1.7/$deviceBinaryTar"
+    deviceBinaryUrl="https://github.com/open-horizon/SDO-support/releases/download/sdo_device_binaries_1.8/$deviceBinaryTar"
     echo "Getting and unpacking $deviceBinaryDir ..."
     httpCode=$(curl -w "%{http_code}" --progress-bar -L -O $deviceBinaryUrl)
     chkHttp $? $httpCode "getting $deviceBinaryTar"
@@ -109,10 +112,10 @@ if [[ $useNativeClient == 'true' ]]; then
     cd ../../..
 else
     echo "Booting with java client..."
-    cd $deviceBinaryDir/demo/device
+    cd $deviceBinaryDir/device
     ./device
     chk $? 'booting with java device'
-    cd ../../..
+    cd ../..
 fi
 
 # If they didn't specify a serviceUrl agreement to watch for, then we are done

@@ -24,6 +24,7 @@ Additional environment variables (that do not usually need to be set):
   SDO_OPS_PORT - port number OPS should listen on *inside* the container. Default is 8042.
   SDO_OPS_EXTERNAL_PORT - external port number that RV should tell the device to reach OPS at. Defaults to the internal OPS port number.
   SDO_OCS_API_PORT - port number OCS-API should listen on *inside* the container. Default is 9008.
+  AGENT_INSTALL_URL - where to get agent-install.sh from. Valid values: file:///<path-to-agent-install> (will be mounted into the container), https://raw.githubusercontent.com/open-horizon/anax/master/agent-install/agent-install.sh (get the most recently committed version), https://github.com/open-horizon/anax/releases/latest/download/agent-install.sh (the latest tested patch version - this is the default), https://github.com/open-horizon/anax/releases/download/stable/agent-install.sh (the last fully tested version)
 EndOfMessage
     exit 1
 fi
@@ -60,13 +61,52 @@ export SDO_OPS_EXTERNAL_PORT=${SDO_OPS_EXTERNAL_PORT:-$SDO_OPS_PORT}   # the ext
 # Define the OPS hostname the to0scheduler tells RV to direct the booting device to
 SDO_OWNER_SVC_HOST=${SDO_OWNER_SVC_HOST:-$(hostname)}   # currently only used for OPS
 
+AGENT_INSTALL_URL=${AGENT_INSTALL_URL:-https://github.com/open-horizon/anax/releases/latest/download/agent-install.sh}
+
+# Check the exit code passed in and exit if non-zero
+chk() {
+    local exitCode=$1
+    local task=$2
+    local dontExit=$3   # set to 'continue' to not exit for this error
+    if [[ $exitCode == 0 ]]; then return; fi
+    echo "Error: exit code $exitCode from: $task"
+    if [[ $dontExit != 'continue' ]]; then
+        exit $exitCode
+    fi
+}
+
+# If docker isn't installed, do that
+if ! command -v docker >/dev/null 2>&1; then
+    if [[ $(whoami) != 'root' ]]; then
+        echo "Error: docker is not installed, but we are not root, so can not install it for you. Exiting"
+        exit 2
+    fi
+    echo "Docker is required, installing it..."
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+    chk $? 'adding docker repository key'
+    add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+    chk $? 'adding docker repository'
+    apt-get install -y docker-ce docker-ce-cli containerd.io
+    chk $? 'installing docker'
+fi
+
+# Mount the owner private key into the container, if they provided one
 if [[ -n "$ownerPrivateKey" ]]; then
     privateKeyMount="-v $PWD/$ownerPrivateKey:$containerHome/ocs/config/owner-keystore.p12:ro"
 fi
 # else inside the container start-sdo-owner-services.sh will use the default key file that Dockerfile set up
 
+if [[ ${AGENT_INSTALL_URL:0:8} == 'file:///' ]]; then
+    agentInstallFlag="-v ${AGENT_INSTALL_URL#file:///}:$containerHome/agent-install.sh:ro"
+elif [[ ${AGENT_INSTALL_URL:0:4} == 'http' ]]; then
+    agentInstallFlag="-e AGENT_INSTALL_URL=$AGENT_INSTALL_URL"
+else
+    echo "Error: invalid AGENT_INSTALL_URL value: $AGENT_INSTALL_URL"
+    exit 1
+fi
+
 # If VERSION is a generic tag like latest, stable, or testing we have to make sure we pull the most recent
 docker pull $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
 
 # Run the service container
-docker run --name $SDO_DOCKER_IMAGE -dt --mount "type=volume,src=sdo-ocs-db,dst=$SDO_OCS_DB_CONTAINER_DIR" $privateKeyMount -p $SDO_OCS_API_PORT:$SDO_OCS_API_PORT -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "SDO_OCS_API_PORT=$SDO_OCS_API_PORT" -e "SDO_RV_PORT=$SDO_RV_PORT" -e "SDO_OPS_PORT=$SDO_OPS_PORT" -e "SDO_OPS_EXTERNAL_PORT=$SDO_OPS_EXTERNAL_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_ORG_ID=$HZN_ORG_ID" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" -e "SDO_SUPPORT_REPO=$SDO_SUPPORT_REPO" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
+docker run --name $SDO_DOCKER_IMAGE -dt --mount "type=volume,src=sdo-ocs-db,dst=$SDO_OCS_DB_CONTAINER_DIR" $privateKeyMount $agentInstallFlag -p $SDO_OCS_API_PORT:$SDO_OCS_API_PORT -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "SDO_OCS_API_PORT=$SDO_OCS_API_PORT" -e "SDO_RV_PORT=$SDO_RV_PORT" -e "SDO_OPS_PORT=$SDO_OPS_PORT" -e "SDO_OPS_EXTERNAL_PORT=$SDO_OPS_EXTERNAL_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_ORG_ID=$HZN_ORG_ID" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION

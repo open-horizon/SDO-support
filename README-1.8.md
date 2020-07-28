@@ -39,7 +39,7 @@ The SDO owner services are packaged as a single docker container that can be run
 
   ```bash
   mkdir $HOME/sdo; cd $HOME/sdo
-  curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/stable/docker/run-sdo-owner-services.sh
+  curl -sSLO https://raw.githubusercontent.com/open-horizon/SDO-support/stable/docker/run-sdo-owner-services.sh
   chmod +x run-sdo-owner-services.sh
   ```
 
@@ -79,11 +79,11 @@ The SDO owner services are packaged as a single docker container that can be run
 The sample script called `simulate-mfg.sh` simulates the process of a manufacturer initializing a device with SDO and credentials, creating an ownership voucher, and extending it to the owner. Perform these steps **on the VM device to be initialized** (these steps are written for Ubuntu 18.04):
 
 ```bash
-apt update && apt install -y openjdk-11-jre-headless docker docker-compose
 mkdir -p $HOME/sdo && cd $HOME/sdo
-curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/stable/sample-mfg/simulate-mfg.sh
+curl -sSLO https://raw.githubusercontent.com/open-horizon/SDO-support/stable/sample-mfg/simulate-mfg.sh
 chmod +x simulate-mfg.sh
 export SDO_RV_URL=http://<sdo-owner-svcs-host>:8040
+export SDO_SAMPLE_MFG_KEEP_SVCS=true   # makes it faster if you run multiple tests
 ./simulate-mfg.sh
 ```
 
@@ -106,7 +106,7 @@ When an SDO-enabled device boots, it starts the SDO process which contacts the S
 
   ```bash
   cd $HOME/sdo
-  curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/stable/tools/owner-boot-device
+  curl -sSLO https://raw.githubusercontent.com/open-horizon/SDO-support/stable/tools/owner-boot-device
   chmod +x owner-boot-device
   ```
 

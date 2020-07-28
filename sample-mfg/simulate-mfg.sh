@@ -21,9 +21,9 @@ Required Environment Variables:
   SDO_RV_URL: usually the dev RV running in the sdo-owner-services. To use the real Intel RV service, set to http://sdo-sbx.trustedservices.intel.com or http://sdo.trustedservices.intel.com and register your public key with Intel.
 
 Optional Environment Variables:
-  SDO_MFG_IMAGE_TAG - version of the manufacturer and sct_mariadb docker images that should be used. Defaults to 'stable'.
-  HZN_MGMT_HUB_CERT - the base64 encoded content of the SDO owner services self-signed certificate (if it requires that). This is normally not necessary, because the SDO protocols are secure over HTTP.
-  SDO_SAMPLE_MFG_KEEP_SVCS: set to 'true' to skip shutting down the mfg docker containers. This is faster if running this script repeatedly.
+  SDO_MFG_IMAGE_TAG - version of the manufacturer and manufacturer-mariadb docker images that should be used. Defaults to 'stable'.
+  HZN_MGMT_HUB_CERT - the base64 encoded content of the SDO owner services self-signed certificate (if it requires that). This is normally not necessary on the device, because the SDO protocols are secure over HTTP.
+  SDO_SAMPLE_MFG_KEEP_SVCS: set to 'true' to skip shutting down the mfg docker containers at the end of this script. This is faster if running this script repeatedly during dev/test.
 
 ${0##*/} must be run in a directory where it has access to create a few files and directories.
 EndOfMessage
@@ -37,13 +37,17 @@ fi
 
 SDO_MFG_IMAGE_TAG=${SDO_MFG_IMAGE_TAG:-stable}
 
-sampleMfgRepo=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/stable}
-privateKeyFile=${1:-$sampleMfgRepo/sample-mfg/keys/sample-mfg-key.p12}
-ownerPubKeyFile=${2:-$sampleMfgRepo/keys/sample-owner-key.pub}
+#sampleMfgRepo=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/stable}
+deviceBinaryDir='sdo_device_binaries_1.8_linux_x64'   # the place we will unpack sdo_device_binaries_1.8_linux_x64.tar.gz to
+privateKeyFile=${1:-$deviceBinaryDir/keys/manufacturer-keystore.p12}
+ownerPubKeyFile=${2:-$deviceBinaryDir/keys/sample-owner-key.pub}
 rvUrl="$SDO_RV_URL"   # the external rv url that the device should reach it at
 useNativeClient=${SDO_DEVICE_USE_NATIVE_CLIENT:-false}   # future: add cmd line flag for this too
 
-dbUser='sdo_admin'
+sdoMfgDockerName='manufacturer'   # both docker image and container
+sdoMariaDbDockerName='manufacturer-mariadb'   # both docker image and container
+#dbUser='sdo_admin'
+dbUser='sdo'
 dbPw='sdo'
 
 # Only echo this if VERBOSE is 1 or true
@@ -105,16 +109,72 @@ parseVoucher() {
     echo "${uuid:0:8}-${uuid:8:4}-${uuid:12:4}-${uuid:16:4}-${uuid:20}"
 }
 
-confirmcmds grep curl ping docker docker-compose java
+# Checks if docker-compose is installed, and if so, if it is at least this minimum version
+isDockerComposeAtLeast() {
+    : ${1:?}
+    local minVersion=$1
+    if ! command -v docker-compose >/dev/null 2>&1; then
+        return 1   # it is not even installed
+    fi
+    # docker-compose is installed, check its version
+    lowerVersion=$(echo -e "$(docker-compose version --short)\n$minVersion" | sort -V | head -n1)
+    if [[ $lowerVersion == $minVersion ]]; then
+        return 0   # the installed version was >= minVersion
+    else
+        return 1
+    fi
+}
+
+# Make sure the host has the necessary software: java 11, docker-ce, docker-compose >= 1.21.0
+confirmcmds grep curl ping   # these should be in the minimal ubuntu
+
+# If java 11 isn't installed, do that
+if java -version 2>&1 | grep version | grep -q 11.; then
+    echo "Found java 11"
+else
+    echo "Java 11 not found, installing it..."
+    ensureWeAreRoot
+    apt-get update && apt-get install -y openjdk-11-jre-headless
+    chk $? 'installing java 11'
+fi
+
+# If docker isn't installed, do that
+if ! command -v docker >/dev/null 2>&1; then
+    echo "Docker is required, installing it..."
+    ensureWeAreRoot
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+    chk $? 'adding docker repository key'
+    add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+    chk $? 'adding docker repository'
+    apt-get install -y docker-ce docker-ce-cli containerd.io
+    chk $? 'installing docker'
+fi
+
+# If docker-compose isn't installed, or isn't at least 1.21.0 (when docker-compose.yml version 2.4 was introduced), then install/upgrade it
+# For the dependency on 1.21.0 or greater, see: https://docs.docker.com/compose/release-notes/
+minVersion=1.21.0
+if ! isDockerComposeAtLeast $minVersion; then
+    echo "docker-compose is not installed or not at least version $minVersion, installing/upgrading it..."
+    ensureWeAreRoot
+    # Install docker-compose from its github repo, because that is the only way to get a recent enough version
+    curl --progress-bar -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+    chk $? 'downloading docker-compose'
+    chmod +x /usr/local/bin/docker-compose
+    chk $? 'making docker-compose executable'
+    ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+    chk $? 'linking docker-compose to /usr/bin'
+fi
 
 # Initial checking of input
 # The mfg private key is either a URL we retrieve, or a file we use as-is
 mkdir -p keys
 if [[ ${privateKeyFile:0:4} == 'http' ]]; then
     echo "Getting $privateKeyFile ..."
-    httpCode=$(curl -w "%{http_code}" --progress-bar -L -o keys/sdo.p12 $privateKeyFile)
+    httpCode=$(curl -w "%{http_code}" -sSL -o keys/manufacturer-keystore.p12 $privateKeyFile)
     chkHttp $? $httpCode 'getting mfg private key'
-    privateKeyFile='keys/sdo.p12'
+    privateKeyFile='keys/manufacturer-keystore.p12'
+elif [[ $privateKeyFile == "$deviceBinaryDir/keys/manufacturer-keystore.p12" ]]; then
+    :   # we will get if from $deviceBinaryDir later
 elif [[ ! -f $privateKeyFile ]]; then
     echo "Error: $privateKeyFile does not exist"
     exit 1
@@ -123,9 +183,11 @@ fi
 # The owner public key is either a URL we retrieve, or a file we use as-is
 if [[ ${ownerPubKeyFile:0:4} == 'http' ]]; then
     echo "Getting $ownerPubKeyFile ..."
-    httpCode=$(curl -w "%{http_code}" --progress-bar -L -o keys/owner-key.pub $ownerPubKeyFile)
+    httpCode=$(curl -w "%{http_code}" -sSL -o keys/owner-key.pub $ownerPubKeyFile)
     chkHttp $? $httpCode 'getting owner public key'
     ownerPubKeyFile='keys/owner-key.pub'
+elif [[ $ownerPubKeyFile == "$deviceBinaryDir/keys/sample-owner-key.pub" ]]; then
+    :   # we will get if from $deviceBinaryDir later
 elif [[ ! -f $ownerPubKeyFile ]]; then
     echo "Error: $ownerPubKeyFile does not exist"
     exit 1
@@ -158,58 +220,62 @@ if which hzn >/dev/null; then
     fi
 fi
 
-# Get the other files we need from our git repo
-deviceBinaryDir='sdo_device_binaries_1.7_linux_x64'
+# Get the other files we need from our git repo, by way of our device binaries tar file
 if [[ ! -d $deviceBinaryDir ]]; then
     deviceBinaryTar="$deviceBinaryDir.tar.gz"
-    deviceBinaryUrl="https://github.com/open-horizon/SDO-support/releases/download/sdo_device_binaries_1.7/$deviceBinaryTar"
+    deviceBinaryUrl="https://github.com/open-horizon/SDO-support/releases/download/sdo_device_binaries_1.8/$deviceBinaryTar"
     echo "Getting and unpacking $deviceBinaryDir ..."
     httpCode=$(curl -w "%{http_code}" --progress-bar -L -O $deviceBinaryUrl)
     chkHttp $? $httpCode "getting $deviceBinaryTar"
-    tar -zxvf $deviceBinaryTar
+    tar -zxf $deviceBinaryTar
 fi
 
-echo "Getting $sampleMfgRepo/sample-mfg/docker-compose.yml ..."
-#set -x
-httpCode=$(curl -w "%{http_code}" --progress-bar -L -O $sampleMfgRepo/sample-mfg/docker-compose.yml)
-chkHttp $? $httpCode 'getting sample-mfg/docker-compose.yml'
-# { set +x; } 2>/dev/null
+cp $deviceBinaryDir/docker-compose.yml .
+chk $? 'copying docker-compose.yml in place'
 
-# Copy the mfg private key to the place docker-compose looks for it (keys/sdo.p12), unless it is already there
-if [[ $privateKeyFile != 'keys/sdo.p12' && $privateKeyFile != './keys/sdo.p12' ]]; then
-    cp $privateKeyFile keys/sdo.p12
+# Copy the mfg private key and the owner public key to the places docker-compose looks for them (unless they are already there)
+if [[ $privateKeyFile != 'keys/manufacturer-keystore.p12' && $privateKeyFile != './keys/manufacturer-keystore.p12' ]]; then
+    cp $privateKeyFile keys/manufacturer-keystore.p12   # if they took the default, this is copying from $deviceBinaryDir/keys/manufacturer-keystore.p12
+    chk $? 'copying mfg private key in place'
+    privateKeyFile='keys/manufacturer-keystore.p12'
+fi
+if [[ $ownerPubKeyFile != 'keys/owner-key.pub' && $ownerPubKeyFile != './keys/owner-key.pub' ]]; then
+    cp $ownerPubKeyFile keys/owner-key.pub   # if they took the default, this is copying from $deviceBinaryDir/keys/sample-owner-key.pub
+    chk $? 'copying owner public key in place'
+    ownerPubKeyFile='keys/owner-key.pub'
 fi
 
 # Start mfg services (originally done by SCT/startup-docker.sh)
 echo "Pulling and tagging the SDO SCT services..."
-docker pull openhorizon/manufacturer:$SDO_MFG_IMAGE_TAG
-docker tag openhorizon/manufacturer:$SDO_MFG_IMAGE_TAG manufacturer:latest
-docker pull openhorizon/sct_mariadb:$SDO_MFG_IMAGE_TAG
-docker tag openhorizon/sct_mariadb:$SDO_MFG_IMAGE_TAG sct_mariadb:latest
+docker pull openhorizon/$sdoMfgDockerName:$SDO_MFG_IMAGE_TAG
+docker tag openhorizon/$sdoMfgDockerName:$SDO_MFG_IMAGE_TAG $sdoMfgDockerName:1.8   # this is what the SDO docker-compose.yml file knows it by
+docker pull openhorizon/$sdoMariaDbDockerName:$SDO_MFG_IMAGE_TAG
+docker tag openhorizon/$sdoMariaDbDockerName:$SDO_MFG_IMAGE_TAG $sdoMariaDbDockerName:1.8   # this is what the SDO docker-compose.yml file knows it by
 
 echo "starting the SDO SCT services (will take about 75 seconds)..."
 # need to explicitly set the project name, because it was built with that project name (see Makefile)
-docker-compose --project-name SCT up -d --no-build
+#docker-compose --project-name SCT up -d --no-build
+docker-compose up -d --no-build
 chk $? 'starting SDO SCT services'
 
 # sdo_sdk_binaries_linux_x64/SupplyChainTools/docker_manufacturer/mt_config.sql puts http://sdo-sbx.trustedservices.intel.com:80 in the mt_server_settings table
 # as the RV URL. Update that to the value the user wants to use.
 echo "Updating the RV hostname in the mt_server_settings table..."
-docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "update mt_server_settings set rendezvous_info = '$rvUrl' where id = 1"
+docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo -e "update mt_server_settings set rendezvous_info = '$rvUrl' where id = 1"
 chk $? 'updating RV hostname in mt_server_settings'
 
 # To enable re-running this script w/o shutting down the docker containers, we have to delete the voucher row from rt_ownership_voucher because it has a
 # foreign key to the 1 row in the rt_customer_public_key, which we will be replacing in the next step.
 echo "Removing all rows from the rt_ownership_voucher table to enable redo..."
-docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "delete from rt_ownership_voucher"
+docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo -e "delete from rt_ownership_voucher"
 chk $? 'deleting rows from rt_ownership_voucher'
 
 # Add the customer/owner public key to the mariadb
 echo "Adding owner public key $ownerPubKeyFile to the SCT services..."
-docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "call rt_add_customer_public_key('all','$(cat $ownerPubKeyFile)')"
+docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo -e "call rt_add_customer_public_key('all','$(cat $ownerPubKeyFile)')"
 chk $? 'adding owner public key to SDO SCT services'
-# it can be listed with: docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "select customer_descriptor from rt_customer_public_key"
-# all of the tables can be listed with: docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "show tables"
+# it can be listed with: docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo -e "select customer_descriptor from rt_customer_public_key"
+# all of the tables can be listed with: docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo -e "show tables"
 
 # Device initialization (and create the ownership voucher)
 echo "Running device initialization..."
@@ -225,11 +291,11 @@ if [[ $useNativeClient == 'true' ]]; then
     cd ../../..
 else
     echo "Using java client"
-    cd $deviceBinaryDir/demo/device
+    cd $deviceBinaryDir/device
     # comment out this property to put the device in DI mode
-    sed -i -e 's/^com.intel.sdo.device.credentials=/#com.intel.sdo.device.credentials=/' application.properties
+    sed -i -e 's/^org.sdo.device.credentials=/#org.sdo.device.credentials=/' application.properties
     chk $? 'modifying device application.properties for DI'
-    # this property is already set how we want it: com.intel.sdo.di.uri=http://localhost:8039
+    # this property is already set how we want it: org.sdo.di.uri=http://localhost:8039
 
     # this creates an ownership voucher and puts it in the mariadb rt_ownership_voucher table
     ./device
@@ -239,7 +305,7 @@ else
     cd ../..
     deviceOcFileUuid=${deviceOcFile%.oc}
     echo "Device UUID: $deviceOcFileUuid"
-    cd ../../..
+    cd ../..
 fi
 
 # At this point, the mariadb has content in these tables:
@@ -250,7 +316,7 @@ fi
 
 # Extend the voucher to the owner and save it in the current dir (orginally done by SCT/sct-docker.sh)
 echo "Extending the voucher to the owner..."
-devSerialNum=$(docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo --skip-column-names -s -e "select device_serial_no from rt_ownership_voucher where customer_public_key_id is NULL")
+devSerialNum=$(docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo --skip-column-names -s -e "select device_serial_no from rt_ownership_voucher where customer_public_key_id is NULL")
 chk $? 'querying device_serial_no'
 devSerialNum=${devSerialNum:0:$((${#devSerialNum}-1))}   # the last char seems to be a carriage return control char, so strip it
 numSerialNums=$(echo -n "$devSerialNum" | grep -c '^')   # this counts the number of lines
@@ -261,10 +327,10 @@ fi
 # devSerialNum is different from the UUID
 
 # this is what extends the voucher to the owner, because the db already has the owner public key
-docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo -e "call rt_assign_device_to_customer('$devSerialNum','all')"
+docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo -e "call rt_assign_device_to_customer('$devSerialNum','all')"
 chk $? 'assign voucher to owner'
 printf "Device serial and owner in the DB: "
-docker exec -t mariadb mysql -u$dbUser -p$dbPw -D intel_sdo --skip-column-names -s -e "select rt_ownership_voucher.device_serial_no, rt_customer_public_key.customer_descriptor from rt_ownership_voucher inner join rt_customer_public_key on rt_customer_public_key.customer_public_key_id=rt_ownership_voucher.customer_public_key_id"
+docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo --skip-column-names -s -e "select rt_ownership_voucher.device_serial_no, rt_customer_public_key.customer_descriptor from rt_ownership_voucher inner join rt_customer_public_key on rt_customer_public_key.customer_public_key_id=rt_ownership_voucher.customer_public_key_id"
 
 # get the voucher from the db
 if [[ -f voucher.json ]]; then
@@ -288,17 +354,17 @@ if [[ -n "$deviceOcFileUuid" && "$deviceOcFileUuid" != "$voucherDevUuid" ]]; the
     exit 4
 fi
 
-# Note: originally to-docker.sh would at this point put the voucher in the ocs db, but our hzn-voucher-import does that later
+# Note: originally to-docker.sh would at this point put the voucher in the ocs db, but our 'hzn voucher import' does that later
 
 if [[ $useNativeClient == 'false' ]]; then
     # Switch the device into owner mode
-    cd $deviceBinaryDir/demo/device
+    cd $deviceBinaryDir/device
     echo "Switching the device into owner mode with credential file $deviceOcFile ..."
     mv creds/saved/$deviceOcFile creds
     chk $? 'moving device .oc file'
-    sed -i -e "s|^#*com.intel.sdo.device.credentials=.*$|com.intel.sdo.device.credentials=creds/$deviceOcFile|" application.properties
+    sed -i -e "s|^#*org.sdo.device.credentials=.*$|org.sdo.device.credentials=creds/$deviceOcFile|" application.properties
     chk $? 'switching device to owner mode'
-    cd ../../..
+    cd ../..
 fi
 
 # Shutdown mfg services
@@ -306,7 +372,8 @@ if [[ "$SDO_SAMPLE_MFG_KEEP_SVCS" == '1' || "$SDO_SAMPLE_MFG_KEEP_SVCS" == 'true
     echo "Leaving SCT services running, because SDO_SAMPLE_MFG_KEEP_SVCS=$SDO_SAMPLE_MFG_KEEP_SVCS"
 else
     echo "Shutting down SDO SCT services..."
-    docker-compose --project-name SCT down
+    #docker-compose --project-name SCT down
+    docker-compose down
     chk $? 'shutting down SDO SCT services'
 fi
 
