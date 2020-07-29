@@ -192,6 +192,19 @@ func DownloadFile(url, fileName string, perm os.FileMode) error {
 	return err
 }
 
+// Copy a file
+func CopyFile(fromFileName, toFileName string, perm os.FileMode) *HttpError {
+	var content []byte
+	var err error
+	if content, err = ioutil.ReadFile(fromFileName); err != nil {
+		return NewHttpError(http.StatusInternalServerError, "could not read "+fromFileName+": "+err.Error())
+	}
+	if err = ioutil.WriteFile(toFileName, content, perm); err != nil {
+		return NewHttpError(http.StatusInternalServerError, "could not write "+toFileName+": "+err.Error())
+	}
+	return nil
+}
+
 // Verify the request credentials with the exchange. Returns true/false or error
 func ExchangeAuthenticate(r *http.Request, currentExchangeUrl, currentOrgId, certificatePath string) (bool, *HttpError) {
 	orgAndUser, pwOrKey, ok := r.BasicAuth()

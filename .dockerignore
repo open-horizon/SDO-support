@@ -1,2 +1,2 @@
 # Do not want this dir copied from the sdo tar file
-sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/ocs/config/db/v1*
+sdo/iot-platform-sdk-v1.8.0/ocs/config/db/v1*

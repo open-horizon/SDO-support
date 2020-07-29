@@ -311,7 +311,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 // Create the common (not device specific) config files. Can be called during startup (config == nil) or from POST /api/config
 func createConfigFiles(config *Config) *outils.HttpError {
 	valuesDir := OcsDbDir + "/v1/values"
-	var fileName, data string
+	var fileName, dataStr string
 
 	// Create agent-install.crt and its name file
 	var crt []byte
@@ -333,8 +333,8 @@ func createConfigFiles(config *Config) *outils.HttpError {
 
 		fileName = valuesDir + "/agent-install-crt_name"
 		outils.Verbose("Creating %s ...", fileName)
-		data = "agent-install.crt"
-		if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(data), 0644); err != nil {
+		dataStr = "agent-install.crt"
+		if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(dataStr), 0644); err != nil {
 			return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 		}
 	}
@@ -353,58 +353,66 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	if CurrentExchangeUrl != "" && fssUrl != "" && CurrentOrgId != "" {
 		fileName = valuesDir + "/agent-install.cfg"
 		outils.Verbose("Creating %s ...", fileName)
-		data = "HZN_EXCHANGE_URL=" + CurrentExchangeUrl + "\nHZN_FSS_CSSURL=" + fssUrl + "\nHZN_ORG_ID=" + CurrentOrgId + "\n"
+		dataStr = "HZN_EXCHANGE_URL=" + CurrentExchangeUrl + "\nHZN_FSS_CSSURL=" + fssUrl + "\nHZN_ORG_ID=" + CurrentOrgId + "\n"
 		if len(crt) > 0 {
 			// only add this if we actually created the agent-install.crt file above
-			data += "HZN_MGMT_HUB_CERT_PATH=agent-install.crt\n"
+			dataStr += "HZN_MGMT_HUB_CERT_PATH=agent-install.crt\n"
 		}
-		if err := ioutil.WriteFile(fileName, []byte(data), 0644); err != nil {
+		if err := ioutil.WriteFile(fileName, []byte(dataStr), 0644); err != nil {
 			return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 		}
 	}
 
 	fileName = valuesDir + "/agent-install-cfg_name"
 	outils.Verbose("Creating %s ...", fileName)
-	data = "agent-install.cfg"
-	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(data), 0644); err != nil {
+	dataStr = "agent-install.cfg"
+	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(dataStr), 0644); err != nil {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 	}
 
-	// Download and create agent-install.sh and its name file
-	url := "https://raw.githubusercontent.com/open-horizon/anax/master/agent-install/agent-install.sh"
+	// Get and create agent-install.sh and its name file
+	var url string
 	fileName = valuesDir + "/agent-install.sh"
-	outils.Verbose("Downloading %s to %s ...", url, fileName)
-	if err := outils.DownloadFile(url, fileName, 0750); err != nil {
-		return outils.NewHttpError(http.StatusInternalServerError, "could not download "+url+" to "+fileName+": "+err.Error())
+	if outils.PathExists("./agent-install.sh") {
+		// agent-install.sh was mounted into our container by the person starting it
+		outils.Verbose("agent-install.sh was mounted into the container, copying it...")
+		if httpErr := outils.CopyFile("./agent-install.sh", fileName, 0750); httpErr != nil {
+			return httpErr
+		}
+	} else {
+		url = os.Getenv("AGENT_INSTALL_URL")
+		if url == "" {
+			url = "https://github.com/open-horizon/anax/releases/latest/download/agent-install.sh" // the default
+		}
+		outils.Verbose("Downloading %s to %s ...", url, fileName)
+		if err := outils.DownloadFile(url, fileName, 0750); err != nil { //todo: i think we also need to inside the file and check if the 1st line begins with 404
+			return outils.NewHttpError(http.StatusInternalServerError, "could not download "+url+" to "+fileName+": "+err.Error())
+		}
 	}
 
 	fileName = valuesDir + "/agent-install-sh_name"
 	outils.Verbose("Creating %s ...", fileName)
-	data = "agent-install.sh"
-	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(data), 0644); err != nil {
+	dataStr = "agent-install.sh"
+	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(dataStr), 0644); err != nil {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 	}
 
-	// Download and create agent-install-wrapper.sh and its name file
-	urlBase := os.Getenv("SDO_SUPPORT_REPO")
-	if urlBase == "" {
-		urlBase = "https://raw.githubusercontent.com/open-horizon/SDO-support/stable" // the default
-	}
-	url = urlBase + "/ocs-api/agent-install-wrapper.sh"
+	// Create agent-install-wrapper.sh and its name file
 	fileName = valuesDir + "/agent-install-wrapper.sh"
-	outils.Verbose("Downloading %s to %s ...", url, fileName)
-	if err := outils.DownloadFile(url, fileName, 0750); err != nil {
-		return outils.NewHttpError(http.StatusInternalServerError, "could not download "+url+" to "+fileName+": "+err.Error())
+	outils.Verbose("Creating %s ...", fileName)
+	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(data.AgentInstallWrapper), 0750); err != nil {
+		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 	}
 
 	fileName = valuesDir + "/agent-install-wrapper-sh_name"
 	outils.Verbose("Creating %s ...", fileName)
-	data = "agent-install-wrapper.sh"
-	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(data), 0644); err != nil {
+	dataStr = "agent-install-wrapper.sh"
+	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(dataStr), 0644); err != nil {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 	}
 
 	// Download and create apt-repo-public.key and its name file
+	//todo: use anax/releases to get the deb pkgs in agent-install.sh instead
 	url = "http://pkg.bluehorizon.network/bluehorizon.network-public.key"
 	fileName = valuesDir + "/apt-repo-public.key"
 	outils.Verbose("Downloading %s to %s ...", url, fileName)
@@ -414,8 +422,8 @@ func createConfigFiles(config *Config) *outils.HttpError {
 
 	fileName = valuesDir + "/apt-repo-public-key_name"
 	outils.Verbose("Creating %s ...", fileName)
-	data = "apt-repo-public.key"
-	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(data), 0644); err != nil {
+	dataStr = "apt-repo-public.key"
+	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(dataStr), 0644); err != nil {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 	}
 
