@@ -43,9 +43,22 @@ The SDO owner services are packaged as a single docker container that can be run
   chmod +x run-sdo-owner-services.sh
   ```
 
-2. Run `./run-sdo-owner-services.sh -h` to see the usage, and set all of the necessary environment variables.
+2. Run `./run-sdo-owner-services.sh -h` to see the usage, and set all of the necessary environment variables. For example:
 
-3. Start the SDO owner services docker container and view the log:
+   ```bash
+   export HZN_EXCHANGE_URL=https://<cluster-url>/edge-exchange/v1
+   export HZN_FSS_CSSURL=https://<cluster-url>/edge-css
+   export HZN_ORG_ID=mycluster
+   export HZN_EXCHANGE_USER_AUTH=iamapikey:<api-key>
+   ```
+
+3. As part of installing the Horizon management hub, you should have run [edgeNodeFiles.sh](https://github.com/open-horizon/anax/blob/master/agent-install/edgeNodeFiles.sh), which created a tar file containing `agent-install.crt`. Use that to export this environment variable:
+
+   ```bash
+   export HZN_MGMT_HUB_CERT=$(cat agent-install.crt | base64)
+   ```
+
+4. Start the SDO owner services docker container and view the log:
 
   ```bash
   ./run-sdo-owner-services.sh
@@ -56,19 +69,28 @@ The SDO owner services are packaged as a single docker container that can be run
 
 **On a Horizon "admin" host** run these simple SDO APIs to verify that the services within the docker container are accessible and responding properly. (A Horizon admin host is one that has the `horizon-cli` package, which provides the `hzn` command, and has the environment variables `HZN_EXCHANGE_URL`, `HZN_SDO_SVC_URL`, `HZN_ORG_ID`, and `HZN_EXCHANGE_USER_AUTH` set correctly for your Horizon management hub.)
 
-1. Query the OCS API version:
+1. Export these environment variables for the subsequent steps:
+
+   ```bash
+   export HZN_ORG_ID=mycluster
+   export HZN_EXCHANGE_USER_AUTH=iamapikey:<api-key>
+   export HZN_SDO_SVC_URL=http://<sdo-owner-svc-host>:9008/api
+   export SDO_RV_URL=http://<sdo-owner-svc-host>:8040
+   ```
+
+2. Query the OCS API version:
 
   ```bash
   curl -sS $HZN_SDO_SVC_URL/version && echo
   ```
 
-2. Query the ownership vouchers that have already been imported (initially it will be an empty list):
+3. Query the ownership vouchers that have already been imported (initially it will be an empty list):
 
   ```bash
   curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" $HZN_SDO_SVC_URL/vouchers | jq
   ```
 
-3. "Ping" the development rendezvous server:
+4. "Ping" the development rendezvous server:
 
   ```bash
   curl -sS -w "%{http_code}" -X POST $SDO_RV_URL/mp/113/msg/20 | jq
