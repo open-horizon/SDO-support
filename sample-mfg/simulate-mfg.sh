@@ -196,7 +196,7 @@ fi
 # Ensure RV hostname is resolvable and pingable
 rvHost=${rvUrl#http*://}   # strip protocol
 rvHost=${rvHost%:*}   # strip optional port
-if ! ping -c 1 -w 5 $rvHost > /dev/null 2>&1 ; then
+if ! ping -c 1 -W 5 $rvHost > /dev/null 2>&1 ; then
     echo "Error: host $rvHost is not resolvable or pingable"
     exit 1
 fi
