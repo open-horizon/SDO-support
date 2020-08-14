@@ -5,10 +5,10 @@
 usage() {
     exitCode=${1:-0}
     cat << EndOfMessage
-Usage: ${0##*/} [<service-url>]
+Usage: ${0##*/} [<edge-service-url>]
 
 Arguments:
-  <service-url>  (Optional) Wait until this service starts.
+  <edge-service-url>  (Optional) Wait until this Horizon edge service starts.
 EndOfMessage
     exit $exitCode
 }
@@ -18,6 +18,8 @@ if [[ $1 == '-h' || $1 == '--help' ]]; then usage 0; fi
 serviceUrl="$1"
 #jsonFile=$2  #for testing
 useNativeClient=${SDO_DEVICE_USE_NATIVE_CLIENT:-false}   # future: add cmd line flag for this too
+
+#====================== Functions ======================
 
 # Check the exit code passed in and exit if non-zero
 chk() {
@@ -80,7 +82,9 @@ getAgreementState() {
     fi
 }
 
-# Main
+
+#====================== Main Code ======================
+
 confirmcmds jq
 
 # If node is registered (if you have run this script before), then unregister it
