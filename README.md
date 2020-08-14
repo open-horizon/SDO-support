@@ -1,7 +1,5 @@
 # SDO-support
 
-### Warning: This readme is under construction. Do not use yet!!
-
 ## Overview of the Open Horizon SDO Support
 
 Edge devices built with [Intel SDO](https://software.intel.com/en-us/secure-device-onboard) (Secure Device Onboard) can be added to an Open Horizon instance by simply importing their associated ownership vouchers and then powering on the devices.
