@@ -63,10 +63,20 @@ promote-$(SDO_DOCKER_IMAGE):
 pull-$(SDO_DOCKER_IMAGE):
 	docker pull $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
 
+# Adjust the 'stable' tag to point to the current fully tested level of the repo
+# Note: only do this after pushing/merging all code changes into master in the canonical repo, and updating your local repo with that
+change-stable-tag:
+	git checkout master
+	git push origin :refs/tags/stable   # remove remote tag
+	git push canonical :refs/tags/stable   # remove remote tag
+	git tag -fa stable -m 'stable level of code'   # create/change the tag locally
+	git push origin --tags
+	git push canonical --tags
+
 clean:
 	go clean
 	rm -f ocs-api/ocs-api ocs-api/linux/ocs-api
 	- docker rm -f $(SDO_DOCKER_IMAGE) 2> /dev/null || :
 	- docker rmi $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):{$(VERSION),latest,stable} 2> /dev/null || :
 
-.PHONY: default run-ocs-api clean
+.PHONY: default run-ocs-api run-$(SDO_DOCKER_IMAGE) push-$(SDO_DOCKER_IMAGE) publish-$(SDO_DOCKER_IMAGE) promote-$(SDO_DOCKER_IMAGE) pull-$(SDO_DOCKER_IMAGE) change-stable-tag clean

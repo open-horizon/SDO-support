@@ -58,7 +58,6 @@ pull-sdo-mfg-services:
 
 #sdo_device_binaries_1.8_linux_x64.tar.gz: $(shell echo ../sdo_sdk_binaries_linux_x64/{demo/device,NOTICES/CRI,SDOClientIntel/hostapp_linux/*,SDOClientIntel/{sdo_7.dalp,sdo_8.dalp}}) sdo_device_binaries_1.8_linux_x64/cri/device-1.8*.jar
 sdo_device_binaries_1.8_linux_x64.tar.gz:
-	#mkdir -p sdo_device_binaries_1.8_linux_x64/{cri,demo,SDOClientIntel,NOTICES/CRI}
 	mkdir -p sdo_device_binaries_1.8_linux_x64/NOTICES
 	cp -a ../sdo/pri-v1.8.0/device sdo_device_binaries_1.8_linux_x64/
 	cp -a ../sdo/supply-chain-tools-v1.8.0/docker_manufacturer/docker-compose.yml sdo_device_binaries_1.8_linux_x64/

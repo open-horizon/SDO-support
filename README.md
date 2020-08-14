@@ -1,5 +1,7 @@
 # SDO-support
 
+### Warning: This readme is under construction. Do not use yet!!
+
 ## Overview of the Open Horizon SDO Support
 
 Edge devices built with [Intel SDO](https://software.intel.com/en-us/secure-device-onboard) (Secure Device Onboard) can be added to an Open Horizon instance by simply importing their associated ownership vouchers and then powering on the devices.
@@ -11,11 +13,7 @@ The software in this git repository makes it easy to use SDO-enabled edge device
 1. A sample script called `simulate-mfg.sh` to run the SDO manufacturing components (SCT - Supply Chain Tools) on a test VM device to initialize it with SDO, create the voucher, and extend it to the customer/owner. This script performs the same steps that a real SDO-enabled device manufacturer would.
 1. A script called `owner-boot-device` that initiates the same SDO booting process on a test VM device that runs on a physical SDO-enabled device when it boots.
 
-### Technology Preview
-
-The current status of this project is "tech-preview". At this time it should only be used to test the SDO process and get familiar with it, for the purpose of planning for its use in the future. Enhancements to this project will be made over the next several months as it moves toward production-ready status.
-
-## Using the SDO Support
+## <a name="use-sdo"></a>Using the SDO Support
 
 Perform the following steps to try out the Horizon SDO support:
 
@@ -25,6 +23,8 @@ Perform the following steps to try out the Horizon SDO support:
 - [Boot the Device to Have it Configured](#boot-device)
 
 ### <a name="start-services"></a>Start the SDO Owner Services
+
+**Todo: This section can be removed once the SDO owner services are being deployed in the mgmt hub.
 
 The SDO owner services respond to booting devices and enable administrators to import ownership vouchers. These 4 services are provided:
 
@@ -37,13 +37,13 @@ The SDO owner services are packaged as a single docker container that can be run
 
 1. Get `run-sdo-owner-services.sh`, which is used to start the container:
 
-  ```bash
-  mkdir $HOME/sdo; cd $HOME/sdo
-  curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/stable/docker/run-sdo-owner-services.sh
-  chmod +x run-sdo-owner-services.sh
-  ```
+   ```bash
+   mkdir $HOME/sdo; cd $HOME/sdo
+   curl -sSLO https://raw.githubusercontent.com/open-horizon/SDO-support/stable/docker/run-sdo-owner-services.sh
+   chmod +x run-sdo-owner-services.sh
+   ```
 
-2. Run `./run-sdo-owner-services.sh -h` to see the usage, and set all of the necessary environment variables. 
+2. Run `./run-sdo-owner-services.sh -h` to see the usage, and set all of the necessary environment variables. For example:
 
    ```bash
    export HZN_EXCHANGE_URL=https://<cluster-url>/edge-exchange/v1
@@ -52,7 +52,7 @@ The SDO owner services are packaged as a single docker container that can be run
    export HZN_EXCHANGE_USER_AUTH=iamapikey:<api-key>
    ```
 
-3. As part of installing the Horizon management hub, you should have run [edgeNodeFiles.sh](https://github.com/open-horizon/anax/blob/master/agent-install/edgeNodeFiles.sh) which created a tar file containing `agent-install.crt`. Use that to export this environment variable:
+3. As part of installing the Horizon management hub, you should have run [edgeNodeFiles.sh](https://github.com/open-horizon/anax/blob/master/agent-install/edgeNodeFiles.sh), which created a tar file containing `agent-install.crt`. Use that to export this environment variable:
 
    ```bash
    export HZN_MGMT_HUB_CERT=$(cat agent-install.crt | base64)
@@ -60,22 +60,22 @@ The SDO owner services are packaged as a single docker container that can be run
 
 4. Start the SDO owner services docker container and view the log:
 
-  ```bash
-  ./run-sdo-owner-services.sh
-  docker logs -f sdo-owner-services
-  ```
+   ```bash
+   ./run-sdo-owner-services.sh
+   docker logs -f sdo-owner-services
+   ```
 
 #### Verify the SDO Owner Services API Endpoints
 
 **On a Horizon "admin" host** run these simple SDO APIs to verify that the services within the docker container are accessible and responding properly. (A Horizon admin host is one that has the `horizon-cli` package, which provides the `hzn` command, and has the environment variables `HZN_EXCHANGE_URL`, `HZN_SDO_SVC_URL`, `HZN_ORG_ID`, and `HZN_EXCHANGE_USER_AUTH` set correctly for your Horizon management hub.)
 
-1. Export your environment variables for the subsequent steps.
+1. Export these environment variables for the subsequent steps:
 
    ```bash
    export HZN_ORG_ID=mycluster
    export HZN_EXCHANGE_USER_AUTH=iamapikey:<api-key>
-   export HZN_SDO_SVC_URL=http://<SDO_OWNER_SVC_HOST>:9008/api
-   export SDO_RV_URL=http://<SDO_OWNER_SVC_HOST>:8040
+   export HZN_SDO_SVC_URL=http://<sdo-owner-svc-host>:9008/api
+   export SDO_RV_URL=http://<sdo-owner-svc-host>:8040
    ```
 
 2. Query the OCS API version:
@@ -101,11 +101,11 @@ The SDO owner services are packaged as a single docker container that can be run
 The sample script called `simulate-mfg.sh` simulates the process of a manufacturer initializing a device with SDO and credentials, creating an ownership voucher, and extending it to the owner. Perform these steps **on the VM device to be initialized** (these steps are written for Ubuntu 18.04):
 
 ```bash
-apt update && apt install -y openjdk-11-jre-headless docker docker-compose
 mkdir -p $HOME/sdo && cd $HOME/sdo
-curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/stable/sample-mfg/simulate-mfg.sh
+curl -sSLO https://raw.githubusercontent.com/open-horizon/SDO-support/stable/sample-mfg/simulate-mfg.sh
 chmod +x simulate-mfg.sh
 export SDO_RV_URL=http://<sdo-owner-svcs-host>:8040
+export SDO_SAMPLE_MFG_KEEP_SVCS=true   # makes it faster if you run multiple tests
 ./simulate-mfg.sh
 ```
 
@@ -116,33 +116,26 @@ The ownership voucher created for the device in the previous step needs to be im
 1. When you purchase a physical SDO-enabled device, you receive an ownership voucher from the manufacturer. In the case of the VM device you have configured to simulate an SDO-enabled device, the analogous step is to copy the file `~/sdo/voucher.json` from your VM device to here.
 2. Import the ownership voucher, specifying that this device should be initialized with policy to run the helloworld example edge service:
 
-  ```bash
-  hzn voucher import voucher.json -e helloworld
-  ```
+   ```bash
+   hzn voucher import voucher.json -e helloworld
+   ```
 
 ### <a name="boot-device"></a>Boot the Device to Have it Configured
 
 When an SDO-enabled device boots, it starts the SDO process which contacts the SDO owner services to configure the device for this Horizon instance. **Back on your VM device**, simulate the booting of the device and watch SDO configure it:
 
-1. Get the `owner-boot-device` script:
+1. Run the `owner-boot-device` script. This starts the SDO process the normally runs when an SDO-enabled device is booted.
 
-  ```bash
-  cd $HOME/sdo
-  curl --progress-bar -O https://raw.githubusercontent.com/open-horizon/SDO-support/stable/tools/owner-boot-device
-  chmod +x owner-boot-device
-  ```
+   ```bash
+   cd $HOME/sdo
+   ./owner-boot-device ibm.helloworld
+   ```
 
-2. Run the `owner-boot-device` script. This starts the SDO process the normally runs when an SDO-enabled device is booted.
+2. Your VM device is now configured as a Horizon edge node and registered with your Horizon management hub to run the helloworld example edge service. View the log of the edge service:
 
-  ```bash
-  ./owner-boot-device ibm.helloworld
-  ```
-
-3. Your VM device is now configured as a Horizon edge node and registered with your Horizon management hub to run the helloworld example edge service. View the log of the edge service:
-
-  ```bash
-  hzn service log -f ibm.helloworld
-  ```
+   ```bash
+   hzn service log -f ibm.helloworld
+   ```
 
 ## Developers Only
 
@@ -150,22 +143,73 @@ These steps only need to be performed by developers of this project.
 
 ### Build the SDO Owner Services for Open Horizon
 
-1. Request and download the SDO SDK binaries tar file from [Intel SDO](https://software.intel.com/en-us/secure-device-onboard) and unpack it in directory `sdo_sdk_binaries_linux_x64`:
+1. Download these tar files from [Intel SDO Release 1.8](https://github.com/secure-device-onboard/release/releases/tag/v1.8.0) to directory `sdo/` and uppack them:
 
-  ```bash
-  tar -zxvf ~/Downloads/sdo_sdk_binaries_1.7.*_linux_x64.tar.gz
-  mv sdo_sdk_binaries_1.7.*_linux_x64 sdo_sdk_binaries_linux_x64
-  ```
+   ```bash
+   mkdir -p sdo && cd sdo
+   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.8.0/iot-platform-sdk-v1.8.0.tar.gz
+   tar -zxf iot-platform-sdk-v1.8.0.tar.gz
+   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.8.0/rendezvous-service-v1.8.0.tar.gz
+   tar -zxf rendezvous-service-v1.8.0.tar.gz
+   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.8.0/pri-v1.8.0.tar.gz
+   tar -zxf pri-v1.8.0.tar.gz
+   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.8.0/NOTICES.tar.gz
+   tar -zxf NOTICES.tar.gz
+   cd ..
+   ```
 
 2. Build the docker container that will run all of the SDO services needed for Open Horizon:
 
-  ```bash
-  # first update the VERSION variable value in Makefile, then:
-  make sdo-owner-services
-  ```
+   ```bash
+   # first update the VERSION variable value in Makefile, then:
+   make sdo-owner-services
+   ```
 
-3. After testing the service, push it to docker hub:
+3. After you have personally tested the service, push it to docker hub with the `testing` tag, so others from the development team can test it:
 
-  ```bash
-  make publish-sdo-owner-services
-  ```
+   ```bash
+   make push-sdo-owner-services
+   ```
+
+4. After the development team has validated the service, publish it to docker hub as the latest patch release with the `latest` tag:
+
+   ```bash
+   make publish-sdo-owner-services
+   ```
+
+5. On a fully tested release boundary (usually when the 2nd number of the version changes), publish it to docker hub with the `stable` tag:
+
+   ```bash
+   make promote-sdo-owner-services
+   ```
+
+### Running the SDO Support During Dev/Test
+
+When following the instructions in [Using the SDO Support](#use-sdo), set the following environment variables to work with the most recent files and docker images that you or others on the team are developing:
+
+- In [Start the SDO Owner Services](#start-services) set:
+
+   ```bash
+   # to use the most recently committed version of agent-install.sh:
+   export AGENT_INSTALL_URL=https://raw.githubusercontent.com/open-horizon/anax/master/agent-install/agent-install.sh
+   # if the hostname of this host is not resolvable by the device, provide the IP address to RV instead
+   export SDO_OWNER_SVC_HOST="1.2.3.4"
+   # when curling run-sdo-owner-services.sh use the master branch instead of the stable tag
+   ```
+
+- In [Initialize a Device with SDO](#init-device) set:
+
+   ```bash
+   # set SDO_SUPPORT_REPO 1 of these 2 ways:
+   export SDO_SUPPORT_REPO=https://raw.githubusercontent.com/open-horizon/SDO-support/master   # using owner-boot-device from the most recent committed upstream
+   export SDO_SUPPORT_REPO=https://raw.githubusercontent.com/<my-github-id>/SDO-support/<my-branch>   # using owner-boot-device from the branch you are working on
+   # set SDO_MFG_IMAGE_TAG 1 of these 2 ways:
+   export SDO_MFG_IMAGE_TAG=testing   # using the most recent development docker image from the team
+   export SDO_MFG_IMAGE_TAG=1.2.3   # using the docker image you are still working on
+   # this will speed repetitive testing, because it will leave the mfg containers running if they haven't changed
+   export SDO_SAMPLE_MFG_KEEP_SVCS=true
+   # when curling simulate-mfg.sh use the master branch instead of the stable tag
+   ```
+
+- In [Import the Ownership Voucher](#import-voucher) set: (nothing special so far)
+- In [Boot the Device to Have it Configured](#boot-device) set: (nothing special so far)

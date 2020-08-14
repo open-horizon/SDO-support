@@ -37,7 +37,7 @@ fi
 
 SDO_MFG_IMAGE_TAG=${SDO_MFG_IMAGE_TAG:-stable}
 
-#sampleMfgRepo=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/stable}
+sampleMfgRepo=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/stable}
 deviceBinaryDir='sdo_device_binaries_1.8_linux_x64'   # the place we will unpack sdo_device_binaries_1.8_linux_x64.tar.gz to
 privateKeyFile=${1:-$deviceBinaryDir/keys/manufacturer-keystore.p12}
 ownerPubKeyFile=${2:-$deviceBinaryDir/keys/sample-owner-key.pub}
@@ -46,9 +46,10 @@ useNativeClient=${SDO_DEVICE_USE_NATIVE_CLIENT:-false}   # future: add cmd line 
 
 sdoMfgDockerName='manufacturer'   # both docker image and container
 sdoMariaDbDockerName='manufacturer-mariadb'   # both docker image and container
-#dbUser='sdo_admin'
 dbUser='sdo'
 dbPw='sdo'
+
+#====================== Functions ======================
 
 # Only echo this if VERBOSE is 1 or true
 verbose() {
@@ -125,6 +126,8 @@ isDockerComposeAtLeast() {
     fi
 }
 
+#====================== Main Code ======================
+
 # Make sure the host has the necessary software: java 11, docker-ce, docker-compose >= 1.21.0
 confirmcmds grep curl ping   # these should be in the minimal ubuntu
 
@@ -166,6 +169,17 @@ if ! isDockerComposeAtLeast $minVersion; then
 fi
 
 # Initial checking of input
+
+# Get the other files we need from our git repo, by way of our device binaries tar file
+if [[ ! -d $deviceBinaryDir ]]; then
+    deviceBinaryTar="$deviceBinaryDir.tar.gz"
+    deviceBinaryUrl="https://github.com/open-horizon/SDO-support/releases/download/sdo_device_binaries_1.8/$deviceBinaryTar"
+    echo "Getting and unpacking $deviceBinaryDir ..."
+    httpCode=$(curl -w "%{http_code}" --progress-bar -L -O $deviceBinaryUrl)
+    chkHttp $? $httpCode "getting $deviceBinaryTar"
+    tar -zxf $deviceBinaryTar
+fi
+
 # The mfg private key is either a URL we retrieve, or a file we use as-is
 mkdir -p keys
 if [[ ${privateKeyFile:0:4} == 'http' ]]; then
@@ -193,6 +207,13 @@ elif [[ ! -f $ownerPubKeyFile ]]; then
     exit 1
 fi
 
+# Get the owner-boot-device script and leave it here for use when the "customer" is booting the device
+echo "Getting owner-boot-device script ..."
+httpCode=$(curl -w "%{http_code}" -sSL -O $sampleMfgRepo/tools/owner-boot-device)
+chkHttp $? $httpCode 'getting owner-boot-device'
+chmod +x owner-boot-device
+chk $? 'making owner-boot-device executable'
+
 # Ensure RV hostname is resolvable and pingable
 rvHost=${rvUrl#http*://}   # strip protocol
 rvHost=${rvHost%:*}   # strip optional port
@@ -218,16 +239,6 @@ if which hzn >/dev/null; then
     if [[ $(hzn node list 2>&1 | jq -r '.configstate.state' 2>&1) == 'configured' ]]; then
         hzn unregister -f
     fi
-fi
-
-# Get the other files we need from our git repo, by way of our device binaries tar file
-if [[ ! -d $deviceBinaryDir ]]; then
-    deviceBinaryTar="$deviceBinaryDir.tar.gz"
-    deviceBinaryUrl="https://github.com/open-horizon/SDO-support/releases/download/sdo_device_binaries_1.8/$deviceBinaryTar"
-    echo "Getting and unpacking $deviceBinaryDir ..."
-    httpCode=$(curl -w "%{http_code}" --progress-bar -L -O $deviceBinaryUrl)
-    chkHttp $? $httpCode "getting $deviceBinaryTar"
-    tar -zxf $deviceBinaryTar
 fi
 
 cp $deviceBinaryDir/docker-compose.yml .
