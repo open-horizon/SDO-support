@@ -24,9 +24,11 @@ var OcsDbDir string
 var GetVoucherRegex = regexp.MustCompile(`^/api/vouchers/([^/]+)$`)
 var CurrentOrgId string
 var CurrentExchangeUrl string
+var CurrentExchangeInternalUrl string	// will default to CurrentExchangeUrl
 
 type CfgVarsStruct struct {
-	HZN_EXCHANGE_URL string `json:"HZN_EXCHANGE_URL"`
+	HZN_EXCHANGE_URL string `json:"HZN_EXCHANGE_URL"`	// the external URL of the exchange (how devices should reach it)
+	EXCHANGE_INTERNAL_URL string `json:"EXCHANGE_INTERNAL_URL"`	// optional: how ocs-api should contact the exchange. Will default to HZN_EXCHANGE_URL
 	HZN_FSS_CSSURL   string `json:"HZN_FSS_CSSURL"`
 	HZN_ORG_ID       string `json:"HZN_ORG_ID"`
 }
@@ -106,7 +108,7 @@ func postConfigHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("POST /api/config ...")
 
 	// Authentication for this REST API is based on the *current* config, not the new config
-	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeUrl, CurrentOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
+	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, CurrentOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
@@ -125,7 +127,7 @@ func postConfigHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	}
-	if config.CfgVars.HZN_EXCHANGE_URL == "" || config.CfgVars.HZN_FSS_CSSURL == "" || config.CfgVars.HZN_ORG_ID == "" { // config.Crt is allowed to be empty
+	if config.CfgVars.HZN_EXCHANGE_URL == "" || config.CfgVars.HZN_FSS_CSSURL == "" || config.CfgVars.HZN_ORG_ID == "" { // config.Crt and config.CfgVars.EXCHANGE_INTERNAL_URL are allowed to be empty
 		http.Error(w, "Error: one of the required fields is missing in the request body", http.StatusBadRequest)
 		return
 	}
@@ -144,7 +146,7 @@ func postConfigHandler(w http.ResponseWriter, r *http.Request) {
 func getVoucherHandler(deviceUuid string, w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("GET /api/vouchers/%s ...", deviceUuid)
 
-	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeUrl, CurrentOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
+	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, CurrentOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
@@ -169,7 +171,7 @@ func getVoucherHandler(deviceUuid string, w http.ResponseWriter, r *http.Request
 func getVouchersHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("GET /api/vouchers ...")
 
-	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeUrl, CurrentOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
+	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, CurrentOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
@@ -202,7 +204,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("POST /api/vouchers ...")
 
 	valuesDir := OcsDbDir + "/v1/values"
-	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeUrl, CurrentOrgId, valuesDir+"/agent-install.crt"); httpErr != nil {
+	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, CurrentOrgId, valuesDir+"/agent-install.crt"); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
@@ -343,10 +345,21 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	var fssUrl string
 	if config != nil {
 		CurrentExchangeUrl = config.CfgVars.HZN_EXCHANGE_URL
+		if config.CfgVars.EXCHANGE_INTERNAL_URL != "" {
+			CurrentExchangeInternalUrl = config.CfgVars.EXCHANGE_INTERNAL_URL
+		} else {
+			CurrentExchangeInternalUrl = CurrentExchangeUrl	//default
+		}
 		fssUrl = config.CfgVars.HZN_FSS_CSSURL
 		CurrentOrgId = config.CfgVars.HZN_ORG_ID
 	} else if outils.IsEnvVarSet("HZN_EXCHANGE_URL") && outils.IsEnvVarSet("HZN_FSS_CSSURL") && outils.IsEnvVarSet("HZN_ORG_ID") {
 		CurrentExchangeUrl = os.Getenv("HZN_EXCHANGE_URL")
+		// CurrentExchangeInternalUrl is not needed for the device config file, only for ocs-api exchange authentication
+		if outils.IsEnvVarSet("EXCHANGE_INTERNAL_URL") {
+			CurrentExchangeInternalUrl = os.Getenv("EXCHANGE_INTERNAL_URL")
+		} else {
+			CurrentExchangeInternalUrl = CurrentExchangeUrl	// default
+		}
 		fssUrl = os.Getenv("HZN_FSS_CSSURL")
 		CurrentOrgId = os.Getenv("HZN_ORG_ID")
 	}

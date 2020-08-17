@@ -1,6 +1,6 @@
 SHELL ?= /bin/bash -e
 # Set this before building the ocs-api binary and sdo-owner-services (for now they use the samme version number)
-export VERSION ?= 1.8.0
+export VERSION ?= 1.8.2
 
 export DOCKER_REGISTRY ?= openhorizon
 export SDO_DOCKER_IMAGE ?= sdo-owner-services
@@ -40,6 +40,10 @@ run-$(SDO_DOCKER_IMAGE): $(SDO_DOCKER_IMAGE)
 	: $${HZN_EXCHANGE_URL:?} $${HZN_FSS_CSSURL:?} $${HZN_ORG_ID:?} $${HZN_MGMT_HUB_CERT:?} $${HZN_EXCHANGE_USER_AUTH:?}
 	- docker rm -f $(SDO_DOCKER_IMAGE) 2> /dev/null || :
 	docker/run-sdo-owner-services.sh $(VERSION)
+
+# Push the SDO services docker image that you are still working on to the registry. This is necessary if you are testing on a different machine than you are building on.
+dev-push-$(SDO_DOCKER_IMAGE):
+	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
 
 # Push the SDO services docker image to the registry and tag as testing
 push-$(SDO_DOCKER_IMAGE):

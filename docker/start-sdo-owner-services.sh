@@ -21,7 +21,7 @@ Usage: ${0##*/} [<ocs-db-path>] [<ocs-api-port>]
 Environment variables that can be used instead of CLI args: SDO_OCS_DB_PATH, SDO_OCS_API_PORT
 Required environment variables: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID
 Recommended environment variables: HZN_MGMT_HUB_CERT (unless the mgmt hub uses http or a CA-trusted certificate)
-Additional environment variables: SDO_RV_PORT, SDO_OPS_PORT, SDO_OPS_EXTERNAL_PORT
+Additional environment variables: SDO_RV_PORT, SDO_OPS_PORT, SDO_OPS_EXTERNAL_PORT, EXCHANGE_INTERNAL_URL
 EndOfMessage
     exit 1
 fi

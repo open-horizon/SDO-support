@@ -110,6 +110,12 @@ parseVoucher() {
     echo "${uuid:0:8}-${uuid:8:4}-${uuid:12:4}-${uuid:16:4}-${uuid:20}"
 }
 
+# Is this deb pkg installed
+isDebPkgInstalled() {
+    local pkgName="$1"
+    dpkg-query -s $pkgName 2>&1 | grep -q -E '^Status: .* installed$'
+}
+
 # Checks if docker-compose is installed, and if so, if it is at least this minimum version
 isDockerComposeAtLeast() {
     : ${1:?}
@@ -157,6 +163,10 @@ fi
 # For the dependency on 1.21.0 or greater, see: https://docs.docker.com/compose/release-notes/
 minVersion=1.21.0
 if ! isDockerComposeAtLeast $minVersion; then
+    if [[ -f '/usr/bin/docker-compose' ]]; then
+        echo "Error: Need at least docker-compose $minVersion. A down-level version is currently installed, preventing us from installing the latest version. Uninstall docker-compose and rerun this script."
+        exit 2
+    fi
     echo "docker-compose is not installed or not at least version $minVersion, installing/upgrading it..."
     ensureWeAreRoot
     # Install docker-compose from its github repo, because that is the only way to get a recent enough version
