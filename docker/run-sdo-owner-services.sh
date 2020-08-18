@@ -24,6 +24,7 @@ Additional environment variables (that do not usually need to be set):
   SDO_OPS_PORT - port number OPS should listen on *inside* the container. Default is 8042.
   SDO_OPS_EXTERNAL_PORT - external port number that RV should tell the device to reach OPS at. Defaults to the internal OPS port number.
   SDO_OCS_API_PORT - port number OCS-API should listen on *inside* the container. Default is 9008.
+  EXCHANGE_INTERNAL_URL - how OCS-API should contact the exchange for authentication. Will default to HZN_EXCHANGE_URL.
   AGENT_INSTALL_URL - where to get agent-install.sh from. Valid values: file:///<path-to-agent-install> (will be mounted into the container), https://raw.githubusercontent.com/open-horizon/anax/master/agent-install/agent-install.sh (get the most recently committed version), https://github.com/open-horizon/anax/releases/latest/download/agent-install.sh (the latest tested patch version - this is the default), https://github.com/open-horizon/anax/releases/download/stable/agent-install.sh (the last fully tested version)
 EndOfMessage
     exit 1
@@ -109,4 +110,4 @@ fi
 docker pull $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
 
 # Run the service container
-docker run --name $SDO_DOCKER_IMAGE -dt --mount "type=volume,src=sdo-ocs-db,dst=$SDO_OCS_DB_CONTAINER_DIR" $privateKeyMount $agentInstallFlag -p $SDO_OCS_API_PORT:$SDO_OCS_API_PORT -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "SDO_OCS_API_PORT=$SDO_OCS_API_PORT" -e "SDO_RV_PORT=$SDO_RV_PORT" -e "SDO_OPS_PORT=$SDO_OPS_PORT" -e "SDO_OPS_EXTERNAL_PORT=$SDO_OPS_EXTERNAL_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_ORG_ID=$HZN_ORG_ID" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
+docker run --name $SDO_DOCKER_IMAGE -dt --mount "type=volume,src=sdo-ocs-db,dst=$SDO_OCS_DB_CONTAINER_DIR" $privateKeyMount $agentInstallFlag -p $SDO_OCS_API_PORT:$SDO_OCS_API_PORT -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "SDO_OCS_API_PORT=$SDO_OCS_API_PORT" -e "SDO_RV_PORT=$SDO_RV_PORT" -e "SDO_OPS_PORT=$SDO_OPS_PORT" -e "SDO_OPS_EXTERNAL_PORT=$SDO_OPS_EXTERNAL_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "EXCHANGE_INTERNAL_URL=$EXCHANGE_INTERNAL_URL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_ORG_ID=$HZN_ORG_ID" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
