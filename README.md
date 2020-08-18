@@ -22,7 +22,7 @@ Perform the following steps to try out the Horizon SDO support:
 
 ### <a name="start-services"></a>Start the SDO Owner Services
 
-**Todo: This section can be removed once the SDO owner services are being deployed in the mgmt hub.
+**Note:** This section can be removed once the SDO owner services are being deployed in the mgmt hub by default.
 
 The SDO owner services respond to booting devices and enable administrators to import ownership vouchers. These 4 services are provided:
 

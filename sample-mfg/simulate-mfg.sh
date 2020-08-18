@@ -153,7 +153,7 @@ if ! command -v docker >/dev/null 2>&1; then
     ensureWeAreRoot
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
     chk $? 'adding docker repository key'
-    add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+    add-apt-repository "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
     chk $? 'adding docker repository'
     apt-get install -y docker-ce docker-ce-cli containerd.io
     chk $? 'installing docker'
