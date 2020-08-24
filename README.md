@@ -134,6 +134,16 @@ When an SDO-enabled device boots, it starts the SDO process which contacts the S
    hzn service log -f ibm.helloworld
    ```
 
+#### Troubleshooting
+
+- If the edge device does not get registered with your Horizon management hub, look in `/var/sdo/agent-install.log` for error messages.
+- If the edge device is registered, but no edge service starts, run these commands to debug:
+
+   ```bash
+   hzn eventlog list
+   hzn deploycheck all -b policy-ibm.helloworld_1.0.0 -o <exchange-org> -u iamapikey:<api-key>
+   ```
+
 ## Developers Only
 
 These steps only need to be performed by developers of this project.

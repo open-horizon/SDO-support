@@ -94,7 +94,8 @@ getAgreementState() {
 
 # Our working directory is /var/sdo
 ensureWeAreRoot
-mkdir -p $workingDir
+mkdir -p $workingDir && cd $workingDir
+chk $? "creating and switching to $workingDir"
 
 confirmcmds jq
 
@@ -133,9 +134,9 @@ if [[ -d "$workingDir/sdo-native" ]]; then
         exit 5
     fi
     echo "Device serial number: $(cat $BOOTFS/SerialNo.txt)"
-    touch $BOOTFS/inside-sdo-container
+    touch $BOOTFS/inside-sdo-container   # this is how agent-install-wrapper.sh knows it is executing inside the sdo native client container
 
-    # Determine whether device initialization was done using DAL (for Intel devices) or CSDK (other device types)
+    # Determine whether device initialization was done using DAL (for Intel devices) or CSDK (other device types), and run the sdo boot process accordingly
     if [[ -e $BOOTFS/DAL_DI_STATUS && "$(cat $BOOTFS/DAL_DI_STATUS)" == "**DAL_DI_SUCCESSFUL**" ]]; then
         docker run -i --rm --privileged --name sdo-dal-to -v /dev:/dev -v /sys/:/sys/ -v $BOOTFS:/target/boot $sdoNativeDockerImage sh -c 'jhid -d 2&>1 > /dev/null && sleep 2 && sdo_to -df /var/lib/intel/dal/applet_repository/sdo_all.dalp && sync '
     elif [[ -e $BOOTFS/CSDK_DI_STATUS && "$(cat $BOOTFS/CSDK_DI_STATUS)" == "**CSDK_DI_SUCCESSFUL**" ]]; then
@@ -145,14 +146,16 @@ if [[ -d "$workingDir/sdo-native" ]]; then
         exit 5
     fi
 
-    # Now run the device_exec file that agent-install-wrapper.sh created when it ran inside the sdo container
+    # We are back from the container, with our files copied into $BOOTFS. Now run the device_exec file that agent-install-wrapper.sh created when it ran inside the sdo container
     echo "TO1 and TO2 completed and downloaded these files to ${BOOTFS}: $(ls $BOOTFS | tr "\n" " ")"
     savePwd="$PWD"
     echo "$BOOTFS/device_exec: $(cat $BOOTFS/device_exec)"
     echo "Running $BOOTFS/device_exec ..."
     cd $BOOTFS
     ./device_exec   # this actually runs agent-install-wrapper.sh again (but it will detect that it is not inside the container and behave differently)
+    chk $? 'running device_exec'
     cd $savePwd
+    systemctl disable sdo_to.service    # so it does not run on every boot
 else
     echo "Booting with java client..."
     cd $deviceBinaryDir/device

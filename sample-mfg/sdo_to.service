@@ -1,0 +1,13 @@
+[Unit]
+Description=SDO boot-time TO1 and TO2 run-once service
+Requires=network-online.target
+After=network-online.target
+Before=user-sessions.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/var/sdo
+ExecStart=/bin/bash /usr/sdo/bin/owner-boot-device
+
+[Install]
+WantedBy=multi-user.target

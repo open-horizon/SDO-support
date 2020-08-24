@@ -43,7 +43,7 @@ rvUrl="$SDO_RV_URL"   # the external rv url that the device should reach it at
 # These environment variables can be overridden
 SDO_MFG_IMAGE_TAG=${SDO_MFG_IMAGE_TAG:-stable}
 SDO_SUPPORT_REPO=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/stable}
-useNativeClient=$SDO_DEVICE_USE_NATIVE_CLIENT   # normally detected automatically, but can be overridden explicitly
+useNativeClient=$SDO_DEVICE_USE_NATIVE_CLIENT   # if empty (recommended) this script will detect automatically which sdo client to use
 
 workingDir=/var/sdo
 privateKeyFile=$deviceBinaryDir/keys/manufacturer-keystore.p12
@@ -147,7 +147,8 @@ getPrivateIp() {
 
 # Our working directory is /var/sdo
 ensureWeAreRoot
-mkdir -p $workingDir
+mkdir -p $workingDir && cd $workingDir
+chk $? "creating and switching to $workingDir"
 
 # Determine whether to use native sdo client, or java client
 if [[ -z "$useNativeClient" ]]; then
@@ -247,13 +248,18 @@ elif [[ ! -f $ownerPubKeyFile ]]; then
     exit 1
 fi
 
-# Get the owner-boot-device script and leave it here for use when the "customer" is booting the device
+# Get the owner-boot-device script and sdo_to.service and leave it here for use when the "customer" is booting the device
 echo "Getting owner-boot-device script ..."
 mkdir -p /usr/sdo/bin
 httpCode=$(curl -w "%{http_code}" -sSL -o /usr/sdo/bin/owner-boot-device $SDO_SUPPORT_REPO/tools/owner-boot-device)
 chkHttp $? $httpCode 'getting owner-boot-device'
 chmod +x /usr/sdo/bin/owner-boot-device
 chk $? 'making owner-boot-device executable'
+
+echo "Getting sdo_to.service ..."
+httpCode=$(curl -w "%{http_code}" -sSL -o /usr/sdo/sdo_to.service $SDO_SUPPORT_REPO/sample-mfg/sdo_to.service)
+chkHttp $? $httpCode 'getting sdo_to.service'
+# we will install it as a systemd service later
 
 # Ensure RV hostname is resolvable and pingable
 rvHost=${rvUrl#http*://}   # strip protocol
@@ -330,27 +336,29 @@ chk $? 'adding owner public key to SDO SCT services'
 # all of the tables can be listed with: docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo -e "show tables"
 
 # Device initialization (and create the ownership voucher)
-echo "Running device initialization..."
 if [[ $useNativeClient == 'true' ]]; then
-    echo "Using native client"
+    echo "Running device initialization using native client..."
     savePwd="$PWD"
     BOOTFS="$workingDir/sdo-native"
+    rm -rf $BOOTFS   # remove any leftovers from a previous native client mfg DI
     mkdir -p $BOOTFS && cd $BOOTFS
     chk $? "creating and cding into $BOOTFS"
-    SCT_IP_ADDRESS="$(getPrivateIp)"   #todo: consider creating a network between all of the containers
-    SCT_PORT=8039
+    SCT_IP_ADDRESS='manufacturer'   # we are running the DI container on the manufacturer_network, so we can reach the manufactuer container via its internal connection info
+    SCT_PORT=8080
+    #SCT_IP_ADDRESS="$(getPrivateIp)"   # when we did not connect to the manufacturer_network, we had to use 1 of the IP addresses so the DI container could reach the manufactuer container
+    #SCT_PORT=8039
     Serial_Number_String="$(dmidecode -t system 2>/dev/null | grep Serial | awk '{print $3}')"
     if [[ -z "$Serial_Number_String" || "$Serial_Number_String" == 'Not' ]]; then
         Serial_Number_String='1234567'
     fi
-    docker run -i --rm --privileged --name sdo-di  -v /dev:/dev -v /sys/:/sys/ -v $BOOTFS:/target/boot $sdoNativeDockerImage run_dal_sdo.sh ${SCT_IP_ADDRESS} ${SCT_PORT} ${Serial_Number_String}
+    docker run -i --rm --privileged --name sdo-di --network manufacturer_network -v /dev:/dev -v /sys/:/sys/ -v $BOOTFS:/target/boot $sdoNativeDockerImage run_dal_sdo.sh ${SCT_IP_ADDRESS} ${SCT_PORT} ${Serial_Number_String}
     chk $? 'running native DI'
     # one of these echoes would say failed, and the above cmd outputs the status anyway
     #echo "DAL_DI_Status=$(cat $BOOTFS/DAL_DI_STATUS)"
 	#echo "CSDK_DI_STATUS=$(cat $BOOTFS/CSDK_DI_STATUS)"
     cd $savePwd
 else
-    echo "Using java client"
+    echo "Running device initialization using java client..."
     cd $deviceBinaryDir/device
     # comment out this property to put the device in DI mode
     sed -i -e 's/^org.sdo.device.credentials=/#org.sdo.device.credentials=/' application.properties
@@ -366,7 +374,7 @@ else
     deviceOcFileUuid=${deviceOcFile%.oc}
     echo "Device UUID: $deviceOcFileUuid"
     cd ../..
-    rm -rf $workingDir/sdo-native   # remove any leftovers from a previous native client mfg so owner-boot-device knows this was mfg with the java client
+    rm -rf $workingDir/sdo-native   # remove any leftovers from a previous native client mfg DI so owner-boot-device knows this was mfg with the java client
 fi
 
 # At this point, the mariadb has content in these tables:
@@ -418,7 +426,12 @@ fi
 # Note: originally to-docker.sh would at this point put the voucher in the ocs db, but our 'hzn voucher import' does that later
 
 if [[ $useNativeClient == 'true' ]]; then
-    :   #todo:
+    # Install systemd service that will run at boot time to complete the SDO process
+    cp /usr/sdo/sdo_to.service /lib/systemd/system
+    chk $? 'copying sdo_to.service to systemd'
+    systemctl enable sdo_to.service
+    chk $? 'enabling sdo_to.service'
+    echo "Systemd service sdo_to.service has been enabled"
 else
     # Java client. Switch the device into owner mode
     cd $deviceBinaryDir/device
