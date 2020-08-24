@@ -427,11 +427,14 @@ fi
 
 if [[ $useNativeClient == 'true' ]]; then
     # Install systemd service that will run at boot time to complete the SDO process
+    #Future: consider supporting sdo_to.service for the java client/VM case
     cp /usr/sdo/sdo_to.service /lib/systemd/system
     chk $? 'copying sdo_to.service to systemd'
     systemctl enable sdo_to.service
     chk $? 'enabling sdo_to.service'
     echo "Systemd service sdo_to.service has been enabled"
+    # After importing the voucher to sdo-owner-services, if you want to you can initiate the sdo boot process by running: systemctl start sdo_to.service
+    # And you can view the output with: journalctl -f --no-tail -u sdo_to.service
 else
     # Java client. Switch the device into owner mode
     cd $deviceBinaryDir/device

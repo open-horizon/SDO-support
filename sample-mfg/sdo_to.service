@@ -1,3 +1,6 @@
+# Initiates the SDO device boot process, causing the device to be registered with the Horizon mgmt hub.
+# If you want to you can initiate the sdo boot process manually by running: systemctl start sdo_to.service
+# And you can view the output with: journalctl -f --no-tail -u sdo_to.service
 [Unit]
 Description=SDO boot-time TO1 and TO2 run-once service
 Requires=network-online.target

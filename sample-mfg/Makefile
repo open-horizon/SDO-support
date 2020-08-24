@@ -19,7 +19,7 @@ default: sdo-mfg-services
 # Note: even though Dockerfile-mariadb copies mt_config.sql into the container and that sets the RV URL in the DB, simulate-mfg.sh updates that table with the correct value specified by the user.
 sdo-mfg-services:
 	- docker rm -f $(SDO_MFG_DOCKER_IMAGE) $(SDO_MARIADB_DOCKER_IMAGE) 2> /dev/null || :
-	cp -a ../sdo/supply-chain-tools-v1.8.0/docker_manufacturer/docker-compose.yml .   #todo: i do not think this is necessary anymore
+	#cp -a ../sdo/supply-chain-tools-v1.8.0/docker_manufacturer/docker-compose.yml .   # this is not necessary anymore because we use the one from SDO_SCT_MFG_DIR
 	cd $(SDO_SCT_MFG_DIR) && docker-compose build
 
 # Note: we currently use docker-compose up to run the containers.
