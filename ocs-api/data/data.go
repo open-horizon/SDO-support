@@ -98,19 +98,31 @@ var SviJson3 = `_exec",
   }
 `
 
-var AgentInstallWrapper = `#!/bin/bash
+var AgentInstallWrapper = `#!/bin/sh
 
 # The primary purpose of this wrapper is to be able to invoke agent-install.sh in the SDO context and log all of its stdout/stderr
 
-logFile=/tmp/agent-install.log
-echo "Logging all output to $logFile"
-
 # Verify the number of args is what we are handling below
 numRequiredArgs=8
-if [[ $# -ne $numRequiredArgs ]]; then
+if [ $# -ne $numRequiredArgs ]; then
     echo "Error: expected $numRequiredArgs arguments and received $#"
     exit 2
 fi
+
+# This script has a 2nd purpose in the native client case: when run inside the docker sdo container, copy the downloaded files to outside the container
+if [ "$PWD" = "/sdoout" ]; then
+    # Copy all of the downloaded files (including ourselves) to /target/boot, which is mounted from host /var/horizon/sdo-native
+    cp * /target/boot
+    if [ $? -ne 0 ]; then echo "Error: can not copy downloaded files to /target/boot"; fi
+    # The <device-uuid>_exec file is not actually saved to disk, so recreate it (with a fixed name)
+    echo "./agent-install-wrapper.sh \"$1\" \"$2\" \"$3\" \"$4\" \"$5\" \"$6\" \"$7\" \"$8\" " > /target/boot/device_exec
+    chmod +x /target/boot/device_exec
+    exit
+    # now the sdo container will exit, then our owner-boot-device script will find the files and run them
+fi
+
+logFile=/tmp/agent-install.log
+echo "Logging all output to $logFile"
 
 # When SDO transfers agent-install.sh to the device, it does not make it executable
 chmod 755 agent-install.sh

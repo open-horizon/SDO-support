@@ -125,8 +125,7 @@ When an SDO-enabled device boots, it starts the SDO process which contacts the S
 1. Run the `owner-boot-device` script. This starts the SDO process the normally runs when an SDO-enabled device is booted.
 
    ```bash
-   cd $HOME/sdo
-   ./owner-boot-device ibm.helloworld
+   /usr/sdo/bin/owner-boot-device ibm.helloworld
    ```
 
 2. Your VM device is now configured as a Horizon edge node and registered with your Horizon management hub to run the helloworld example edge service. View the log of the edge service:
