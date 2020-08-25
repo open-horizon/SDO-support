@@ -106,8 +106,15 @@ else
     exit 1
 fi
 
+#For testing purposes
+if [[ -n "$DOCKER_DONTPULL" ]]; then
+    echo "Local Docker Image Found"
+    VERSION="${1:-1.8.3}"
+else
 # If VERSION is a generic tag like latest, stable, or testing we have to make sure we pull the most recent
-docker pull $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
-
+    VERSION="${1:-stable}"
+    docker pull $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
+    echo "Pulling from Docker hub"
+fi
 # Run the service container
 docker run --name $SDO_DOCKER_IMAGE -dt --mount "type=volume,src=sdo-ocs-db,dst=$SDO_OCS_DB_CONTAINER_DIR" $privateKeyMount $agentInstallFlag -p $SDO_OCS_API_PORT:$SDO_OCS_API_PORT -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "SDO_OCS_API_PORT=$SDO_OCS_API_PORT" -e "SDO_RV_PORT=$SDO_RV_PORT" -e "SDO_OPS_PORT=$SDO_OPS_PORT" -e "SDO_OPS_EXTERNAL_PORT=$SDO_OPS_EXTERNAL_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "EXCHANGE_INTERNAL_URL=$EXCHANGE_INTERNAL_URL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_ORG_ID=$HZN_ORG_ID" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION

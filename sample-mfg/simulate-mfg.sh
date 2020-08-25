@@ -329,6 +329,7 @@ docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo -e "delete f
 chk $? 'deleting rows from rt_ownership_voucher'
 
 # Add the customer/owner public key to the mariadb
+cat $ownerPubKeyFile
 echo "Adding owner public key $ownerPubKeyFile to the SCT services..."
 docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo -e "call rt_add_customer_public_key('all','$(cat $ownerPubKeyFile)')"
 chk $? 'adding owner public key to SDO SCT services'

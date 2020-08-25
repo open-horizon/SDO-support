@@ -1,1 +1,2 @@
-package main; const OCS_API_VERSION = "1.8.2"
+package main; const OCS_API_VERSION = "1.8.3"
+
