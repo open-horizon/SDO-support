@@ -7,5 +7,5 @@
 # keys/owner-key.pub is the runtime temporary place the owner public key is downloaded to, if the user specified a URL
 /keys/owner-key.pub
 
-# We use ../sdo/supply-chain-tools-v1.8.0/docker_manufacturer/docker-compose.yml as-is, so we copy it here before docker-compose build
-/docker-compose.yml
+# Not needed any more because we now cd into ../sdo/supply-chain-tools-v1.8.0/docker_manufacturer/
+#/docker-compose.yml

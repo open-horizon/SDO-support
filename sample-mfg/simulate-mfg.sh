@@ -11,10 +11,9 @@
 usage() {
     exitCode=${1:-0}
     cat << EndOfMessage
-Usage: ${0##*/} [<mfg-priv-key-file>] [<owner-pub-key-file>]
+Usage: ${0##*/} [<owner-pub-key-file>]
 
 Arguments:
-  <mfg-priv-key-file>  Device manufacturer private key. If not specified, it will use SDO-support/sample-mfg/keys/sample-mfg-key.p12 (only valid for dev/test/demo)
   <owner-pub-key-file>  Device customer/owner public key. This is needed to extend the voucher to the owner. If not specified, it will use SDO-support/keys/sample-owner-key.pub (only valid for dev/test/demo)
 
 Required Environment Variables:
@@ -23,7 +22,9 @@ Required Environment Variables:
 Optional Environment Variables:
   SDO_MFG_IMAGE_TAG - version of the manufacturer and manufacturer-mariadb docker images that should be used. Defaults to 'stable'.
   HZN_MGMT_HUB_CERT - the base64 encoded content of the SDO owner services self-signed certificate (if it requires that). This is normally not necessary on the device, because the SDO protocols are secure over HTTP.
-  SDO_SAMPLE_MFG_KEEP_SVCS: set to 'true' to skip shutting down the mfg docker containers at the end of this script. This is faster if running this script repeatedly during dev/test.
+  SDO_SAMPLE_MFG_KEEP_SVCS - set to 'true' to skip shutting down the mfg docker containers at the end of this script. This is faster if running this script repeatedly during dev/test.
+  SDO_SUPPORT_REPO - if you need to use a more recent version of SDO files from the repo than the 'stable' tag.
+  SDO_DEVICE_USE_NATIVE_CLIENT - normally detected automatically, but can be overridden explicitly: set to 'true' to use the native SDO device client. (To use this, you need to have the 'sdo' native docker image already loaded on this host.) Set to 'false' to use the reference implementation java device client. 
 
 ${0##*/} must be run in a directory where it has access to create a few files and directories.
 EndOfMessage
@@ -35,19 +36,22 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
 fi
 : ${SDO_RV_URL:?}
 
-SDO_MFG_IMAGE_TAG=${SDO_MFG_IMAGE_TAG:-stable}
-
-sampleMfgRepo=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/stable}
 deviceBinaryDir='sdo_device_binaries_1.8_linux_x64'   # the place we will unpack sdo_device_binaries_1.8_linux_x64.tar.gz to
-privateKeyFile=${1:-$deviceBinaryDir/keys/manufacturer-keystore.p12}
-ownerPubKeyFile=${2:-$deviceBinaryDir/keys/sample-owner-key.pub}
+ownerPubKeyFile=${1:-$deviceBinaryDir/keys/sample-owner-key.pub}
 rvUrl="$SDO_RV_URL"   # the external rv url that the device should reach it at
-useNativeClient=${SDO_DEVICE_USE_NATIVE_CLIENT:-false}   # future: add cmd line flag for this too
 
+# These environment variables can be overridden
+SDO_MFG_IMAGE_TAG=${SDO_MFG_IMAGE_TAG:-stable}
+SDO_SUPPORT_REPO=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/stable}
+useNativeClient=$SDO_DEVICE_USE_NATIVE_CLIENT   # if empty (recommended) this script will detect automatically which sdo client to use
+
+workingDir=/var/sdo
+privateKeyFile=$deviceBinaryDir/keys/manufacturer-keystore.p12
 sdoMfgDockerName='manufacturer'   # both docker image and container
 sdoMariaDbDockerName='manufacturer-mariadb'   # both docker image and container
 dbUser='sdo'
 dbPw='sdo'
+sdoNativeDockerImage='sdo:1.8'
 
 #====================== Functions ======================
 
@@ -132,25 +136,55 @@ isDockerComposeAtLeast() {
     fi
 }
 
+# Find 1 of the private IPs of the host
+getPrivateIp() {
+    if isMacOS; then ipCmd=ifconfig
+    else ipCmd='ip address'; fi
+    $ipCmd | grep -m 1 -o -E "\sinet (172|10|192.168)[^/\s]*" | awk '{ print $2 }'
+}
+
 #====================== Main Code ======================
+
+# Our working directory is /var/sdo
+ensureWeAreRoot
+mkdir -p $workingDir && cd $workingDir
+chk $? "creating and switching to $workingDir"
+
+# Determine whether to use native sdo client, or java client
+if [[ -z "$useNativeClient" ]]; then
+    if [[ "$(systemd-detect-virt 2>/dev/null)" == 'none' ]]; then
+        useNativeClient='true'   # A physical server
+    else
+        useNativeClient='false'   # A VM
+    fi
+    # Also could use these cmds to determine, but there are more acceptable values to check for
+    # lscpu | grep 'Hypervisor vendor:' == non-blank or blank
+    # dmidecode -s system-manufacturer | awk '{print $1}' == Intel(R), IBM. QEMU, innotek (virtual box), VMware
+fi
+# else they explicitly set it
 
 # Make sure the host has the necessary software: java 11, docker-ce, docker-compose >= 1.21.0
 confirmcmds grep curl ping   # these should be in the minimal ubuntu
 
-# If java 11 isn't installed, do that
-if java -version 2>&1 | grep version | grep -q 11.; then
-    echo "Found java 11"
+if [[ $useNativeClient == 'true' ]]; then
+    if [[ -z $(docker images -q $sdoNativeDockerImage) ]]; then
+        echo "Error: docker image $sdoNativeDockerImage does not exist on this host."
+        exit 2
+    fi
 else
-    echo "Java 11 not found, installing it..."
-    ensureWeAreRoot
-    apt-get update && apt-get install -y openjdk-11-jre-headless
-    chk $? 'installing java 11'
+    # If java 11 isn't installed, do that
+    if java -version 2>&1 | grep version | grep -q 11.; then
+        echo "Found java 11"
+    else
+        echo "Java 11 not found, installing it..."
+        apt-get update && apt-get install -y openjdk-11-jre-headless
+        chk $? 'installing java 11'
+    fi
 fi
 
 # If docker isn't installed, do that
 if ! command -v docker >/dev/null 2>&1; then
     echo "Docker is required, installing it..."
-    ensureWeAreRoot
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
     chk $? 'adding docker repository key'
     add-apt-repository "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
@@ -168,7 +202,6 @@ if ! isDockerComposeAtLeast $minVersion; then
         exit 2
     fi
     echo "docker-compose is not installed or not at least version $minVersion, installing/upgrading it..."
-    ensureWeAreRoot
     # Install docker-compose from its github repo, because that is the only way to get a recent enough version
     curl --progress-bar -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
     chk $? 'downloading docker-compose'
@@ -177,8 +210,6 @@ if ! isDockerComposeAtLeast $minVersion; then
     ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
     chk $? 'linking docker-compose to /usr/bin'
 fi
-
-# Initial checking of input
 
 # Get the other files we need from our git repo, by way of our device binaries tar file
 if [[ ! -d $deviceBinaryDir ]]; then
@@ -217,12 +248,18 @@ elif [[ ! -f $ownerPubKeyFile ]]; then
     exit 1
 fi
 
-# Get the owner-boot-device script and leave it here for use when the "customer" is booting the device
+# Get the owner-boot-device script and sdo_to.service and leave it here for use when the "customer" is booting the device
 echo "Getting owner-boot-device script ..."
-httpCode=$(curl -w "%{http_code}" -sSL -O $sampleMfgRepo/tools/owner-boot-device)
+mkdir -p /usr/sdo/bin
+httpCode=$(curl -w "%{http_code}" -sSL -o /usr/sdo/bin/owner-boot-device $SDO_SUPPORT_REPO/tools/owner-boot-device)
 chkHttp $? $httpCode 'getting owner-boot-device'
-chmod +x owner-boot-device
+chmod +x /usr/sdo/bin/owner-boot-device
 chk $? 'making owner-boot-device executable'
+
+echo "Getting sdo_to.service ..."
+httpCode=$(curl -w "%{http_code}" -sSL -o /usr/sdo/sdo_to.service $SDO_SUPPORT_REPO/sample-mfg/sdo_to.service)
+chkHttp $? $httpCode 'getting sdo_to.service'
+# we will install it as a systemd service later
 
 # Ensure RV hostname is resolvable and pingable
 rvHost=${rvUrl#http*://}   # strip protocol
@@ -236,7 +273,6 @@ fi
 # Note: this is a concession for some dev/test environments that may require it. Normally the device manufacturer won't initialize the device with a self-signed cert.
 #       If the sdo owner service requires a self-signed cert for https, it should also listen on http, which is secure for the sdo protocol.
 if [[ -n $HZN_MGMT_HUB_CERT ]]; then
-    ensureWeAreRoot
     confirmcmds update-ca-certificates
     echo "Trusting HZN_MGMT_HUB_CERT ..."
     echo "$HZN_MGMT_HUB_CERT" | base64 --decode > /usr/local/share/ca-certificates/sdo-mgmt-hub.crt
@@ -251,6 +287,7 @@ if which hzn >/dev/null; then
     fi
 fi
 
+# Prepare to have docker-compose start the SCT services
 cp $deviceBinaryDir/docker-compose.yml .
 chk $? 'copying docker-compose.yml in place'
 
@@ -273,7 +310,7 @@ docker tag openhorizon/$sdoMfgDockerName:$SDO_MFG_IMAGE_TAG $sdoMfgDockerName:1.
 docker pull openhorizon/$sdoMariaDbDockerName:$SDO_MFG_IMAGE_TAG
 docker tag openhorizon/$sdoMariaDbDockerName:$SDO_MFG_IMAGE_TAG $sdoMariaDbDockerName:1.8   # this is what the SDO docker-compose.yml file knows it by
 
-echo "starting the SDO SCT services (will take about 75 seconds)..."
+echo "Starting the SDO SCT services (could take about 75 seconds)..."
 # need to explicitly set the project name, because it was built with that project name (see Makefile)
 #docker-compose --project-name SCT up -d --no-build
 docker-compose up -d --no-build
@@ -299,19 +336,29 @@ chk $? 'adding owner public key to SDO SCT services'
 # all of the tables can be listed with: docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo -e "show tables"
 
 # Device initialization (and create the ownership voucher)
-echo "Running device initialization..."
 if [[ $useNativeClient == 'true' ]]; then
-    echo "Using native client"
-    ensureWeAreRoot
-    cd $deviceBinaryDir/SDOClientIntel/hostapp_linux
-    dalp='../sdo_7.dalp'   # or try ../sdo_8.dalp
-    miFlag='-mi bp-sdo-intel-nuc'
-    #miFlag="-mi <generate-uuid>"
-    ./sdo_di –df $dalp –su 127.0.0.1 -sp 8039 $miFlag
+    echo "Running device initialization using native client..."
+    savePwd="$PWD"
+    BOOTFS="$workingDir/sdo-native"
+    rm -rf $BOOTFS   # remove any leftovers from a previous native client mfg DI
+    mkdir -p $BOOTFS && cd $BOOTFS
+    chk $? "creating and cding into $BOOTFS"
+    SCT_IP_ADDRESS='manufacturer'   # we are running the DI container on the manufacturer_network, so we can reach the manufactuer container via its internal connection info
+    SCT_PORT=8080
+    #SCT_IP_ADDRESS="$(getPrivateIp)"   # when we did not connect to the manufacturer_network, we had to use 1 of the IP addresses so the DI container could reach the manufactuer container
+    #SCT_PORT=8039
+    Serial_Number_String="$(dmidecode -t system 2>/dev/null | grep Serial | awk '{print $3}')"
+    if [[ -z "$Serial_Number_String" || "$Serial_Number_String" == 'Not' ]]; then
+        Serial_Number_String='1234567'
+    fi
+    docker run -i --rm --privileged --name sdo-di --network manufacturer_network -v /dev:/dev -v /sys/:/sys/ -v $BOOTFS:/target/boot $sdoNativeDockerImage run_dal_sdo.sh ${SCT_IP_ADDRESS} ${SCT_PORT} ${Serial_Number_String}
     chk $? 'running native DI'
-    cd ../../..
+    # one of these echoes would say failed, and the above cmd outputs the status anyway
+    #echo "DAL_DI_Status=$(cat $BOOTFS/DAL_DI_STATUS)"
+	#echo "CSDK_DI_STATUS=$(cat $BOOTFS/CSDK_DI_STATUS)"
+    cd $savePwd
 else
-    echo "Using java client"
+    echo "Running device initialization using java client..."
     cd $deviceBinaryDir/device
     # comment out this property to put the device in DI mode
     sed -i -e 's/^org.sdo.device.credentials=/#org.sdo.device.credentials=/' application.properties
@@ -327,6 +374,7 @@ else
     deviceOcFileUuid=${deviceOcFile%.oc}
     echo "Device UUID: $deviceOcFileUuid"
     cd ../..
+    rm -rf $workingDir/sdo-native   # remove any leftovers from a previous native client mfg DI so owner-boot-device knows this was mfg with the java client
 fi
 
 # At this point, the mariadb has content in these tables:
@@ -377,8 +425,18 @@ fi
 
 # Note: originally to-docker.sh would at this point put the voucher in the ocs db, but our 'hzn voucher import' does that later
 
-if [[ $useNativeClient == 'false' ]]; then
-    # Switch the device into owner mode
+if [[ $useNativeClient == 'true' ]]; then
+    # Install systemd service that will run at boot time to complete the SDO process
+    #Future: consider supporting sdo_to.service for the java client/VM case
+    cp /usr/sdo/sdo_to.service /lib/systemd/system
+    chk $? 'copying sdo_to.service to systemd'
+    systemctl enable sdo_to.service
+    chk $? 'enabling sdo_to.service'
+    echo "Systemd service sdo_to.service has been enabled"
+    # After importing the voucher to sdo-owner-services, if you want to you can initiate the sdo boot process by running: systemctl start sdo_to.service
+    # And you can view the output with: journalctl -f --no-tail -u sdo_to.service
+else
+    # Java client. Switch the device into owner mode
     cd $deviceBinaryDir/device
     echo "Switching the device into owner mode with credential file $deviceOcFile ..."
     mv creds/saved/$deviceOcFile creds

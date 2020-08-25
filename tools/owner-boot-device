@@ -8,7 +8,7 @@ usage() {
 Usage: ${0##*/} [<edge-service-url>]
 
 Arguments:
-  <edge-service-url>  (Optional) Wait until this Horizon edge service starts.
+  <edge-service-url>  (Optional) Wait until this Horizon edge service starts. Normally only used when you are explicitly running this on a device and watching the results.
 EndOfMessage
     exit $exitCode
 }
@@ -17,7 +17,8 @@ if [[ $1 == '-h' || $1 == '--help' ]]; then usage 0; fi
 
 serviceUrl="$1"
 #jsonFile=$2  #for testing
-useNativeClient=${SDO_DEVICE_USE_NATIVE_CLIENT:-false}   # future: add cmd line flag for this too
+workingDir=/var/sdo
+sdoNativeDockerImage='sdo:1.8'
 
 #====================== Functions ======================
 
@@ -58,6 +59,12 @@ confirmcmds() {
     done
 }
 
+ensureWeAreRoot() {
+    if [[ $(whoami) != 'root' ]]; then
+        fatal 2 "must be root to run ${0##*/}. Run 'sudo -i' and then run ${0##*/}"
+    fi
+}
+
 # Used when watch the agreements for serviceUrl. Returns 1 of: none, negotiating, started
 getAgreementState() {
     local json=$(hzn agreement list)
@@ -85,7 +92,19 @@ getAgreementState() {
 
 #====================== Main Code ======================
 
+# Our working directory is /var/sdo
+ensureWeAreRoot
+mkdir -p $workingDir && cd $workingDir
+chk $? "creating and switching to $workingDir"
+
 confirmcmds jq
+
+if [[ -d "$workingDir/sdo-native" ]]; then
+    if [[ -z $(docker images -q $sdoNativeDockerImage) ]]; then
+        echo "Error: docker image $sdoNativeDockerImage does not exist on this host."
+        exit 2
+    fi
+fi
 
 # If node is registered (if you have run this script before), then unregister it
 if which hzn >/dev/null; then
@@ -94,7 +113,7 @@ if which hzn >/dev/null; then
     fi
 fi
 
-# "Boot" device to have SDO get it registered with the management hub
+# Get the other files we need from our git repo, by way of our device binaries tar file
 deviceBinaryDir='sdo_device_binaries_1.8_linux_x64'
 if [[ ! -d $deviceBinaryDir ]]; then
     deviceBinaryTar="$deviceBinaryDir.tar.gz"
@@ -104,16 +123,39 @@ if [[ ! -d $deviceBinaryDir ]]; then
     chkHttp $? $httpCode "getting $deviceBinaryTar"
     tar -zxvf $deviceBinaryTar
 fi
-if [[ $useNativeClient == 'true' ]]; then
+
+# "Boot" device to have SDO get it registered with the management hub
+if [[ -d "$workingDir/sdo-native" ]]; then
+    # simulate-mfg.sh created the above dir in the native client case
     echo "Booting with native client..."
-    if [[ $(whoami) != 'root' ]]; then
-        echo "Error: must be root to the SDO native client"
-        exit 2
+    BOOTFS="$workingDir/sdo-native"
+    if [[ ! -e $BOOTFS/SerialNo.txt ]]; then
+        echo "Error: $BOOTFS/SerialNo.txt does not exist. SDO device initialization must not have completed successfully."
+        exit 5
     fi
-    cd $deviceBinaryDir/SDOClientIntel/hostapp_linux
-    ./sdo_to
-    chk $? 'booting with sdo_to'
-    cd ../../..
+    echo "Device serial number: $(cat $BOOTFS/SerialNo.txt)"
+    touch $BOOTFS/inside-sdo-container   # this is how agent-install-wrapper.sh knows it is executing inside the sdo native client container
+
+    # Determine whether device initialization was done using DAL (for Intel devices) or CSDK (other device types), and run the sdo boot process accordingly
+    if [[ -e $BOOTFS/DAL_DI_STATUS && "$(cat $BOOTFS/DAL_DI_STATUS)" == "**DAL_DI_SUCCESSFUL**" ]]; then
+        docker run -i --rm --privileged --name sdo-dal-to -v /dev:/dev -v /sys/:/sys/ -v $BOOTFS:/target/boot $sdoNativeDockerImage sh -c 'jhid -d 2&>1 > /dev/null && sleep 2 && sdo_to -df /var/lib/intel/dal/applet_repository/sdo_all.dalp && sync '
+    elif [[ -e $BOOTFS/CSDK_DI_STATUS && "$(cat $BOOTFS/CSDK_DI_STATUS)" == "**CSDK_DI_SUCCESSFUL**" ]]; then
+        docker run -i --privileged -v $BOOTFS:/target/boot $sdoNativeDockerImage /bin/bash -c 'cd /target/boot && /sdoout/linux-client'
+    else
+        echo "Error: neither DAL DI or CSDK DI completed successfully on this device at the manufacturer."
+        exit 5
+    fi
+
+    # We are back from the container, with our files copied into $BOOTFS. Now run the device_exec file that agent-install-wrapper.sh created when it ran inside the sdo container
+    echo "TO1 and TO2 completed and downloaded these files to ${BOOTFS}: $(ls $BOOTFS | tr "\n" " ")"
+    savePwd="$PWD"
+    echo "$BOOTFS/device_exec: $(cat $BOOTFS/device_exec)"
+    echo "Running $BOOTFS/device_exec ..."
+    cd $BOOTFS
+    ./device_exec   # this actually runs agent-install-wrapper.sh again (but it will detect that it is not inside the container and behave differently)
+    chk $? 'running device_exec'
+    cd $savePwd
+    systemctl disable sdo_to.service    # so it does not run on every boot
 else
     echo "Booting with java client..."
     cd $deviceBinaryDir/device

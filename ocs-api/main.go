@@ -24,13 +24,13 @@ var OcsDbDir string
 var GetVoucherRegex = regexp.MustCompile(`^/api/vouchers/([^/]+)$`)
 var CurrentOrgId string
 var CurrentExchangeUrl string
-var CurrentExchangeInternalUrl string	// will default to CurrentExchangeUrl
+var CurrentExchangeInternalUrl string // will default to CurrentExchangeUrl
 
 type CfgVarsStruct struct {
-	HZN_EXCHANGE_URL string `json:"HZN_EXCHANGE_URL"`	// the external URL of the exchange (how devices should reach it)
-	EXCHANGE_INTERNAL_URL string `json:"EXCHANGE_INTERNAL_URL"`	// optional: how ocs-api should contact the exchange. Will default to HZN_EXCHANGE_URL
-	HZN_FSS_CSSURL   string `json:"HZN_FSS_CSSURL"`
-	HZN_ORG_ID       string `json:"HZN_ORG_ID"`
+	HZN_EXCHANGE_URL      string `json:"HZN_EXCHANGE_URL"`      // the external URL of the exchange (how devices should reach it)
+	EXCHANGE_INTERNAL_URL string `json:"EXCHANGE_INTERNAL_URL"` // optional: how ocs-api should contact the exchange. Will default to HZN_EXCHANGE_URL
+	HZN_FSS_CSSURL        string `json:"HZN_FSS_CSSURL"`
+	HZN_ORG_ID            string `json:"HZN_ORG_ID"`
 }
 type Config struct {
 	CfgVars CfgVarsStruct `json:"cfgVars"`
@@ -292,7 +292,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	// Create exec file
 	aptRepo := "http://pkg.bluehorizon.network/linux/ubuntu"
 	aptChannel := "testing"
-	execCmd := outils.MakeExecCmd("bash agent-install-wrapper.sh -i " + aptRepo + " -t " + aptChannel + " -j apt-repo-public.key -d " + uuid.String() + ":" + nodeToken)
+	execCmd := outils.MakeExecCmd("/bin/sh agent-install-wrapper.sh -i " + aptRepo + " -t " + aptChannel + " -j apt-repo-public.key -d " + uuid.String() + ":" + nodeToken)
 	fileName = OcsDbDir + "/v1/values/" + uuid.String() + "_exec"
 	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
 	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(execCmd), 0644); err != nil {
@@ -348,7 +348,7 @@ func createConfigFiles(config *Config) *outils.HttpError {
 		if config.CfgVars.EXCHANGE_INTERNAL_URL != "" {
 			CurrentExchangeInternalUrl = config.CfgVars.EXCHANGE_INTERNAL_URL
 		} else {
-			CurrentExchangeInternalUrl = CurrentExchangeUrl	//default
+			CurrentExchangeInternalUrl = CurrentExchangeUrl //default
 		}
 		fssUrl = config.CfgVars.HZN_FSS_CSSURL
 		CurrentOrgId = config.CfgVars.HZN_ORG_ID
@@ -358,7 +358,7 @@ func createConfigFiles(config *Config) *outils.HttpError {
 		if outils.IsEnvVarSet("EXCHANGE_INTERNAL_URL") {
 			CurrentExchangeInternalUrl = os.Getenv("EXCHANGE_INTERNAL_URL")
 		} else {
-			CurrentExchangeInternalUrl = CurrentExchangeUrl	// default
+			CurrentExchangeInternalUrl = CurrentExchangeUrl // default
 		}
 		fssUrl = os.Getenv("HZN_FSS_CSSURL")
 		CurrentOrgId = os.Getenv("HZN_ORG_ID")
