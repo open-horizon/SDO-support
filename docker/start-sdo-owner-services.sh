@@ -66,14 +66,16 @@ sed -i -e 's/^to0.scheduler.interval=.*$/to0.scheduler.interval=5/' -e 's/^to2.c
 # Need to move this file into the ocs db *after* the docker run mount is done
 # If the user specified their own owner private key, run-sdo-owner-services.sh will mount it at ocs/config/owner-keystore.p12, otherwise use the default
 mkdir -p $ocsDbDir/v1/creds
+echo '-------------------------------------------------'
 if [[ -f 'ocs/config/owner-keystore.p12' && $(wc -c ocs/config/owner-keystore.p12 | awk '{print $1}') -gt 0 ]]; then
-    echo "YOUR PRIVATE KEY ENTRY HAS BEEN FOUND"
+    echo "Your Private Keystore Entry Has Been Found!"
     cp ocs/config/owner-keystore.p12 $ocsDbDir/v1/creds   # need to copy it, because can't move a mounted file
 else
     # Use the default key file that Dockerfile stored, ocs/config/sample-owner-keystore.p12, but name it owner-keystore.p12
-    echo "USING DEFAULT PRIVATE KEY"
+    echo "Using Sample Owner Private Keystore..."
     mv ocs/config/sample-owner-keystore.p12 $ocsDbDir/v1/creds/owner-keystore.p12
 fi
+echo '-------------------------------------------------'
 
 # Run all of the services
 echo "Starting rendezvous service..."

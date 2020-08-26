@@ -9,10 +9,48 @@ The `sample-owner-key*` files are a sample key pair for the device owner/custome
   grep fs.owner.keystore-password ../sdo/iot-platform-sdk-v1.8.0/ocs/config/application.properties
   # use the password from above cmd in this cmd:
   keytool -list -v -storetype PKCS12 -keystore ../sdo/iot-platform-sdk-v1.8.0/ocs/config/db/v1/creds/owner-keystore.p12 -storepass '<keystore-password>'
-  ```
-## Deciding Which Key Encryption Type To Use  
+  ```  
+  
+# Generating Owner/Customer Keys
+If you want to expedite the process of creating key pairs for testing purposes, you can run `generate-key-pair.sh` found in `keys/generate-key-pair.sh`
+To run this script you must be on a linux based device.
 
-SCT, Device, and Owner keys must use the same encryption type. In order to run a successful test suite while passing your own generated key pair, you must first verify the type of encryption used for the device key and SCT key. We do this by inspecting the certificate that corresponds with the key file. 
+### Install Script Into Directory Where You Want Your Key Pairs
+
+1. Go to the directory where you want your generated keys to be saved then get `generate-key-pair.sh`, which is used to create key pairs for Owner Attestation:
+
+   ```bash
+   curl -sSLO <insert-link-here>
+   chmod +x genKeyPair.sh
+   ```
+2. Run `./generate-key-pair.sh -h` to see the usage, and set environment variables if necessary. For Example:
+
+   ```bash
+   export KEEP_KEY_FILES=true
+   ```
+3. Start the `generate-key-pair.sh` script and respond to the prompts:
+
+   ```bash
+   ./generate-key-pair.sh
+   ```
+   
+### Put Key Pairs To Use
+
+Once you have created your key pair, pass them as arguments to these scripts:
+
+- `sample-mfg/simulate-mfg.sh Owner-Public-Key.pub`
+- `docker/run-sdo-owner-services.sh $VERSION Owner-Private-Keystore.p12>`
+
+
+
+  
+# Developers Only
+
+These steps only need to be performed by developers of this project.
+
+### Deciding Which Key Encryption Type To Use  
+
+SCT, Device, and Owner keys must use the same key type. In order to run a successful test suite while passing your own generated key pair, you must first verify the type of encryption used for the device key and SCT key. We do this by inspecting the certificate that corresponds with the key file. 
 The device certificate `device.crt` can be found in `sdo_device_binaries_1.8_linux_x64/device/creds/device.crt`. The SCT key certificate can be found inside `sdo_device_binaries_1.8_linux_x64/keys/manufacturer-keystore.p12`
 
 1. Assuming that there is an existing owner's certificate and private key stored in a keystore as a PrivateKeyEntry under the alias 'Owner', run the following commands to list the contents of a keystore, then extract the owner's certificate into <owner_certificate.pem>:
@@ -22,12 +60,12 @@ The device certificate `device.crt` can be found in `sdo_device_binaries_1.8_lin
    ```
    **You will need to know the owner-keystore.p12 password in order to export a certificate.**
    
-2. Once you have the certificate, you can find out the type of encryption or "Signature Algorithm" used by running the following command:
+2. Once you have the certificate, you can find out the type of key by looking at the ```Subject Public Key Info: Public Key Algorithm``` that can be found by running the following command:
    ```bash
    openssl x509 -in <owner-certificate.crt> -text
    ```
 
-## Creating Your Own Owner Key Pair
+### Creating Your Own Owner Key Pair
 
 The Intel documentation for doing this can be found in [secure-device-onboard/docs](https://github.com/secure-device-onboard/docs/blob/master/docs/iot-platform-sdk/running-the-demo.md) repository
 
@@ -67,21 +105,6 @@ The Intel documentation for doing this can be found in [secure-device-onboard/do
 5. At this point you should have created a private key, public key, key certificate, and a key store containing the both key certificate and private key files.
 Your 'Key Pair' is  `<owner-pub-key-file>.pub` and `<owner-private-key-store>.p12`
 
-## Generate Key Pair Script
-If you want to expedite the process of creating key pairs for testing purposes, you can run `genKeyPair.sh` found in `keys/genKeyPair.sh`
-
-To run this script you must be on a linux based device.
-    ```
-    
-    ```
-    curl -sSLO <insert-link-here>
-    chmod +x genKeyPair.sh
-    ./genKeyPair.sh <encryption-type>
 
 
 
-
-Once you have created your key pair, pass them as arguments to these scripts:
-
-- `sample-mfg/simulate-mfg.sh <owner-pub-key-file>`
-- `docker/run-sdo-owner-services.sh $VERSION <owner-private-key-store>`
