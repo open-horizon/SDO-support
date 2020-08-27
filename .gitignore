@@ -1,6 +1,9 @@
 /ocs-api/ocs-api
 /ocs-api/linux/
 /ocs-api/ocs-db/
+/keys/ecdsa256Key/
+/keys/ecdsa384Key/
+/keys/rsaKey/
 
 # Where the SDO 1.8 tar files are downloaded to
 /sdo/

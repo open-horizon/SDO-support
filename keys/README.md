@@ -12,16 +12,16 @@ The `sample-owner-key*` files are a sample key pair for the device owner/custome
   ```  
   
 # Generating Owner/Customer Keys
-If you want to expedite the process of creating key pairs for testing purposes, you can run `generate-key-pair.sh` found in `keys/generate-key-pair.sh`
-To run this script you must be on a linux based device.
+If you want to expedite the process of creating key pairs for testing purposes, you can run `keys/generate-key-pair.sh`
+To run this script you must be using Ubuntu. 
 
-### Install Script Into Directory Where You Want Your Key Pairs
+### Install Script Into Directory Where You Want Your Key Pair Files
 
-1. Go to the directory where you want your generated keys to be saved then get `generate-key-pair.sh`, which is used to create key pairs for Owner Attestation:
+1. Go to the directory where you want your generated keys to be saved then download `generate-key-pair.sh`, which is used to create key pairs for Owner Attestation:
 
    ```bash
    curl -sSLO <insert-link-here>
-   chmod +x genKeyPair.sh
+   chmod +x generate-key-pair.sh
    ```
 2. Run `./generate-key-pair.sh -h` to see the usage, and set environment variables if necessary. For Example:
 
@@ -39,8 +39,7 @@ To run this script you must be on a linux based device.
 Once you have created your key pair, pass them as arguments to these scripts:
 
 - `sample-mfg/simulate-mfg.sh Owner-Public-Key.pub`
-- `docker/run-sdo-owner-services.sh $VERSION Owner-Private-Keystore.p12>`
-
+- `docker/run-sdo-owner-services.sh $VERSION Owner-Private-Keystore.p12`
 
 
   

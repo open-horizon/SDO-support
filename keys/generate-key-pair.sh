@@ -22,6 +22,9 @@ privateKey=""
 KEEP_KEY_FILES=${KEEP_KEY_FILES:-}
 SDO_KEY_PWD=${SDO_KEY_PWD:-}
 
+
+#============================FUNCTIONS=================================
+
 #If the argument passed for this script does not equal one of the encryption types, send error code and exit.
 #BY DEFAULT THE TYPE WILL BE SET TO all
 if [[ -n "$TYPE" ]] && [[ "$TYPE" != "ecdsa256" ]] && [[ "$TYPE" != "ecdsa384" ]] && [[ "$TYPE" != "rsa" ]] && [[ "$TYPE" != "all" ]]; then
@@ -37,6 +40,13 @@ chk() {
     echo "Error: exit code $exitCode from: $task"
     if [[ $dontExit != 'continue' ]]; then
         exit $exitCode
+    fi
+}
+
+ensureWeAreUser() {
+    if [[ $(whoami) = 'root' ]]; then
+        echo "Error: must be normal user to run ${0##*/}"
+        exit 2
     fi
 }
 
@@ -157,6 +167,9 @@ function infoCert() {
   echo '-------------------------------------------------'
 }
 
+#============================MAIN CODE=================================
+
+ensureWeAreUser
 infoCert
 if [[ -n "$TYPE" ]] && [[ "$TYPE" = "all" ]]; then
   for i in "rsa" "ecdsa256" "ecdsa384"

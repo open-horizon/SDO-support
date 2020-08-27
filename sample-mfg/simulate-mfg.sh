@@ -36,6 +36,13 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
 fi
 : ${SDO_RV_URL:?}
 
+#If the passed argument is a file, save the file directory path
+if [[ -f "$1" ]]; then
+  origDir="$PWD"
+else
+  :
+fi
+
 deviceBinaryDir='sdo_device_binaries_1.8_linux_x64'   # the place we will unpack sdo_device_binaries_1.8_linux_x64.tar.gz to
 ownerPubKeyFile=${1:-$deviceBinaryDir/keys/sample-owner-key.pub}
 rvUrl="$SDO_RV_URL"   # the external rv url that the device should reach it at
@@ -235,6 +242,13 @@ elif [[ ! -f $privateKeyFile ]]; then
     exit 1
 fi
 
+#if you passed an owner public key, it will be retrieved from the origninal directory
+if [[ -f $origDir/$ownerPubKeyFile ]]; then
+    ownerPubKeyFile="$origDir/$ownerPubKeyFile"
+else
+    :
+fi
+
 # The owner public key is either a URL we retrieve, or a file we use as-is
 if [[ ${ownerPubKeyFile:0:4} == 'http' ]]; then
     echo "Getting $ownerPubKeyFile ..."
@@ -329,7 +343,6 @@ docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo -e "delete f
 chk $? 'deleting rows from rt_ownership_voucher'
 
 # Add the customer/owner public key to the mariadb
-cat $ownerPubKeyFile
 echo "Adding owner public key $ownerPubKeyFile to the SCT services..."
 docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo -e "call rt_add_customer_public_key('all','$(cat $ownerPubKeyFile)')"
 chk $? 'adding owner public key to SDO SCT services'
