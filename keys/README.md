@@ -12,7 +12,7 @@ The `sample-owner-key*` files are a sample key pair for the device owner/custome
   ```  
   
 # Generating Owner/Customer Keys
-If you want to expedite the process of creating key pairs for testing purposes, you can run `keys/generate-key-pair.sh`
+If you want to expedite the process of creating key pairs, you can run `keys/generate-key-pair.sh`
 To run this script you must be using Ubuntu. 
 
 ### Install Script Into Directory Where You Want Your Key Pair Files

@@ -36,16 +36,18 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
 fi
 : ${SDO_RV_URL:?}
 
-#If the passed argument is a file, save the file directory path
-if [[ -f "$1" ]]; then
-  origDir="$PWD"
-else
-  :
-fi
-
 deviceBinaryDir='sdo_device_binaries_1.8_linux_x64'   # the place we will unpack sdo_device_binaries_1.8_linux_x64.tar.gz to
 ownerPubKeyFile=${1:-$deviceBinaryDir/keys/sample-owner-key.pub}
 rvUrl="$SDO_RV_URL"   # the external rv url that the device should reach it at
+
+#If the passed argument is a file, save the file directory path
+if [[ -f "$ownerPubKeyFile" ]]; then
+  origDir="$PWD"
+  #if you passed an owner public key, it will be retrieved from the original directory
+  if [[ -f $origDir/$ownerPubKeyFile ]]; then
+    ownerPubKeyFile="$origDir/$ownerPubKeyFile"
+  fi
+fi
 
 # These environment variables can be overridden
 SDO_MFG_IMAGE_TAG=${SDO_MFG_IMAGE_TAG:-stable}
@@ -240,13 +242,6 @@ elif [[ $privateKeyFile == "$deviceBinaryDir/keys/manufacturer-keystore.p12" ]];
 elif [[ ! -f $privateKeyFile ]]; then
     echo "Error: $privateKeyFile does not exist"
     exit 1
-fi
-
-#if you passed an owner public key, it will be retrieved from the origninal directory
-if [[ -f $origDir/$ownerPubKeyFile ]]; then
-    ownerPubKeyFile="$origDir/$ownerPubKeyFile"
-else
-    :
 fi
 
 # The owner public key is either a URL we retrieve, or a file we use as-is

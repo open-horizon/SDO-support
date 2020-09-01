@@ -3,34 +3,39 @@
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     cat << EndOfMessage
-Usage: ${0##*/} [encryption-type]
+Usage: ${0##*/} [<encryption-keyType>]
 
 Arguments:
-  <encryption-type>  The type of encryption to use when generating owner key pair (ecdsa256, ecdsa384, rsa, or all). Will default to all.
+  <encryption-keyType>  The type of encryption to use when generating owner key pair (ecdsa256, ecdsa384, rsa, or all). Will default to all.
+
+Required environment variables:
+  SDO_KEY_PWD - The password for your generated keystore. This password must be passed into run-sdo-owner-services.sh in order to be mounted to $containerHome/ocs/config/application.properties/fs.owner.keystore-password
+  countryName - The country the user resides in. Necessary information for keyCertificate generation.
+  cityName - The city the user resides in. Necessary information for keyCertificate generation.
+  orgName - The organization the user works for. Necessary information for keyCertificate generation.
+  emailName - The user's email. Necessary information for keyCertificate generation.
 
 Additional environment variables (that do not usually need to be set):
-  SDO_KEY_PWD - The password for your generated keystore. This password must match $containerHome/ocs/config/application.properties/fs.owner.keystore-password
   KEEP_KEY_FILES - set to 'true' to keep all key pairs generated for each type of key (ecdsa256, ecdsa384, rsa). This is for devs who may want to check out each individual file that goes into generating Key pairs.
 
 EndOfMessage
     exit 1
 fi
 
-TYPE="${1:-all}"
-CERT=""
+keyType="${1:-all}"
+keyCert=""
 privateKey=""
 KEEP_KEY_FILES=${KEEP_KEY_FILES:-}
-SDO_KEY_PWD=${SDO_KEY_PWD:-}
 
 
-#============================FUNCTIONS=================================
-
-#If the argument passed for this script does not equal one of the encryption types, send error code and exit.
-#BY DEFAULT THE TYPE WILL BE SET TO all
-if [[ -n "$TYPE" ]] && [[ "$TYPE" != "ecdsa256" ]] && [[ "$TYPE" != "ecdsa384" ]] && [[ "$TYPE" != "rsa" ]] && [[ "$TYPE" != "all" ]]; then
-    echo "Error: specified encryption type '$TYPE' is not supported."
+#If the argument passed for this script does not equal one of the encryption keyTypes, send error code and exit.
+#BY DEFAULT THE keyType WILL BE SET TO all
+if [[ -n $keyType ]] && [[ $keyType != "ecdsa256" ]] && [[ $keyType != "ecdsa384" ]] && [[ $keyType != "rsa" ]] && [[ $keyType != "all" ]]; then
+    echo "Error: specified encryption keyType '$keyType' is not supported."
     exit 2
 fi
+
+#============================FUNCTIONS=================================
 
 chk() {
     local exitCode=$1
@@ -50,74 +55,78 @@ ensureWeAreUser() {
     fi
 }
 
-#This function will create a private key that is needed to create a private keystore. Encryption type passed will decide which command to run for private key creation
+function allKeys() {
+  for i in "rsa" "ecdsa256" "ecdsa384"
+    do
+      keyType=$i
+      genKey
+      wait
+    done
+}
+
+#This function will create a private key that is needed to create a private keystore. Encryption keyType passed will decide which command to run for private key creation
 function genKey() {
-#Check if the folder is already created for the type (In case of multiple runs)
-if [[ -d "${TYPE}"Key ]]; then
-    cd "${TYPE}"Key
-else
-    mkdir "${TYPE}"Key && cd "${TYPE}"Key
-fi
+#Check if the folder is already created for the keyType (In case of multiple runs)
+    mkdir -p "${keyType}"Key && cd "${keyType}"Key
 #Generate a private RSA key.
-if [[ $TYPE = "rsa" ]]; then
-    echo -e "Generating a "${TYPE}"private key.\n"
-    openssl genrsa -out "${TYPE}"private-key.pem 2048 > /dev/null 2>&1
-    chk $?
-    certGenerator
+if [[ $keyType = "rsa" ]]; then
+    echo -e "Generating a "${keyType}"private key.\n"
+    openssl genrsa -out "${keyType}"private-key.pem 2048 >out 2>&1
+    chk $? 'Generating rsa private key.'
+    keyCertGenerator
 #Generate a private ecdsa (256 or 384) key.
-elif [[ $TYPE = "ecdsa256" ]] || [[ $TYPE = "ecdsa384" ]]; then
-    echo -e "Generating a "${TYPE}"private key.\n"
-    var2=$(echo $TYPE | cut -f2 -da)
-    openssl ecparam -genkey -name secp"${var2}"r1 -out "${TYPE}"private-key.pem > /dev/null 2>&1
-    chk $?
-    certGenerator
+elif [[ $keyType = "ecdsa256" ]] || [[ $keyType = "ecdsa384" ]]; then
+    echo -e "Generating a "${keyType}"private key.\n"
+    local var2=$(echo $keyType | cut -f2 -da)
+    openssl ecparam -genkey -name secp"${var2}"r1 -out "${keyType}"private-key.pem >out 2>&1
+    chk $? 'Generating ecdsa private key.'
+    keyCertGenerator
 fi
 }
 
-#This function will create a key certificate that is needed to create a corresponding public key, as well as a private keystore.
-function certGenerator() {
-    if [[ -f "${TYPE}"private-key.pem ]]; then
-        privateKey=""${TYPE}"private-key.pem"
-        CERT=""${TYPE}"cert.crt"
-        echo -e "\n"${TYPE}" private key creation: SUCCESS"
-        echo '-------------------------------------------------'
-#Generate a self-signed certificate from the private key file.
-#Your system should launch a text-based questionnaire for you to fill out.
-        echo -e "Generating a corresponding certificate.\n"
-        ( echo $q1 ; echo $q2 ; echo $q3 ; echo $q4 ; echo $q5 ; echo $q6 ; echo $q7 ) | ( openssl req -x509 -key "$privateKey" -days 365 -out "$CERT" ) > /dev/null 2>&1
-        #printf "%s\n""$q1""%s\n""$q2""%s\n""$q3""%s\n""$q4""%s\n""$q5""%s\n""$q6""%s\n""$q7" | openssl req -x509 -key "$privateKey" -days 365 -out "$CERT"
-        chk $?
-        if [[ -f $CERT  ]]; then
-          echo -e "\n"${TYPE}" certificate creation: SUCCESS"
-          genKeyStore
-        else
-          echo "Owner "${TYPE}"Key certificate not found"
-          exit
-        fi
+#This function will create a keyCertificate that is needed to create a corresponding public key, as well as a private keystore.
+function keyCertGenerator() {
+  if [[ -f "${keyType}"private-key.pem ]]; then
+    local privateKey=""${keyType}"private-key.pem"
+    local keyCert=""${keyType}"Cert.crt"
+    echo -e "\n"${keyType}" private key creation: SUCCESS"
+    echo '-------------------------------------------------'
+    #Generate a self-signed certificate from the private key file.
+    #You should have these environment variables set.
+    echo -e "Generating a corresponding certificate.\n"
+    ( echo $countryName ; echo "." ; echo $cityName ; echo $orgName ; echo "." ; echo "." ; echo $emailName ) | ( openssl req -x509 -key "$privateKey" -days 365 -out "$keyCert" ) >certInfo.txt 2>&1
+    chk $? 'generating certificate'
+    if [[ -f $keyCert  ]]; then
+      echo -e "\n"${keyType}"Key Certificate creation: SUCCESS"
+      genKeyStore
     else
-      echo ""${TYPE}"private-key.pem not found"
-      exit
+      echo "Owner "${keyType}"Key Certificate not found"
+      exit 2
     fi
+  else
+    echo ""${keyType}"private-key.pem not found"
+    exit 2
+  fi
 }
 
 function genKeyStore(){
-    # This function is ran after the private key and owner certificate has been created. This function will create a public key to correspond with
-    # the owner private key/certificate. After the public key is made it will then place the private key and certificate inside a keystore.
-    # Generate a public key from the certificate file
-      openssl x509 -pubkey -noout -in $CERT > "${TYPE}"pub-key.pub
-      echo '-------------------------------------------------'
-      echo "Creating public key..."
-      chk $?
-      scp "${TYPE}"pub-key.pub ..
-      echo -e "\n"${TYPE}" public key creation: SUCCESS"
-      echo '-------------------------------------------------'
-    # Convert the certificate and private key into ‘PKCS12’ keystore format:
-    openssl pkcs12 -export -in $CERT -inkey $privateKey -name "${TYPE}"Owner -out "${TYPE}"key-store.p12 -password pass:"$SDO_KEY_PWD"
-    chk $?
-    echo -e "Your private keystore has successfully been created. Your keystore alias is: ""${TYPE}"Owner
-    echo '-------------------------------------------------'
-    scp "${TYPE}"key-store.p12 ..
-    cd ..
+  # This function is ran after the private key and owner certificate has been created. This function will create a public key to correspond with
+  # the owner private key/certificate. After the public key is made it will then place the private key and certificate inside a keystore.
+  # Generate a public key from the certificate file
+  openssl x509 -pubkey -noout -in $keyCert > "${keyType}"pub-key.pub
+  chk $? 'Creating public key...'
+  echo '-------------------------------------------------'
+  echo "Creating public key..."
+  cp "${keyType}"pub-key.pub ..
+  echo -e "\n"${keyType}" public key creation: SUCCESS"
+  echo '-------------------------------------------------'
+  # Convert the keyCertificate and private key into ‘PKCS12’ keystore format:
+  openssl pkcs12 -export -in $keyCert -inkey $privateKey -name "${keyType}"Owner -out "${keyType}"key-store.p12 -password pass:"$SDO_KEY_PWD"
+  chk $? 'Converting private key and cert into keystore'
+  echo -e "Your private keystore has successfully been created. Your keystore alias is: ""${keyType}"Owner
+  echo '-------------------------------------------------'
+  cp "${keyType}"key-store.p12 ..
+  cd ..
 }
 
 function combineKeys(){
@@ -132,52 +141,55 @@ function combineKeys(){
     #Combine all the public keys into one
     cat ecdsa256pub-key.pub rsapub-key.pub ecdsa384pub-key.pub > Owner-Public-Key.pub
     rm -- ecdsa*.p12 && rm ecdsa*.pub && rm rsapub*
-
     if [[ "$KEEP_KEY_FILES" == '1' || "$KEEP_KEY_FILES" == 'true' ]]; then
       echo "Saving all key pairs, because KEEP_KEY_FILES=$KEEP_KEY_FILES"
     else
       echo "Cleaning up key files..."
-    #removing all key files except the ones we pass
-    for i in "rsa" "ecdsa256" "ecdsa384"
-      do
-        rm "$i"Key/*
-        rmdir "$i"Key
-        chk $? 'cleaning up key files...'
-      done
+      #removing all key files except the ones we pass
+      for i in "rsa" "ecdsa256" "ecdsa384"
+        do
+          rm "$i"Key/*
+          rmdir "$i"Key
+          chk $? 'cleaning up key files...'
+        done
 fi
-    touch Owner-Private-Keystore.p12 Owner-Public-Key.pub && chown user:user Owner-Private-Keystore.p12 Owner-Public-Key.pub
+    chown user:user Owner-Private-Keystore.p12 Owner-Public-Key.pub
   else
-    echo "One or more of the keystores are missing."
-    exit
+    echo "One or more of the keystores are missing. There should be three keystores of type rsa, ecdsa256, and ecdsa384"
+    exit 2
 fi
 }
 
-function infoCert() {
-  echo -e "\nYou are about to be asked to enter information that will be incorporated into your certificate request to generate your key pair for SDO Owner Attestation. What you are about to enter is what is called a Distinguished Name or a DN.
-  There are quite a few fields but you can leave some blank. For some fields there will be a default value, If you enter '.', the field will be left blank."
-  echo '-------------------------------------------------'
-  echo "Country Name (2 letter code) [AU]:" && read q1
-  echo "State or Province Name (full name) [Some-State]:" && read q2
-  echo "Locality Name (eg, city) []:" && read q3
-  echo "Organization Name (eg, company) [Internet Widgits Pty Ltd]:" && read q4
-  echo "Organizational Unit Name (eg, section) []:" && read q5
-  echo "Common Name (e.g. server FQDN or YOUR name) []:" && read q6
-  echo "Email Address []:" && read q7
-  echo "Keystore Password:" && read SDO_KEY_PWD
+function checkPass() {
+  #Will check if the SDO_KEY_PWD has already been set, and if SDO_KEY_PWD meets length requirements
+ if [[ -z "$SDO_KEY_PWD" ]]; then
+    echo "SDO_KEY_PWD is not set"
+    exit 1
+  elif [[ -n "$SDO_KEY_PWD" ]] && [[ ${#SDO_KEY_PWD} -lt 6 ]]; then
+    while [[ ${#SDO_KEY_PWD} -lt 6 ]];
+      do
+        echo "SDO_KEY_PWD not long enough. Needs at least 6 characters"
+        exit 1
+      done
+  else
+    :
+  fi
+}
+
+function infoKeyCert() {
+#You have to enter information in order to generate a custom self signed certificate as a part of your key pair for SDO Owner Attestation. What you are about to enter is what is called a Distinguished Name or a DN.
+#There are quite a few fields but you can leave some blank. For some fields there will be a default value, If you enter '.', the field will be left blank."
+  : ${countryName:?} ${cityName:?} ${orgName:?} ${emailName:?}
+  checkPass
   echo '-------------------------------------------------'
 }
 
 #============================MAIN CODE=================================
 
 ensureWeAreUser
-infoCert
-if [[ -n "$TYPE" ]] && [[ "$TYPE" = "all" ]]; then
-  for i in "rsa" "ecdsa256" "ecdsa384"
-    do
-      TYPE=$i
-      genKey
-      wait
-    done
+infoKeyCert
+if [[ -n "$keyType" ]] && [[ "$keyType" = "all" ]]; then
+  allKeys
   combineKeys
 else
     genKey
