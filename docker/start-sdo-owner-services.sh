@@ -75,7 +75,6 @@ sed -i -e 's/^to0.scheduler.interval=.*$/to0.scheduler.interval=5/' -e 's/^to2.c
 mkdir -p $ocsDbDir/v1/creds
 if [[ -f 'ocs/config/owner-keystore.p12' && $(wc -c ocs/config/owner-keystore.p12 | awk '{print $1}') -gt 0 ]]; then
     echo "Your Private Keystore Entry Has Been Found!"
-    cp ocs/config/owner-keystore.p12 $ocsDbDir/v1/creds   # need to copy it, because can't move a mounted file
      #Will check if the SDO_KEY_PWD has already been set, and if SDO_KEY_PWD meets length requirements
     if [[ -z "$SDO_KEY_PWD" ]]; then
       echo "SDO_KEY_PWD is not set"
@@ -84,6 +83,7 @@ if [[ -f 'ocs/config/owner-keystore.p12' && $(wc -c ocs/config/owner-keystore.p1
       echo "SDO_KEY_PWD not long enough. Needs at least 6 characters"
       exit 1
     fi
+    cp ocs/config/owner-keystore.p12 $ocsDbDir/v1/creds   # need to copy it, because can't move a mounted file
 else
     # Use the default key file that Dockerfile stored, ocs/config/sample-owner-keystore.p12, but name it owner-keystore.p12
     echo "Using Sample Owner Private Keystore..."
