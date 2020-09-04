@@ -14,6 +14,7 @@ Required environment variables:
   cityName - The city the user resides in. Necessary information for keyCertificate generation.
   orgName - The organization the user works for. Necessary information for keyCertificate generation.
   emailName - The user's email. Necessary information for keyCertificate generation.
+  ownerName - Part of the alias you will use for owner key pairs
 
 Additional environment variables (that do not usually need to be set):
   KEEP_KEY_FILES - set to 'true' to keep all key pairs generated for each type of key (ecdsa256, ecdsa384, rsa). This is for devs who may want to check out each individual file that goes into generating Key pairs.
@@ -120,10 +121,14 @@ function genKeyStore(){
   cp "${keyType}"pub-key.pub ..
   echo -e "\n"${keyType}" public key creation: SUCCESS"
   echo '-------------------------------------------------'
+  if [[ -z "$ownerName" ]]; then
+    echo "ownerName is not set"
+    exit 1
+  fi
   # Convert the keyCertificate and private key into ‘PKCS12’ keystore format:
-  openssl pkcs12 -export -in $keyCert -inkey $privateKey -name "${keyType}"Owner -out "${keyType}"key-store.p12 -password pass:"$SDO_KEY_PWD"
+  openssl pkcs12 -export -in $keyCert -inkey $privateKey -name "${keyType}""${ownerName}" -out "${keyType}"key-store.p12 -password pass:"$SDO_KEY_PWD"
   chk $? 'Converting private key and cert into keystore'
-  echo -e "Your private keystore has successfully been created. Your keystore alias is: ""${keyType}"Owner
+  echo -e "Your private keystore has successfully been created. Your keystore alias is: ""${keyType}""${ownerName}"
   echo '-------------------------------------------------'
   cp "${keyType}"key-store.p12 ..
   cd ..
@@ -136,8 +141,8 @@ function combineKeys(){
     mv rsakey-store.p12 Owner-Private-Keystore.p12
     echo "Combining all keystores in Owner-Private-Keystore.p12"
     echo "Importing keystore rsakey-store.p12 to Owner-Private-Keystore.p12..."
-    keytool -importkeystore -destkeystore Owner-Private-Keystore.p12 -deststorepass "$SDO_KEY_PWD" -srckeystore ecdsa256key-store.p12 -srcstorepass "$SDO_KEY_PWD" -srcstoretype PKCS12 -alias ecdsa256Owner
-    keytool -importkeystore -destkeystore Owner-Private-Keystore.p12 -deststorepass "$SDO_KEY_PWD" -srckeystore ecdsa384key-store.p12 -srcstorepass "$SDO_KEY_PWD" -srcstoretype PKCS12 -alias ecdsa384Owner
+    keytool -importkeystore -destkeystore Owner-Private-Keystore.p12 -deststorepass "$SDO_KEY_PWD" -srckeystore ecdsa256key-store.p12 -srcstorepass "$SDO_KEY_PWD" -srcstoretype PKCS12 -alias ecdsa256"${ownerName}"
+    keytool -importkeystore -destkeystore Owner-Private-Keystore.p12 -deststorepass "$SDO_KEY_PWD" -srckeystore ecdsa384key-store.p12 -srcstorepass "$SDO_KEY_PWD" -srcstoretype PKCS12 -alias ecdsa384"${ownerName}"
     #Combine all the public keys into one
     cat ecdsa256pub-key.pub rsapub-key.pub ecdsa384pub-key.pub > Owner-Public-Key.pub
     rm -- ecdsa*.p12 && rm ecdsa*.pub && rm rsapub*
@@ -166,13 +171,8 @@ function checkPass() {
     echo "SDO_KEY_PWD is not set"
     exit 1
   elif [[ -n "$SDO_KEY_PWD" ]] && [[ ${#SDO_KEY_PWD} -lt 6 ]]; then
-    while [[ ${#SDO_KEY_PWD} -lt 6 ]];
-      do
         echo "SDO_KEY_PWD not long enough. Needs at least 6 characters"
         exit 1
-      done
-  else
-    :
   fi
 }
 
