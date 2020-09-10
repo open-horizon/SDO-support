@@ -292,7 +292,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	// Create exec file
 	aptRepo := "http://pkg.bluehorizon.network/linux/ubuntu"
 	aptChannel := "testing"
-	execCmd := outils.MakeExecCmd("/bin/sh agent-install-wrapper.sh -i " + aptRepo + " -t " + aptChannel + " -j apt-repo-public.key -d " + uuid.String() + ":" + nodeToken)
+	execCmd := outils.MakeExecCmd("/bin/sh agent-install-wrapper.sh -i " + aptRepo + " -t " + aptChannel + " -j apt-repo-public.key -a " + uuid.String() + ":" + nodeToken)
 	fileName = OcsDbDir + "/v1/values/" + uuid.String() + "_exec"
 	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
 	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(execCmd), 0644); err != nil {
