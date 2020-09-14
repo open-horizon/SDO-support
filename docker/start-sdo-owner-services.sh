@@ -6,11 +6,13 @@
 opsPortDefault='8042'
 rvPortDefault='8040'
 ocsApiPortDefault='9008'
+keyPassDefault='MLP3QA!Z'
 
 # These can be passed in via CLI args or env vars
 ocsDbDir="${1:-$SDO_OCS_DB_PATH}"
 ocsApiPort="${2:-${SDO_OCS_API_PORT:-$ocsApiPortDefault}}"
 
+keyPass="${SDO_KEY_PWD:-$keyPassDefault}"
 opsPort=${SDO_OPS_PORT:-$opsPortDefault}
 opsExternalPort=${SDO_OPS_EXTERNAL_PORT:-$opsPort}
 rvPort=${SDO_RV_PORT:-$rvPortDefault}
@@ -20,7 +22,7 @@ if [[ "$1" == "-h" || "$1" == "--help" || -z "$SDO_OCS_DB_PATH" || -z "$SDO_OCS_
 Usage: ${0##*/} [<ocs-db-path>] [<ocs-api-port>]
 Environment variables that can be used instead of CLI args: SDO_OCS_DB_PATH, SDO_OCS_API_PORT
 Required environment variables: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID
-Recommended environment variables: HZN_MGMT_HUB_CERT (unless the mgmt hub uses http or a CA-trusted certificate)
+Recommended environment variables: HZN_MGMT_HUB_CERT (unless the mgmt hub uses http or a CA-trusted certificate), SDO_KEY_PWD (unless using sample key files)
 Additional environment variables: SDO_RV_PORT, SDO_OPS_PORT, SDO_OPS_EXTERNAL_PORT, EXCHANGE_INTERNAL_URL
 EndOfMessage
     exit 1
@@ -59,6 +61,11 @@ if [[ "$rvPort" != "$rvPortDefault" ]]; then
     sed -i -e "s/^server.port=.*$/server.port=$rvPort/" rv/application.properties
 fi
 
+# If using a non-default keystore password for a generated key pair, configure OCS with that password
+if [[ "$keyPass" != "$keyPassDefault" ]]; then
+    sed -i -e "s/^fs.owner.keystore-password=.*$/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
+fi
+
 # This sed is for dev/test/demo and makes the to0scheduler respond to changes more quickly, and let us use the same voucher over again
 #todo: should we not do this for production? If so, add an env var that will do this for dev/test
 sed -i -e 's/^to0.scheduler.interval=.*$/to0.scheduler.interval=5/' -e 's/^to2.credential-reuse.enabled=.*$/to2.credential-reuse.enabled=true/' ocs/config/application.properties
@@ -66,10 +73,20 @@ sed -i -e 's/^to0.scheduler.interval=.*$/to0.scheduler.interval=5/' -e 's/^to2.c
 # Need to move this file into the ocs db *after* the docker run mount is done
 # If the user specified their own owner private key, run-sdo-owner-services.sh will mount it at ocs/config/owner-keystore.p12, otherwise use the default
 mkdir -p $ocsDbDir/v1/creds
-if [[ -f 'ocs/config/owner-keystore.p12' ]]; then
+if [[ -s 'ocs/config/owner-keystore.p12' ]]; then
+    echo "Your Private Keystore Entry Has Been Found!"
+     #Will check if the SDO_KEY_PWD has already been set, and if SDO_KEY_PWD meets length requirements
+    if [[ -z "$SDO_KEY_PWD" ]]; then
+      echo "SDO_KEY_PWD is not set"
+      exit 1
+    elif [[ -n "$SDO_KEY_PWD" ]] && [[ ${#SDO_KEY_PWD} -lt 6 ]]; then
+      echo "SDO_KEY_PWD not long enough. Needs at least 6 characters"
+      exit 1
+    fi
     cp ocs/config/owner-keystore.p12 $ocsDbDir/v1/creds   # need to copy it, because can't move a mounted file
 else
     # Use the default key file that Dockerfile stored, ocs/config/sample-owner-keystore.p12, but name it owner-keystore.p12
+    echo "Using Sample Owner Private Keystore..."
     mv ocs/config/sample-owner-keystore.p12 $ocsDbDir/v1/creds/owner-keystore.p12
 fi
 

@@ -17,6 +17,7 @@ Required environment variables:
   HZN_MGMT_HUB_CERT - the base64 encoded content of the management hub cluster self-signed certificate (can be set to 'N/A' if the mgmt hub does not require a cert)
 
 Recommended environment variables:
+  SDO_KEY_PWD - The password for your generated keystore. This password must be passed into the Dockerfile so that start-sdo-owner-services.sh can mount to $containerHome/ocs/config/application.properties/fs.owner.keystore-password
   SDO_OWNER_SVC_HOST - external hostname or IP that the RV should tell the device to reach OPS at. Defaults to the host's hostname but that is only sufficient if it is resolvable and externally accessible.
 
 Additional environment variables (that do not usually need to be set):
@@ -91,10 +92,25 @@ if ! command -v docker >/dev/null 2>&1; then
     chk $? 'installing docker'
 fi
 
-# Mount the owner private key into the container, if they provided one
+# Make sure SDO_KEY_PWD is set and Mount the owner private key into the container, if they provided one
 if [[ -n "$ownerPrivateKey" ]]; then
-    privateKeyMount="-v $PWD/$ownerPrivateKey:$containerHome/ocs/config/owner-keystore.p12:ro"
+  if [[ -z "$SDO_KEY_PWD" ]]; then
+    echo "SDO_KEY_PWD is not set"
+    exit 1
+  elif [[ -n "$SDO_KEY_PWD" ]] && [[ ${#SDO_KEY_PWD} -lt 6 ]]; then
+    while [[ ${#SDO_KEY_PWD} -lt 6 ]];
+      do
+        echo "SDO_KEY_PWD not long enough. Needs at least 6 characters"
+        exit 1
+      done
+  else
+    :
+  fi
+  privateKeyMount="-v $PWD/$ownerPrivateKey:$containerHome/ocs/config/owner-keystore.p12:ro"
+else
+    unset SDO_KEY_PWD
 fi
+
 # else inside the container start-sdo-owner-services.sh will use the default key file that Dockerfile set up
 
 if [[ ${AGENT_INSTALL_URL:0:8} == 'file:///' ]]; then
@@ -106,8 +122,13 @@ else
     exit 1
 fi
 
+#For testing purposes
+if [[ "$DOCKER_DONTPULL" == '1' || "$DOCKER_DONTPULL" == 'true' ]]; then
+    echo "Using local Dockerfile, because DOCKER_DONTPULL=$DOCKER_DONTPULL"
+else
 # If VERSION is a generic tag like latest, stable, or testing we have to make sure we pull the most recent
-docker pull $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
-
+    docker pull $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
+    chk $? 'Pulling from Docker Hub...'
+fi
 # Run the service container
-docker run --name $SDO_DOCKER_IMAGE -dt --mount "type=volume,src=sdo-ocs-db,dst=$SDO_OCS_DB_CONTAINER_DIR" $privateKeyMount $agentInstallFlag -p $SDO_OCS_API_PORT:$SDO_OCS_API_PORT -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "SDO_OCS_API_PORT=$SDO_OCS_API_PORT" -e "SDO_RV_PORT=$SDO_RV_PORT" -e "SDO_OPS_PORT=$SDO_OPS_PORT" -e "SDO_OPS_EXTERNAL_PORT=$SDO_OPS_EXTERNAL_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "EXCHANGE_INTERNAL_URL=$EXCHANGE_INTERNAL_URL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_ORG_ID=$HZN_ORG_ID" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
+docker run --name $SDO_DOCKER_IMAGE -dt --mount "type=volume,src=sdo-ocs-db,dst=$SDO_OCS_DB_CONTAINER_DIR" $privateKeyMount $agentInstallFlag -p $SDO_OCS_API_PORT:$SDO_OCS_API_PORT -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_KEY_PWD=$SDO_KEY_PWD" -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "SDO_OCS_API_PORT=$SDO_OCS_API_PORT" -e "SDO_RV_PORT=$SDO_RV_PORT" -e "SDO_OPS_PORT=$SDO_OPS_PORT" -e "SDO_OPS_EXTERNAL_PORT=$SDO_OPS_EXTERNAL_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "EXCHANGE_INTERNAL_URL=$EXCHANGE_INTERNAL_URL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_ORG_ID=$HZN_ORG_ID" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION

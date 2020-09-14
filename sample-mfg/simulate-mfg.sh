@@ -40,6 +40,15 @@ deviceBinaryDir='sdo_device_binaries_1.8_linux_x64'   # the place we will unpack
 ownerPubKeyFile=${1:-$deviceBinaryDir/keys/sample-owner-key.pub}
 rvUrl="$SDO_RV_URL"   # the external rv url that the device should reach it at
 
+#If the passed argument is a file, save the file directory path
+if [[ -f "$ownerPubKeyFile" ]]; then
+  origDir="$PWD"
+  #if you passed an owner public key, it will be retrieved from the original directory
+  if [[ -f $origDir/$ownerPubKeyFile ]]; then
+    ownerPubKeyFile="$origDir/$ownerPubKeyFile"
+  fi
+fi
+
 # These environment variables can be overridden
 SDO_MFG_IMAGE_TAG=${SDO_MFG_IMAGE_TAG:-stable}
 SDO_SUPPORT_REPO=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/stable}
