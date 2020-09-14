@@ -73,7 +73,7 @@ sed -i -e 's/^to0.scheduler.interval=.*$/to0.scheduler.interval=5/' -e 's/^to2.c
 # Need to move this file into the ocs db *after* the docker run mount is done
 # If the user specified their own owner private key, run-sdo-owner-services.sh will mount it at ocs/config/owner-keystore.p12, otherwise use the default
 mkdir -p $ocsDbDir/v1/creds
-if [[ -f 'ocs/config/owner-keystore.p12' && $(wc -c ocs/config/owner-keystore.p12 | awk '{print $1}') -gt 0 ]]; then
+if [[ -s 'ocs/config/owner-keystore.p12' ]]; then
     echo "Your Private Keystore Entry Has Been Found!"
      #Will check if the SDO_KEY_PWD has already been set, and if SDO_KEY_PWD meets length requirements
     if [[ -z "$SDO_KEY_PWD" ]]; then
