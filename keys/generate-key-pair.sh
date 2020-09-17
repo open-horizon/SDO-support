@@ -114,11 +114,11 @@ function genKeyStore(){
   # This function is ran after the private key and owner certificate has been created. This function will create a public key to correspond with
   # the owner private key/certificate. After the public key is made it will then place the private key and certificate inside a keystore.
   # Generate a public key from the certificate file
-  openssl x509 -pubkey -noout -in $keyCert > "${keyType}"pub-key.pub
+  openssl x509 -pubkey -noout -in $keyCert > "${keyType}"pub-key.pem
   chk $? 'Creating public key...'
   echo '-------------------------------------------------'
   echo "Creating public key..."
-  cp "${keyType}"pub-key.pub ..
+  cp "${keyType}"pub-key.pem ..
   echo -e "\n"${keyType}" public key creation: SUCCESS"
   echo '-------------------------------------------------'
   if [[ -z "$ownerName" ]]; then
@@ -144,8 +144,8 @@ function combineKeys(){
     keytool -importkeystore -destkeystore Owner-Private-Keystore.p12 -deststorepass "$SDO_KEY_PWD" -srckeystore ecdsa256key-store.p12 -srcstorepass "$SDO_KEY_PWD" -srcstoretype PKCS12 -alias ecdsa256"${ownerName}"
     keytool -importkeystore -destkeystore Owner-Private-Keystore.p12 -deststorepass "$SDO_KEY_PWD" -srckeystore ecdsa384key-store.p12 -srcstorepass "$SDO_KEY_PWD" -srcstoretype PKCS12 -alias ecdsa384"${ownerName}"
     #Combine all the public keys into one
-    cat ecdsa256pub-key.pub rsapub-key.pub ecdsa384pub-key.pub > Owner-Public-Key.pub
-    rm -- ecdsa*.p12 && rm ecdsa*.pub && rm rsapub*
+    cat ecdsa256pub-key.pem rsapub-key.pem ecdsa384pub-key.pem > Owner-Public-Key.pem
+    rm -- ecdsa*.p12 && rm ecdsa*.pem && rm rsapub*
     if [[ "$KEEP_KEY_FILES" == '1' || "$KEEP_KEY_FILES" == 'true' ]]; then
       echo "Saving all key pairs, because KEEP_KEY_FILES=$KEEP_KEY_FILES"
     else
@@ -158,7 +158,7 @@ function combineKeys(){
           chk $? 'cleaning up key files...'
         done
 fi
-    chown user:user Owner-Private-Keystore.p12 Owner-Public-Key.pub
+    chown user:user Owner-Private-Keystore.p12 Owner-Public-Key.pem
   else
     echo "One or more of the keystores are missing. There should be three keystores of type rsa, ecdsa256, and ecdsa384"
     exit 2

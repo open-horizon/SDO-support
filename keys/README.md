@@ -43,11 +43,10 @@ To run this script you must be using Ubuntu.
 
 Once you have created your key pair, pass them as arguments to these scripts:
 
-- `sample-mfg/simulate-mfg.sh Owner-Public-Key.pub`
 - `docker/run-sdo-owner-services.sh $VERSION Owner-Private-Keystore.p12`
+- `sample-mfg/simulate-mfg.sh Owner-Public-Key.pem`
 
 
-  
 # Developers Only
 
 These steps only need to be performed by developers of this project.
@@ -107,7 +106,7 @@ The Intel documentation for doing this can be found in [secure-device-onboard/do
     ```
    
 5. At this point you should have created a private key, public key, key certificate, and a key store containing the both key certificate and private key files.
-Your 'Key Pair' is  `<owner-pub-key-file>.pub` and `<owner-private-key-store>.p12`
+Your 'Key Pair' is  `<owner-pub-key-file>.pem` and `<owner-private-key-store>.p12`
 
 
 
