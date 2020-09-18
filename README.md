@@ -7,6 +7,7 @@ Edge devices built with [Intel SDO](https://software.intel.com/en-us/secure-devi
 The software in this git repository makes it easy to use SDO-enabled edge devices with Open Horizon. The Horizon SDO support consists of these components:
 
 1. A consolidated docker image of all of the [SDO](https://software.intel.com/en-us/secure-device-onboard) "owner" services (those that run as peers to the Horizon management hub). It also includes a small REST API that enables remote configuration of the SDO OCS owner service.
+1. A script called `generate-key-pair.sh` to automate the process of creating keys so each tenant is able to use their own owner private key and owner public key
 1. An `hzn` sub-command to import one or more ownership vouchers into a horizon instance. (An ownership voucher is a file that the device manufacturer gives to the purchaser along with the physical device.)
 1. A sample script called `simulate-mfg.sh` to run the SDO manufacturing components (SCT - Supply Chain Tools) on a test VM device to initialize it with SDO, create the voucher, and extend it to the customer/owner. This script performs the same steps that a real SDO-enabled device manufacturer would.
 1. A script called `owner-boot-device` that initiates the same SDO booting process on a test VM device that runs on a physical SDO-enabled device when it boots.
@@ -46,11 +47,13 @@ The SDO owner services are packaged as a single docker container that can be run
    ```bash
    export HZN_EXCHANGE_URL=https://<cluster-url>/edge-exchange/v1
    export HZN_FSS_CSSURL=https://<cluster-url>/edge-css
-   export HZN_ORG_ID=mycluster
+   export HZN_ORG_ID=<exchange-org>
    export HZN_EXCHANGE_USER_AUTH=iamapikey:<api-key>
    ```
 
-3. As part of installing the Horizon management hub, you should have run [edgeNodeFiles.sh](https://github.com/open-horizon/anax/blob/master/agent-install/edgeNodeFiles.sh), which created a tar file containing `agent-install.crt`. Use that to export this environment variable:
+3. To pass in a generated owner key pair instead of the sample owner key pairs provided, then refer to [keys/README.md](https://github.com/open-horizon/SDO-support/blob/master/keys/README.md) where you will see this process can be automated.
+
+4. As part of installing the Horizon management hub, you should have run [edgeNodeFiles.sh](https://github.com/open-horizon/anax/blob/master/agent-install/edgeNodeFiles.sh), which created a tar file containing `agent-install.crt`. Use that to export this environment variable:
 
    ```bash
    export HZN_MGMT_HUB_CERT=$(cat agent-install.crt | base64)
@@ -62,6 +65,7 @@ The SDO owner services are packaged as a single docker container that can be run
    ./run-sdo-owner-services.sh
    docker logs -f sdo-owner-services
    ```
+   *In the logs you will find `<sdo-owner-svc-host>` that is needed for the subsequent steps*
 
 #### Verify the SDO Owner Services API Endpoints
 
@@ -70,7 +74,7 @@ The SDO owner services are packaged as a single docker container that can be run
 1. Export these environment variables for the subsequent steps:
 
    ```bash
-   export HZN_ORG_ID=mycluster
+   export HZN_ORG_ID=<exchange-org>
    export HZN_EXCHANGE_USER_AUTH=iamapikey:<api-key>
    export HZN_SDO_SVC_URL=http://<sdo-owner-svc-host>:9008/api
    export SDO_RV_URL=http://<sdo-owner-svc-host>:8040
@@ -78,21 +82,21 @@ The SDO owner services are packaged as a single docker container that can be run
 
 2. Query the OCS API version:
 
-  ```bash
-  curl -sS $HZN_SDO_SVC_URL/version && echo
-  ```
+   ```bash
+   curl -sS $HZN_SDO_SVC_URL/version && echo
+   ```
 
 3. Query the ownership vouchers that have already been imported (initially it will be an empty list):
 
-  ```bash
-  curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" $HZN_SDO_SVC_URL/vouchers | jq
-  ```
+   ```bash
+   curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" $HZN_SDO_SVC_URL/vouchers | jq
+   ```
 
 4. "Ping" the development rendezvous server:
 
-  ```bash
-  curl -sS -w "%{http_code}" -X POST $SDO_RV_URL/mp/113/msg/20 | jq
-  ```
+   ```bash
+   curl -sS -w "%{http_code}" -X POST $SDO_RV_URL/mp/113/msg/20 | jq
+   ```
 
 ### <a name="init-device"></a>Initialize a Device with SDO
 
