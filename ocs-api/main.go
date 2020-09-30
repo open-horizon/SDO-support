@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/open-horizon/SDO-support/ocs-api/data"
@@ -23,8 +24,10 @@ REST API server to configure the SDO OCS (Owner Companion Service) DB files for 
 var OcsDbDir string
 var GetVoucherRegex = regexp.MustCompile(`^/api/vouchers/([^/]+)$`)
 var CurrentOrgId string
-var CurrentExchangeUrl string
+var CurrentExchangeUrl string         // the external url, that the device needs
 var CurrentExchangeInternalUrl string // will default to CurrentExchangeUrl
+var CurrentCssUrl string              // the external url, that the device needs
+var CurrentPkgsFrom string            // the argument to the agent-install.sh -i flag
 
 type CfgVarsStruct struct {
 	HZN_EXCHANGE_URL      string `json:"HZN_EXCHANGE_URL"`      // the external URL of the exchange (how devices should reach it)
@@ -74,14 +77,17 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 	//outils.Verbose("FindString: %s.", GetVoucherRegex.FindString(r.URL.Path))
 	if r.Method == "GET" && r.URL.Path == "/api/version" {
 		getVersionHandler(w, r)
-	} else if r.Method == "POST" && r.URL.Path == "/api/config" {
-		postConfigHandler(w, r)
+		// this route is disabled because penetration testing deemed this a security exposure, because you can cause this service to do arbitrary DNS lookups
+		//} else if r.Method == "POST" && r.URL.Path == "/api/config" {
+		//	postConfigHandler(w, r)
 	} else if matches := GetVoucherRegex.FindStringSubmatch(r.URL.Path); r.Method == "GET" && len(matches) >= 2 {
 		getVoucherHandler(matches[1], w, r)
 	} else if r.Method == "GET" && r.URL.Path == "/api/vouchers" {
 		getVouchersHandler(w, r)
 	} else if r.Method == "POST" && (r.URL.Path == "/api/vouchers" || r.URL.Path == "/api/voucher") { //todo: backward compat until we update hzn voucher import
 		postVoucherHandler(w, r)
+	} else if r.Method == "POST" && (r.URL.Path == "/api/rereadagentinstall") {
+		postRereadAgentInstallHandler(w, r)
 	} else {
 		http.Error(w, "Route "+r.URL.Path+" not found", http.StatusNotFound)
 	}
@@ -103,6 +109,7 @@ func getVersionHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 //============= POST /api/config =============
+//!!!!!!!! Not being used!!! See note in apiHandler()
 // Sets ocs-api configuration that is not specific to any specific device
 func postConfigHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("POST /api/config ...")
@@ -212,9 +219,9 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If all of the common config files didn't get created at startup, tell them they have to run POST /api/config
+	// If all of the common config files didn't get created at startup, tell them
 	if !outils.PathExists(valuesDir+"/agent-install.cfg") || !outils.PathExists(valuesDir+"/agent-install.sh") || !outils.PathExists(valuesDir+"/apt-repo-public.key") { // agent-install.crt is optional
-		http.Error(w, "Error: not all of the common config files exist in the OCS DB. Run POST /api/config", http.StatusBadRequest)
+		http.Error(w, "Error: not all of the common config files were created in the OCS DB at startup. Have your admin restart the service with all of the necessary input.", http.StatusBadRequest)
 		return
 	}
 
@@ -290,9 +297,10 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create exec file
-	aptRepo := "http://pkg.bluehorizon.network/linux/ubuntu"
-	aptChannel := "testing"
-	execCmd := outils.MakeExecCmd("/bin/sh agent-install-wrapper.sh -i " + aptRepo + " -t " + aptChannel + " -j apt-repo-public.key -a " + uuid.String() + ":" + nodeToken)
+	//aptRepo := "http://pkg.bluehorizon.network/linux/ubuntu"
+	//aptChannel := "testing"
+	//execCmd := outils.MakeExecCmd("/bin/sh agent-install-wrapper.sh -i " + aptRepo + " -t " + aptChannel + " -j apt-repo-public.key -a " + uuid.String() + ":" + nodeToken)
+	execCmd := outils.MakeExecCmd("/bin/sh agent-install-wrapper.sh -i " + CurrentPkgsFrom + " -a " + uuid.String() + ":" + nodeToken)
 	fileName = OcsDbDir + "/v1/values/" + uuid.String() + "_exec"
 	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
 	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(execCmd), 0644); err != nil {
@@ -308,28 +316,57 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	outils.WriteJsonResponse(http.StatusCreated, w, respBody)
 }
 
+//============= POST /api/rereadagentinstall =============
+// Causes our service to get agent-install.sh again (to pick up any changes to it)
+func postRereadAgentInstallHandler(w http.ResponseWriter, r *http.Request) {
+	outils.Verbose("POST /api/rereadagentinstall ...")
+
+	valuesDir := OcsDbDir + "/v1/values"
+	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, CurrentOrgId, valuesDir+"/agent-install.crt"); httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	} else if !authenticated {
+		http.Error(w, "invalid exchange credentials provided", http.StatusUnauthorized)
+		return
+	}
+
+	// Reread agent-install.sh
+	fileName := valuesDir + "/agent-install.sh"
+	if httpErr := getAgentInstallScript(fileName); httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
 //============= Non-Route Functions =============
 
-// Create the common (not device specific) config files. Can be called during startup (config == nil) or from POST /api/config
+// Create the common (not device specific) config files. Can be called during startup (config == nil)
 func createConfigFiles(config *Config) *outils.HttpError {
+	// Note: this function is currently only called with a nil config at startup, because the POST /api/config route has been disabled
 	valuesDir := OcsDbDir + "/v1/values"
 	var fileName, dataStr string
 
 	// Create agent-install.crt and its name file
 	var crt []byte
 	if config != nil {
-		crt = config.Crt
+		crt = config.Crt // the (now disabled) POST /api/config route
 	} else if outils.IsEnvVarSet("HZN_MGMT_HUB_CERT") {
+		// during startup
 		var err error
 		crt, err = base64.StdEncoding.DecodeString(os.Getenv("HZN_MGMT_HUB_CERT"))
 		if err != nil {
-			return outils.NewHttpError(http.StatusBadRequest, "could not base64 decode HZN_MGMT_HUB_CERT: "+err.Error())
+			outils.Verbose("Base64 decoding HZN_MGMT_HUB_CERT was unsuccessful (%s), using it as not encoded ...", err.Error())
+			// Note: supposedly we could instead use this regex to check for base64 encoding: ^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)?$
+			crt = []byte(os.Getenv("HZN_MGMT_HUB_CERT"))
+			//return outils.NewHttpError(http.StatusBadRequest, "could not base64 decode HZN_MGMT_HUB_CERT: "+err.Error())
 		}
 	}
 	if len(crt) > 0 {
 		fileName = valuesDir + "/agent-install.crt"
 		outils.Verbose("Creating %s ...", fileName)
-		if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(crt), 0644); err != nil {
+		if err := ioutil.WriteFile(filepath.Clean(fileName), crt, 0644); err != nil {
 			return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 		}
 
@@ -342,7 +379,6 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	}
 
 	// Create agent-install.cfg and its name file
-	var fssUrl string
 	if config != nil {
 		CurrentExchangeUrl = config.CfgVars.HZN_EXCHANGE_URL
 		if config.CfgVars.EXCHANGE_INTERNAL_URL != "" {
@@ -350,7 +386,7 @@ func createConfigFiles(config *Config) *outils.HttpError {
 		} else {
 			CurrentExchangeInternalUrl = CurrentExchangeUrl //default
 		}
-		fssUrl = config.CfgVars.HZN_FSS_CSSURL
+		CurrentCssUrl = config.CfgVars.HZN_FSS_CSSURL
 		CurrentOrgId = config.CfgVars.HZN_ORG_ID
 	} else if outils.IsEnvVarSet("HZN_EXCHANGE_URL") && outils.IsEnvVarSet("HZN_FSS_CSSURL") && outils.IsEnvVarSet("HZN_ORG_ID") {
 		CurrentExchangeUrl = os.Getenv("HZN_EXCHANGE_URL")
@@ -360,13 +396,13 @@ func createConfigFiles(config *Config) *outils.HttpError {
 		} else {
 			CurrentExchangeInternalUrl = CurrentExchangeUrl // default
 		}
-		fssUrl = os.Getenv("HZN_FSS_CSSURL")
+		CurrentCssUrl = os.Getenv("HZN_FSS_CSSURL")
 		CurrentOrgId = os.Getenv("HZN_ORG_ID")
 	}
-	if CurrentExchangeUrl != "" && fssUrl != "" && CurrentOrgId != "" {
+	if CurrentExchangeUrl != "" && CurrentCssUrl != "" && CurrentOrgId != "" {
 		fileName = valuesDir + "/agent-install.cfg"
 		outils.Verbose("Creating %s ...", fileName)
-		dataStr = "HZN_EXCHANGE_URL=" + CurrentExchangeUrl + "\nHZN_FSS_CSSURL=" + fssUrl + "\nHZN_ORG_ID=" + CurrentOrgId + "\n"
+		dataStr = "HZN_EXCHANGE_URL=" + CurrentExchangeUrl + "\nHZN_FSS_CSSURL=" + CurrentCssUrl + "\nHZN_ORG_ID=" + CurrentOrgId + "\n"
 		if len(crt) > 0 {
 			// only add this if we actually created the agent-install.crt file above
 			dataStr += "HZN_MGMT_HUB_CERT_PATH=agent-install.crt\n"
@@ -384,23 +420,9 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	}
 
 	// Get and create agent-install.sh and its name file
-	var url string
 	fileName = valuesDir + "/agent-install.sh"
-	if outils.PathExists("./agent-install.sh") {
-		// agent-install.sh was mounted into our container by the person starting it
-		outils.Verbose("agent-install.sh was mounted into the container, copying it...")
-		if httpErr := outils.CopyFile("./agent-install.sh", fileName, 0750); httpErr != nil {
-			return httpErr
-		}
-	} else {
-		url = os.Getenv("AGENT_INSTALL_URL")
-		if url == "" {
-			url = "https://github.com/open-horizon/anax/releases/latest/download/agent-install.sh" // the default
-		}
-		outils.Verbose("Downloading %s to %s ...", url, fileName)
-		if err := outils.DownloadFile(url, fileName, 0750); err != nil { //todo: i think we also need to inside the file and check if the 1st line begins with 404
-			return outils.NewHttpError(http.StatusInternalServerError, "could not download "+url+" to "+fileName+": "+err.Error())
-		}
+	if httpErr := getAgentInstallScript(fileName); httpErr != nil {
+		return httpErr
 	}
 
 	fileName = valuesDir + "/agent-install-sh_name"
@@ -424,9 +446,20 @@ func createConfigFiles(config *Config) *outils.HttpError {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 	}
 
+	CurrentPkgsFrom = os.Getenv("SDO_GET_PKGS_FROM")
+	if CurrentPkgsFrom == "" {
+		CurrentPkgsFrom = "https://github.com/open-horizon/anax/releases/latest/download" // default
+	}
+	outils.Verbose("Will be configuring devices to get horizon packages from %s", CurrentPkgsFrom)
+	// try to ensure they didn't give us a bad value for SDO_GET_PKGS_FROM
+	if !strings.HasPrefix(CurrentPkgsFrom, "https://github.com/open-horizon/anax/releases") && !strings.HasPrefix(CurrentPkgsFrom, "css:") {
+		outils.Warning("Unrecognized value specified for SDO_GET_PKGS_FROM: %s", CurrentPkgsFrom)
+		// continue, because maybe this is a value for the agent-install.sh -i flag that we don't know about yet
+	}
+
 	// Download and create apt-repo-public.key and its name file
-	//todo: use anax/releases to get the deb pkgs in agent-install.sh instead
-	url = "http://pkg.bluehorizon.network/bluehorizon.network-public.key"
+	/*future: support getting horizon pkgs from an APT or RPM repo
+	url := "http://pkg.bluehorizon.network/bluehorizon.network-public.key"
 	fileName = valuesDir + "/apt-repo-public.key"
 	outils.Verbose("Downloading %s to %s ...", url, fileName)
 	if err := outils.DownloadFile(url, fileName, 0644); err != nil {
@@ -439,6 +472,28 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(dataStr), 0644); err != nil {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 	}
+	*/
 
+	return nil
+}
+
+// Reads or rereads agent-install.sh from the location they told us to get it from. Used in POST /api/rereadagentinstall
+func getAgentInstallScript(destFileName string) *outils.HttpError {
+	if outils.PathExists("./agent-install.sh") {
+		// agent-install.sh was mounted into our container by the person starting it
+		outils.Verbose("agent-install.sh was mounted into the container, copying it...")
+		if httpErr := outils.CopyFile("./agent-install.sh", destFileName, 0750); httpErr != nil {
+			return httpErr
+		}
+	} else {
+		url := os.Getenv("AGENT_INSTALL_URL")
+		if url == "" {
+			url = "https://github.com/open-horizon/anax/releases/latest/download/agent-install.sh" // the default
+		}
+		outils.Verbose("Downloading %s to %s ...", url, destFileName)
+		if err := outils.DownloadFile(url, destFileName, 0750); err != nil { //todo: i think we also need to look inside the file and check if the 1st line begins with 404
+			return outils.NewHttpError(http.StatusInternalServerError, "could not download "+url+" to "+destFileName+": "+err.Error())
+		}
+	}
 	return nil
 }
