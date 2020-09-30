@@ -108,6 +108,20 @@ confirmcmds() {
     done
 }
 
+runCmdQuietly() {
+    # all of the args to this function are the cmd and its args
+    if [[  "$VERBOSE" == '1' || "$VERBOSE" == 'true' ]]; then
+        $*
+        chk $? "running: $*"
+    else
+        output=$($* 2>&1)
+        if [[ $? -ne 0 ]]; then
+            echo "Error running $*: $output"
+            exit 2
+        fi
+    fi
+}
+
 ensureWeAreRoot() {
     if [[ $(whoami) != 'root' ]]; then
         echo "Error: must be root to run ${0##*/} with these options."
@@ -188,6 +202,14 @@ else
         echo "Java 11 not found, installing it..."
         apt-get update && apt-get install -y openjdk-11-jre-headless
         chk $? 'installing java 11'
+    fi
+    # if jq isn't installed, do that
+    if command -v jq >/dev/null 2>&1; then
+        echo "Found jq"
+    else
+        echo "Jq not found, installing it..."
+        runCmdQuietly apt-get install -y jq
+        chk $? 'installing jq'
     fi
 fi
 

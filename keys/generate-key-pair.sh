@@ -179,7 +179,7 @@ function checkPass() {
 function infoKeyCert() {
 #You have to enter information in order to generate a custom self signed certificate as a part of your key pair for SDO Owner Attestation. What you are about to enter is what is called a Distinguished Name or a DN.
 #There are quite a few fields but you can leave some blank. For some fields there will be a default value, If you enter '.', the field will be left blank."
-  : ${countryName:?} ${cityName:?} ${orgName:?} ${emailName:?}
+  : ${countryName:?} ${cityName:?} ${orgName:?} ${emailName:?} ${ownerName:?}
   checkPass
   echo '-------------------------------------------------'
 }
