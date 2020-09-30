@@ -103,7 +103,7 @@ var AgentInstallWrapper = `#!/bin/sh
 # The primary purpose of this wrapper is to be able to invoke agent-install.sh in the SDO context and log all of its stdout/stderr
 
 # Verify the number of args is what we are handling below
-numRequiredArgs=8
+numRequiredArgs=4
 if [ $# -ne $numRequiredArgs ]; then
     echo "Error: expected $numRequiredArgs arguments and received $#"
     exit 2

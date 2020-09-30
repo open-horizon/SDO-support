@@ -133,6 +133,15 @@ func Verbose(msg string, args ...interface{}) {
 	fmt.Printf("Verbose: "+msg, args...)
 }
 
+// Print warning msg to stderr
+func Warning(msg string, args ...interface{}) {
+	if !strings.HasSuffix(msg, "\n") {
+		msg += "\n"
+	}
+	l := log.New(os.Stderr, "", 0)
+	l.Printf("Warning: "+msg, args...)
+}
+
 // Print error msg to stderr
 func Error(msg string, args ...interface{}) {
 	if !strings.HasSuffix(msg, "\n") {
