@@ -209,7 +209,6 @@ else
     else
         echo "Jq not found, installing it..."
         runCmdQuietly apt-get install -y jq
-        chk $? 'installing jq'
     fi
 fi
 
