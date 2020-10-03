@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -50,6 +51,16 @@ func IsValidPostJson(r *http.Request) *HttpError {
 
 	if !ok || len(val) == 0 || val[0] != "application/json" {
 		return NewHttpError(http.StatusBadRequest, "Error: content-type must be application/json)")
+	}
+	return nil
+}
+
+// Verify that the request content type is json
+func IsValidPostBinary(r *http.Request) *HttpError {
+	val, ok := r.Header["Content-Type"]
+
+	if !ok || len(val) == 0 || val[0] != "application/octet-stream" {
+		return NewHttpError(http.StatusBadRequest, "Error: content-type must be application/octet-stream)")
 	}
 	return nil
 }
@@ -348,4 +359,54 @@ func TrustIcpCert(transport *http.Transport, certPath string) *HttpError {
 
 	transport.TLSClientConfig.RootCAs = caCertPool
 	return nil
+}
+
+// Run a command with args, and return stdout, stderr
+func RunCmd(commandString string, args ...string) ([]byte, []byte, error) {
+	// For debug, build the full cmd string
+	fullCmdStr := commandString
+	for _, a := range args {
+		fullCmdStr += " " + a
+	}
+	Verbose("Running: %v\n", fullCmdStr)
+
+	// Create the command object with its args
+	cmd := exec.Command(commandString, args...)
+	if cmd == nil {
+		return nil, nil, errors.New("did not return a command object for " + commandString + ", returned nil")
+	}
+	// Create the stdout pipe to hold the output from the command
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, nil, errors.New("Error retrieving output from command " + commandString + ", error: " + err.Error())
+	}
+	// Create the stderr pipe to hold the errors from the command
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, nil, errors.New("Error retrieving stderr from command " + commandString + ", error: " + err.Error())
+	}
+	// Get the command started
+	err = cmd.Start()
+	if err != nil {
+		return nil, nil, errors.New("Unable to start command " + commandString + ", error: " + err.Error())
+	}
+	err = error(nil)
+	// Read the output from stdout and stderr into byte arrays
+	// stdoutBytes, err := readPipe(stdout)
+	stdoutBytes, err := ioutil.ReadAll(stdout)
+	if err != nil {
+		return nil, nil, errors.New("Error reading stdout from command " + commandString + ", error: " + err.Error())
+	}
+	// stderrBytes, err := readPipe(stderr)
+	stderrBytes, err := ioutil.ReadAll(stderr)
+	if err != nil {
+		return nil, nil, errors.New("Error reading stderr from command " + commandString + ", error: " + err.Error())
+	}
+	// Now block waiting for the command to complete
+	err = cmd.Wait()
+	if err != nil {
+		return stdoutBytes, stderrBytes, errors.New("command " + commandString + " returned error: " + err.Error() + ". Stderr: " + string(stderrBytes))
+	}
+
+	return stdoutBytes, stderrBytes, error(nil)
 }
