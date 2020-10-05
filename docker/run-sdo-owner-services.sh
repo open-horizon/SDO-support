@@ -105,6 +105,9 @@ if [[ -n "$ownerPrivateKey" ]]; then
         echo "SDO_KEY_PWD not long enough. Needs at least 6 characters"
         exit 1
       done
+  elif [[ -n "$SDO_KEY_PWD" ]]; then
+    echo "$SDO_KEY_PWD" | keytool -list -v -keystore "$ownerPrivateKey" >/dev/null 2>&1
+    chk $? 'Checking if SDO_KEY_PWD is correct'
   else
     :
   fi

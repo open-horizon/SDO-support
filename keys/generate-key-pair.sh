@@ -20,9 +20,6 @@ EndOfMessage
 fi
 
 keyType="${1:-all}"
-keyCert=""
-privateKey=""
-
 
 #If the argument passed for this script does not equal one of the encryption keyTypes, send error code and exit.
 #BY DEFAULT THE keyType WILL BE SET TO all
