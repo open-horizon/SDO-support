@@ -102,8 +102,8 @@ RUN mkdir -p $SDO_OCS_DB_PATH/v1/{creds,devices,values} && chown -R 1000:1000 $S
 #COPY --chown=1000:1000 sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/ops $WORKDIR/ops/
 COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.8.0/ops $WORKDIR/ops/
 
-# Get our ocs-api binary and startup script
-COPY --chown=1000:1000 ocs-api/linux/ocs-api docker/start-sdo-owner-services.sh $WORKDIR/
+# Get our ocs-api binary, startup script, and import-owner-private-keys.sh
+COPY --chown=1000:1000 ocs-api/linux/ocs-api docker/start-sdo-owner-services.sh tools/import-owner-private-keys.sh $WORKDIR/
 
 # Note: the EXPOSE stmt doesn't actually expose the port, it just serves as documentation about the -p flags docker run should use. We may override these values, so just let docker run set them.
 #EXPOSE 8040  8042  9008

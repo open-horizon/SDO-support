@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
@@ -74,13 +75,12 @@ func main() {
 // API route dispatcher
 func apiHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("Handling %s ...", r.URL.Path)
-	//outils.Verbose("FindString: %s.", GetVoucherRegex.FindString(r.URL.Path))
 	if r.Method == "GET" && r.URL.Path == "/api/version" {
 		getVersionHandler(w, r)
 		// this route is disabled because penetration testing deemed this a security exposure, because you can cause this service to do arbitrary DNS lookups
 		//} else if r.Method == "POST" && r.URL.Path == "/api/config" {
 		//	postConfigHandler(w, r)
-	} else if matches := GetVoucherRegex.FindStringSubmatch(r.URL.Path); r.Method == "GET" && len(matches) >= 2 {
+	} else if matches := GetVoucherRegex.FindStringSubmatch(r.URL.Path); r.Method == "GET" && len(matches) >= 2 { // GET /api/vouchers/{device-id}
 		getVoucherHandler(matches[1], w, r)
 	} else if r.Method == "GET" && r.URL.Path == "/api/vouchers" {
 		getVouchersHandler(w, r)
@@ -88,6 +88,8 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 		postVoucherHandler(w, r)
 	} else if r.Method == "POST" && (r.URL.Path == "/api/rereadagentinstall") {
 		postRereadAgentInstallHandler(w, r)
+	} else if r.Method == "POST" && (r.URL.Path == "/api/keys") {
+		postImportKeysHandler(w, r)
 	} else {
 		http.Error(w, "Route "+r.URL.Path+" not found", http.StatusNotFound)
 	}
@@ -340,6 +342,64 @@ func postRereadAgentInstallHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+//============= POST /api/keys =============
+// Receives in the body a tar file containing the owner's private keys and certificates. Imports them into our keystore.
+// This allows sdo-owner-services to read vouchers intended for them, and to securely communicate with their devices booting up.
+func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
+	outils.Verbose("POST /api/keys ...")
+
+	valuesDir := OcsDbDir + "/v1/values"
+	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, CurrentOrgId, valuesDir+"/agent-install.crt"); httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	} else if !authenticated {
+		http.Error(w, "invalid exchange credentials provided", http.StatusUnauthorized)
+		return
+	}
+
+	// Verify content type
+	if httpErr := outils.IsValidPostBinary(r); httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	}
+
+	// Create directory we are putting the file in
+	tarFileDir := "tmp" // in the current dir (home dir)
+	if err := os.MkdirAll(tarFileDir, 0750); err != nil {
+		http.Error(w, "could not create directory "+tarFileDir+": "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Create a writer that will write the request body to the tar file
+	tarFilePath := tarFileDir + "/owner-keys.tar.gz"
+	f, err := os.Create(tarFilePath)
+	if err != nil {
+		http.Error(w, "could not create file "+tarFilePath+": "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	fileWriter := bufio.NewWriter(f)
+	_, err = fileWriter.ReadFrom(r.Body)
+	if err != nil {
+		http.Error(w, "could not read request body: "+err.Error(), http.StatusInternalServerError)
+		f.Close()
+		return
+	}
+	fileWriter.Flush()
+	f.Close()
+
+	// Run the script that will import the tar file keys
+	outils.Verbose("Running command: ./import-owner-private-keys.sh %s", tarFilePath)
+	stdOut, _, err := outils.RunCmd("./import-owner-private-keys.sh", tarFilePath)
+	if err != nil {
+		http.Error(w, "error running import-owner-private-keys.sh: "+err.Error(), http.StatusBadRequest) // this include stdErr
+		return
+	} else {
+		outils.Verbose(string(stdOut))
+	}
+
+	w.WriteHeader(http.StatusCreated)
+}
+
 //============= Non-Route Functions =============
 
 // Create the common (not device specific) config files. Can be called during startup (config == nil)
@@ -410,6 +470,7 @@ func createConfigFiles(config *Config) *outils.HttpError {
 		if err := ioutil.WriteFile(fileName, []byte(dataStr), 0644); err != nil {
 			return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 		}
+		outils.Verbose("Will be configuring devices to use config:\n%s", dataStr)
 	}
 
 	fileName = valuesDir + "/agent-install-cfg_name"
