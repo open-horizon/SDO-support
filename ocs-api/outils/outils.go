@@ -363,12 +363,13 @@ func TrustIcpCert(transport *http.Transport, certPath string) *HttpError {
 
 // Run a command with args, and return stdout, stderr
 func RunCmd(commandString string, args ...string) ([]byte, []byte, error) {
-	// For debug, build the full cmd string
+	/* For debug, build the full cmd string
 	fullCmdStr := commandString
 	for _, a := range args {
 		fullCmdStr += " " + a
 	}
 	Verbose("Running: %v\n", fullCmdStr)
+	*/
 
 	// Create the command object with its args
 	cmd := exec.Command(commandString, args...)

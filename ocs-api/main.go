@@ -388,10 +388,10 @@ func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
 	f.Close()
 
 	// Run the script that will import the tar file keys
-	outils.Verbose("Running: ./import-owner-private-keys.sh %s", tarFilePath)
-	stdOut, stdErr, err := outils.RunCmd("./import-owner-private-keys.sh", tarFilePath)
+	outils.Verbose("Running command: ./import-owner-private-keys.sh %s", tarFilePath)
+	stdOut, _, err := outils.RunCmd("./import-owner-private-keys.sh", tarFilePath)
 	if err != nil {
-		http.Error(w, "error running import-owner-private-keys.sh: "+err.Error(), http.StatusInternalServerError) // this include stdErr
+		http.Error(w, "error running import-owner-private-keys.sh: "+err.Error(), http.StatusBadRequest) // this include stdErr
 		return
 	} else {
 		outils.Verbose(string(stdOut))
@@ -470,6 +470,7 @@ func createConfigFiles(config *Config) *outils.HttpError {
 		if err := ioutil.WriteFile(fileName, []byte(dataStr), 0644); err != nil {
 			return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 		}
+		outils.Verbose("Will be configuring devices to use config:\n%s", dataStr)
 	}
 
 	fileName = valuesDir + "/agent-install-cfg_name"
