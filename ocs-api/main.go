@@ -389,11 +389,14 @@ func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Run the script that will import the tar file keys
 	outils.Verbose("Running command: ./import-owner-private-keys.sh %s", tarFilePath)
-	stdOut, _, err := outils.RunCmd("./import-owner-private-keys.sh", tarFilePath)
+	stdOut, stdErr, err := outils.RunCmd("./import-owner-private-keys.sh", tarFilePath)
 	if err != nil {
-		http.Error(w, "error running import-owner-private-keys.sh: "+err.Error(), http.StatusBadRequest) // this include stdErr
+		http.Error(w, "error running import-owner-private-keys.sh: "+err.Error(), http.StatusBadRequest) // this includes stdErr
 		return
 	} else {
+		if len(stdErr) > 0 { // with shell scripts there can be error msgs in stderr even though the exit code was 0
+			outils.Verbose("stderr from import-owner-private-keys.sh: %s", string(stdErr))
+		}
 		outils.Verbose(string(stdOut))
 	}
 
