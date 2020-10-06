@@ -71,7 +71,7 @@ if [[ $keyType = "rsa" ]]; then
 elif [[ $keyType = "ecdsa256" ]] || [[ $keyType = "ecdsa384" ]]; then
     echo -e "Generating a "${keyType}"private key.\n"
     local var2=$(echo $keyType | cut -f2 -da)
-    openssl ecparam -genkey -name secp"${var2}"r1 -out "${keyType}"private-key.pem >/var/tmp/out 2>&1
+    openssl ecparam -genkey -name secp"${var2}"r1 -out "${keyType}"private-key.pem >/dev/null 2>&1
     chk $? 'Generating ecdsa private key.'
     keyCertGenerator
 fi
@@ -87,7 +87,7 @@ function keyCertGenerator() {
     #Generate a self-signed certificate from the private key file.
     #You should have these environment variables set.
     echo -e "Generating a corresponding certificate.\n"
-    ( echo $countryName ; echo "." ; echo $cityName ; echo $orgName ; echo "." ; echo "." ; echo $emailName ) | ( openssl req -x509 -key "$privateKey" -days 365 -out "$keyCert" ) >/var/tmp/certInfo.txt 2>&1
+    ( echo $countryName ; echo "." ; echo $cityName ; echo $orgName ; echo "." ; echo "." ; echo $emailName ) | ( openssl req -x509 -key "$privateKey" -days 365 -out "$keyCert" ) >/dev/null 2>&1
     chk $? 'generating certificate'
     if [[ -f $keyCert  ]]; then
       echo -e "\n"${keyType}"Key Certificate creation: SUCCESS"
@@ -111,14 +111,14 @@ function genPublicKey(){
   chk $? 'Creating public key...'
   echo '-------------------------------------------------'
   echo "Creating public key..."
-  cp "${keyType}"pub-key.pem .. && rm "${keyType}"pub-key.pem
+  mv "${keyType}"pub-key.pem ..
   echo -e "\n"${keyType}" public key creation: SUCCESS"
   echo '-------------------------------------------------'
 }
 
 function combineKeys(){
   #This function will combine all private keystores into one, and also concatenate all public keys into one
-  if [[ -f "rsapub-key.pem" && "ecdsa256pub-key.pem" && "ecdsa384pub-key.pem" ]]; then
+  if [[ -f "rsapub-key.pem" && -f "ecdsa256pub-key.pem" && -f "ecdsa384pub-key.pem" ]]; then
     #Combine all the public keys into one
     echo "Concatenating Public Key files..."
     cat ecdsa256pub-key.pem rsapub-key.pem ecdsa384pub-key.pem > Owner-Public-Key.pem
@@ -129,8 +129,7 @@ function combineKeys(){
     #removing all key files except the ones we pass
     for i in "rsa" "ecdsa256" "ecdsa384"
       do
-        rm "$i"Key/*
-        rmdir "$i"Key
+        rm -rf "$i"Key
         chk $? 'cleaning up key files...'
       done
     user=$(whoami)

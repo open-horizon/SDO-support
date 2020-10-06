@@ -1,5 +1,5 @@
 #!/bin/bash
-# This script will generate a Key-Pair for Owner Attestation.
+# This script will extract a tarfile containing all private keys and certs necessary to add the Key-Pairs to our master keystore inside the container for Owner Attestation.
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     cat << EndOfMessage
@@ -13,18 +13,17 @@ Required environment variables:
   HZN_ORG_ID - The custom org the user chooses. Necessary information to import keystore into our master keystore.
 
 EndOfMessage
-    exit 1
+    exit 0
 fi
 
-tarFile="$1"
-PWD="$(grep fs.owner.keystore-password ocs/config/application.properties)"
-SDO_KEY_PWD=${PWD#fs.owner.keystore-password=}
+if [[ -n "$1" && -f "$1" ]]; then
+  TARFILE="$1"
+fi
+keypwd="$(grep -E '^ *fs.owner.keystore-password=' ocs/config/application.properties)"
+SDO_KEY_PWD=${keypwd#fs.owner.keystore-password=}
 
-#If the argument passed for this script does not equal one of the encryption keyTypes, send error code and exit.
-#BY DEFAULT THE keyType WILL BE SET TO all
-
-if [[ ! -f $tarFile ]]; then
-    echo "Error: No owner keys tarfile '$tarFile' found."
+if [[ ! -f $TARFILE ]]; then
+    echo "Error: No owner keys tarfile '$TARFILE' found."
     exit 2
 fi
 
@@ -49,8 +48,8 @@ ensureWeAreUser() {
 }
 
 function untarKeyFiles(){
-  if [[ -n "$tarFile" && -f "$tarFile" ]]; then
-    tar -xf $tarFile
+  if [[ -n "$TARFILE" && -f "$TARFILE" ]]; then
+    tar -xf $TARFILE
     chk $? 'Extracting key pairs from tarball'
   else
     echo "owner-keys.tar.gz is not found"
@@ -66,20 +65,20 @@ function genKeyStore(){
   for i in "rsa" "ecdsa256" "ecdsa384"
       do
         # Convert the keyCertificate and private key into ‘PKCS12’ keystore format:
-        cd "$i"Key/ && openssl pkcs12 -export -in "$i"Cert.crt -inkey "$i"private-key.pem -name "${HZN_ORG_ID}"_"$i" -out "${HZN_ORG_ID}"_"$i".p12 -password pass:"$SDO_KEY_PWD"
+        cd "$i"Key/ && openssl pkcs12 -export -in "$i"Cert.crt -inkey "$i"private-key.pem -name "${HZN_ORG_ID}"_"$i" -out "${HZN_ORG_ID}_$i.p12" -password pass:"$SDO_KEY_PWD"
         chk $? 'Converting private key and cert into keystore'
-        cp "${HZN_ORG_ID}"_"$i".p12 .. && rm -- *
+        cp "${HZN_ORG_ID}_$i.p12" .. && rm -- *
         cd .. && rmdir "$i"Key
       done
 }
 
 function insertKeys(){
   #This function will insert all private keystores into the master keystore
-  if [[ -f "${HZN_ORG_ID}"_"$i".p12 ]]; then
+  if [[ -f "${HZN_ORG_ID}_$i.p12" ]]; then
     for i in "rsa" "ecdsa256" "ecdsa384"
       do
-        echo "yes" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -importkeystore -destkeystore ocs/config/db/v1/creds/owner-keystore.p12 -deststorepass "$SDO_KEY_PWD" -srckeystore "${HZN_ORG_ID}"_"$i".p12 -srcstorepass "$SDO_KEY_PWD" -srcstoretype PKCS12 -alias "${HZN_ORG_ID}"_"$i"
-        chk $? 'Inserting all keypairs into ocs/config/db/v1/creds/owner-keystore.p12'
+        echo "yes" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -importkeystore -destkeystore ocs/config/db/v1/creds/owner-keystore.p12 -deststorepass "$SDO_KEY_PWD" -srckeystore "${HZN_ORG_ID}_$i.p12" -srcstorepass "$SDO_KEY_PWD" -srcstoretype PKCS12 -alias "${HZN_ORG_ID}"_"$i"
+        chk $? "Inserting "${HZN_ORG_ID}_$i.p12" keystore into ocs/config/db/v1/creds/owner-keystore.p12"
       done
     rm -- *.p12
   else
@@ -95,6 +94,7 @@ ensureWeAreUser
 untarKeyFiles
 genKeyStore
 insertKeys
+echo "Owner private keys and certificates have been imported."
 
 
 

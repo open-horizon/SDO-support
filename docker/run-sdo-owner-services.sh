@@ -108,8 +108,6 @@ if [[ -n "$ownerPrivateKey" ]]; then
   elif [[ -n "$SDO_KEY_PWD" ]]; then
     echo "$SDO_KEY_PWD" | keytool -list -v -keystore "$ownerPrivateKey" >/dev/null 2>&1
     chk $? 'Checking if SDO_KEY_PWD is correct'
-  else
-    :
   fi
   privateKeyMount="-v $PWD/$ownerPrivateKey:$containerHome/ocs/config/owner-keystore.p12:ro"
 else
