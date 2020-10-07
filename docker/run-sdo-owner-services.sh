@@ -110,8 +110,6 @@ if [[ -n "$ownerPrivateKey" ]]; then
     chk $? 'Checking if SDO_KEY_PWD is correct'
   fi
   privateKeyMount="-v $PWD/$ownerPrivateKey:$containerHome/ocs/config/owner-keystore.p12:ro"
-else
-    unset SDO_KEY_PWD
 fi
 
 # else inside the container start-sdo-owner-services.sh will use the default key file that Dockerfile set up

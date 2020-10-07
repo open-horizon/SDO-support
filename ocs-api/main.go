@@ -222,7 +222,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// If all of the common config files didn't get created at startup, tell them
-	if !outils.PathExists(valuesDir+"/agent-install.cfg") || !outils.PathExists(valuesDir+"/agent-install.sh") || !outils.PathExists(valuesDir+"/apt-repo-public.key") { // agent-install.crt is optional
+	if !outils.PathExists(valuesDir+"/agent-install.cfg") || !outils.PathExists(valuesDir+"/agent-install.sh") { // agent-install.crt is optional
 		http.Error(w, "Error: not all of the common config files were created in the OCS DB at startup. Have your admin restart the service with all of the necessary input.", http.StatusBadRequest)
 		return
 	}

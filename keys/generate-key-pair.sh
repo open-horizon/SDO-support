@@ -9,7 +9,6 @@ Arguments:
   <encryption-keyType>  The type of encryption to use when generating owner key pair (ecdsa256, ecdsa384, rsa, or all). Will default to all.
 
 Required environment variables:
-  SDO_KEY_PWD - The password for your generated keystore. This password must be passed into run-sdo-owner-services.sh in order to be mounted to $containerHome/ocs/config/application.properties/fs.owner.keystore-password
   countryName - The country the user resides in. Necessary information for keyCertificate generation.
   cityName - The city the user resides in. Necessary information for keyCertificate generation.
   orgName - The organization the user works for. Necessary information for keyCertificate generation.
@@ -140,22 +139,10 @@ function combineKeys(){
 fi
 }
 
-function checkPass() {
-  #Will check if the SDO_KEY_PWD has already been set, and if SDO_KEY_PWD meets length requirements
- if [[ -z "$SDO_KEY_PWD" ]]; then
-    echo "SDO_KEY_PWD is not set"
-    exit 1
-  elif [[ -n "$SDO_KEY_PWD" ]] && [[ ${#SDO_KEY_PWD} -lt 6 ]]; then
-        echo "SDO_KEY_PWD not long enough. Needs at least 6 characters"
-        exit 1
-  fi
-}
-
 function infoKeyCert() {
 #You have to enter information in order to generate a custom self signed certificate as a part of your key pair for SDO Owner Attestation. What you are about to enter is what is called a Distinguished Name or a DN.
 #There are quite a few fields but you can leave some blank. For some fields there will be a default value, If you enter '.', the field will be left blank."
   : ${countryName:?} ${cityName:?} ${orgName:?} ${emailName:?}
-  checkPass
   echo '-------------------------------------------------'
 }
 
@@ -169,5 +156,5 @@ if [[ -n "$keyType" ]] && [[ "$keyType" = "all" ]]; then
 else
     genKey
 fi
-
+echo "Owner Private Key Tarfile and Owner Public Key has been created"
 

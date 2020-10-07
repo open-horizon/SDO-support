@@ -76,17 +76,27 @@ mkdir -p $ocsDbDir/v1/creds
 if [[ -s 'ocs/config/owner-keystore.p12' ]]; then
     echo "Your Private Keystore Entry Has Been Found!"
      #Will check if the SDO_KEY_PWD has already been set, and if SDO_KEY_PWD meets length requirements
-    if [[ -z "$SDO_KEY_PWD" ]]; then
+    if [[ -z "$keyPass" ]]; then
       echo "SDO_KEY_PWD is not set"
       exit 1
-    elif [[ -n "$SDO_KEY_PWD" ]] && [[ ${#SDO_KEY_PWD} -lt 6 ]]; then
+    elif [[ -n "$keyPass" ]] && [[ ${#keyPass} -lt 6 ]]; then
       echo "SDO_KEY_PWD not long enough. Needs at least 6 characters"
       exit 1
+    elif [[ -n "$keyPass" ]] && [[ ${#keyPass} -gt 6 ]]; then
+      echo "$keyPass" | keytool -list -v -keystore "$ownerPrivateKey" >/dev/null 2>&1
+      chk $? 'Checking if SDO_KEY_PWD is correct'
+      if [[ "$keyPass" != "$keyPassDefault" ]]; then
+        sed -i -e "s/^fs.owner.keystore-password=.*$/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
+      fi
     fi
     cp ocs/config/owner-keystore.p12 $ocsDbDir/v1/creds   # need to copy it, because can't move a mounted file
 else
     # Use the default key file that Dockerfile stored, ocs/config/sample-owner-keystore.p12, but name it owner-keystore.p12
     echo "Using Sample Owner Private Keystore..."
+    if [[ "$keyPass" != "$keyPassDefault" ]]; then
+      /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -storepasswd -keystore ocs/config/sample-owner-keystore.p12 -storepass $keyPassDefault -new $keyPass
+      sed -i -e "s/^fs.owner.keystore-password=.*$/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
+    fi
     mv ocs/config/sample-owner-keystore.p12 $ocsDbDir/v1/creds/owner-keystore.p12
 fi
 
