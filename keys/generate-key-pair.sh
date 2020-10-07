@@ -126,11 +126,7 @@ function combineKeys(){
     tar -czf owner-keys.tar.gz ecdsa256Key ecdsa384Key rsaKey
     chk $? 'Saving all key pairs in a tarball...'
     #removing all key files except the ones we pass
-    for i in "rsa" "ecdsa256" "ecdsa384"
-      do
-        rm -rf "$i"Key
-        chk $? 'cleaning up key files...'
-      done
+    rm -rf "rsaKey" "ecdsa256Key" "ecdsa384Key"
     user=$(whoami)
     chown "${user}":"${user}" Owner-Public-Key.pem
   else
