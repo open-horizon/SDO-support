@@ -9,7 +9,6 @@ Arguments:
   <owner-keys-tar-file>  A tar file containing the 3 private keys and associated 3 certs
 
 Required environment variables:
-  SDO_KEY_PWD - The password for your generated keystore. This password must be passed into run-sdo-owner-services.sh if you are passing in your own master keystore. This will allow it to be mounted to $containerHome/ocs/config/application.properties/fs.owner.keystore-password
   HZN_ORG_ID - The custom org the user chooses. Necessary information to import keystore into our master keystore.
 
 EndOfMessage
