@@ -47,20 +47,6 @@ var SviJson2 = `
     "module": "sdo_sys",
     "msg": "filedesc",
     "valueLen": -1,
-    "valueId": "apt-repo-public-key_name",
-    "enc": "base64"
-  },
-  {
-    "module": "sdo_sys",
-    "msg": "write",
-    "valueLen": -1,
-    "valueId": "apt-repo-public.key",
-    "enc": "base64"
-  },
-  {
-    "module": "sdo_sys",
-    "msg": "filedesc",
-    "valueLen": -1,
     "valueId": "agent-install-sh_name",
     "enc": "base64"
   },
