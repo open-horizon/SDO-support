@@ -17,7 +17,7 @@ The software in this git repository makes it easy to use SDO-enabled edge device
 Perform the following steps to try out the Horizon SDO support:
 
 - [Start the SDO Owner Services](#start-services) (only has to be done the first time)
-- [Generate Owner Key Pairs](#init-device)
+- [Generate Owner Key Pairs](#gen-keypair)
 - [Initialize a Device with SDO](#init-device)
 - [Import the Ownership Voucher](#import-voucher)
 - [Boot the Device to Have it Configured](#boot-device)
