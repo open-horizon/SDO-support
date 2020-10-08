@@ -7,7 +7,7 @@ Edge devices built with [Intel SDO](https://software.intel.com/en-us/secure-devi
 The software in this git repository makes it easy to use SDO-enabled edge devices with Open Horizon. The Horizon SDO support consists of these components:
 
 1. A consolidated docker image of all of the [SDO](https://software.intel.com/en-us/secure-device-onboard) "owner" services (those that run as peers to the Horizon management hub). It also includes a small REST API that enables remote configuration of the SDO OCS owner service.
-1. A script called `generate-key-pair.sh` to automate the process of creating keys so each tenant is able to use their own owner private key and owner public key
+1. A script called `generate-key-pair.sh` to automate the process of creating private keys, certifications, and public keys so each tenant is able to import and use their key pairs.
 1. An `hzn` sub-command to import one or more ownership vouchers into a horizon instance. (An ownership voucher is a file that the device manufacturer gives to the purchaser along with the physical device.)
 1. A sample script called `simulate-mfg.sh` to run the SDO manufacturing components (SCT - Supply Chain Tools) on a test VM device to initialize it with SDO, create the voucher, and extend it to the customer/owner. This script performs the same steps that a real SDO-enabled device manufacturer would.
 1. A script called `owner-boot-device` that initiates the same SDO booting process on a test VM device that runs on a physical SDO-enabled device when it boots.
@@ -17,6 +17,7 @@ The software in this git repository makes it easy to use SDO-enabled edge device
 Perform the following steps to try out the Horizon SDO support:
 
 - [Start the SDO Owner Services](#start-services) (only has to be done the first time)
+- [Generate Owner Key Pairs](#init-device)
 - [Initialize a Device with SDO](#init-device)
 - [Import the Ownership Voucher](#import-voucher)
 - [Boot the Device to Have it Configured](#boot-device)
@@ -51,7 +52,11 @@ The SDO owner services are packaged as a single docker container that can be run
    export HZN_EXCHANGE_USER_AUTH=iamapikey:<api-key>
    ```
 
-3. To pass in a generated owner key pair instead of the sample owner key pairs provided, then refer to [keys/README.md](https://github.com/open-horizon/SDO-support/blob/master/keys/README.md) where you will see this process can be automated.
+3. Either choose or generate a password for the Master Keystore inside the container to support Owner Attestation. For example:
+   ```bash
+   export SDO_KEY_PWD=123456
+   ```
+   **Note:** If you want to restart sdo-owner-services but wish to continue using an existing master keystore with an existing custom password, **DO NOT** forget your SDO_KEY_PWD. If you forget the password for the existing master keystore, then you must delete the container, delete the volume, and go back through [Start the SDO Owner Services](#start-services) 
 
 4. As part of installing the Horizon management hub, you should have run [edgeNodeFiles.sh](https://github.com/open-horizon/anax/blob/master/agent-install/edgeNodeFiles.sh), which created a tar file containing `agent-install.crt`. Use that to export this environment variable:
 
@@ -97,7 +102,34 @@ The SDO owner services are packaged as a single docker container that can be run
    ```bash
    curl -sS -w "%{http_code}" -X POST $SDO_RV_URL/mp/113/msg/20 | jq
    ```
+   
+### <a name="gen-keypair"></a>Generate Owner Key Pairs
 
+If you want to expedite the process of creating key pairs, you can run `keys/generate-key-pair.sh`
+To run this script you must be using Ubuntu. 
+
+1. Go to the directory where you want your generated keys to be saved then download `generate-key-pair.sh`, which is used to create key pairs for Owner Attestation:
+
+   ```bash
+   curl -sSLO https://raw.githubusercontent.com/open-horizon/SDO-support/master/keys/generate-key-pair.sh
+   chmod +x generate-key-pair.sh
+   ```
+   
+2. Run `generate-key-pair.sh` script. If this process is being ran for a non production environment you **do not** need to create your own keys. 
+You will be prompted to answer a few questions in order to produce corresponding certificates to your private keys:
+
+   ```bash
+   ./generate-key-pair.sh
+   ```
+
+3. After running `generate-key-pair.sh` you will have created and been left with two files.
+- `owner-keys.tar.gz`: A tar file containing the 3 private keys and associated 3 certifications
+- `Owner-Public-Key.pem`: Device customer/owner public key. This is needed to extend the voucher to the owner. Either pass it as an argument in `simulate-mfg.sh` or give this public key to a device manufacturer.
+    Import your `owner-keys.tar.gz` to the master keystore inside the container by running this command 
+    
+   ```bash
+   curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -X POST -H Content-Type:application/octet-stream --data-binary @owner-keys.tar.gz $HZN_SDO_SVC_URL/keys && echo
+   ```
 ### <a name="init-device"></a>Initialize a Device with SDO
 
 The sample script called `simulate-mfg.sh` simulates the process of a manufacturer initializing a device with SDO and credentials, creating an ownership voucher, and extending it to the owner. Perform these steps **on the VM device to be initialized** (these steps are written for Ubuntu 18.04):

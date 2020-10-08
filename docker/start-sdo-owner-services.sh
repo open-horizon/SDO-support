@@ -28,6 +28,17 @@ EndOfMessage
     exit 1
 fi
 
+chk() {
+    local exitCode=$1
+    local task=$2
+    local dontExit=$3   # set to 'continue' to not exit for this error
+    if [[ $exitCode == 0 ]]; then return; fi
+    echo "Error: exit code $exitCode from: $task"
+    if [[ $dontExit != 'continue' ]]; then
+        exit $exitCode
+    fi
+}
+
 # These env vars are needed by ocs-api to set up the common config files for ocs
 if [[ -z "$HZN_EXCHANGE_URL" || -z "$HZN_FSS_CSSURL" || -z "$HZN_ORG_ID" || -z "$SDO_OWNER_SVC_HOST" ]]; then
     echo "Error: all of these environment variables must be set: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID, SDO_OWNER_SVC_HOST"
@@ -61,11 +72,6 @@ if [[ "$rvPort" != "$rvPortDefault" ]]; then
     sed -i -e "s/^server.port=.*$/server.port=$rvPort/" rv/application.properties
 fi
 
-# If using a non-default keystore password for a generated key pair, configure OCS with that password
-if [[ "$keyPass" != "$keyPassDefault" ]]; then
-    sed -i -e "s/^fs.owner.keystore-password=.*$/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
-fi
-
 # This sed is for dev/test/demo and makes the to0scheduler respond to changes more quickly, and let us use the same voucher over again
 #todo: should we not do this for production? If so, add an env var that will do this for dev/test
 sed -i -e 's/^to0.scheduler.interval=.*$/to0.scheduler.interval=5/' -e 's/^to2.credential-reuse.enabled=.*$/to2.credential-reuse.enabled=true/' ocs/config/application.properties
@@ -74,7 +80,7 @@ sed -i -e 's/^to0.scheduler.interval=.*$/to0.scheduler.interval=5/' -e 's/^to2.c
 # If the user specified their own owner private key, run-sdo-owner-services.sh will mount it at ocs/config/owner-keystore.p12, otherwise use the default
 mkdir -p $ocsDbDir/v1/creds
 if [[ -s 'ocs/config/owner-keystore.p12' ]]; then
-    echo "Your Private Keystore Entry Has Been Found!"
+    echo "Your Owner Keystore Entry Has Been Found!"
      #Will check if the SDO_KEY_PWD has already been set, and if SDO_KEY_PWD meets length requirements
     if [[ -z "$keyPass" ]]; then
       echo "SDO_KEY_PWD is not set"
@@ -82,7 +88,7 @@ if [[ -s 'ocs/config/owner-keystore.p12' ]]; then
     elif [[ -n "$keyPass" ]] && [[ ${#keyPass} -lt 6 ]]; then
       echo "SDO_KEY_PWD not long enough. Needs at least 6 characters"
       exit 1
-    elif [[ -n "$keyPass" ]] && [[ ${#keyPass} -gt 6 ]]; then
+    elif [[ -n "$keyPass" ]] && [[ ${#keyPass} -ge 6 ]]; then
       echo "$keyPass" | keytool -list -v -keystore "$ownerPrivateKey" >/dev/null 2>&1
       chk $? 'Checking if SDO_KEY_PWD is correct'
       if [[ "$keyPass" != "$keyPassDefault" ]]; then
@@ -90,11 +96,20 @@ if [[ -s 'ocs/config/owner-keystore.p12' ]]; then
       fi
     fi
     cp ocs/config/owner-keystore.p12 $ocsDbDir/v1/creds   # need to copy it, because can't move a mounted file
+elif [[ -s "$ocsDbDir/v1/creds/owner-keystore.p12" ]]; then
+    echo "Existing Owner Keystore found..."
+    if [[ -n "$keyPass" ]] && [[ ${#keyPass} -ge 6 ]]; then
+      echo "Testing SDO_KEY_PWD...."
+      echo "$keyPass" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore "$ocsDbDir/v1/creds/owner-keystore.p12" >/dev/null 2>&1
+      chk $? 'Checking if SDO_KEY_PWD is correct'
+      sed -i -e "s/^fs.owner.keystore-password=.*$/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
+    fi
 else
     # Use the default key file that Dockerfile stored, ocs/config/sample-owner-keystore.p12, but name it owner-keystore.p12
-    echo "Using Sample Owner Private Keystore..."
+    echo "Using Sample Owner Keystore..."
     if [[ "$keyPass" != "$keyPassDefault" ]]; then
       /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -storepasswd -keystore ocs/config/sample-owner-keystore.p12 -storepass $keyPassDefault -new $keyPass
+      chk $? 'Changing Sample Owner Keystore password'
       sed -i -e "s/^fs.owner.keystore-password=.*$/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
     fi
     mv ocs/config/sample-owner-keystore.p12 $ocsDbDir/v1/creds/owner-keystore.p12
