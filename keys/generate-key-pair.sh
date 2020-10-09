@@ -7,13 +7,6 @@ Usage: ${0##*/} [<encryption-keyType>]
 
 Arguments:
   <encryption-keyType>  The type of encryption to use when generating owner key pair (ecdsa256, ecdsa384, rsa, or all). Will default to all.
-
-Required environment variables:
-  countryName - The country the user resides in. Necessary information for keyCertificate generation.
-  cityName - The city the user resides in. Necessary information for keyCertificate generation.
-  orgName - The organization the user works for. Necessary information for keyCertificate generation.
-  emailName - The user's email. Necessary information for keyCertificate generation.
-
 EndOfMessage
     exit 1
 fi
@@ -86,7 +79,7 @@ function keyCertGenerator() {
     #Generate a self-signed certificate from the private key file.
     #You should have these environment variables set.
     echo -e "Generating a corresponding certificate.\n"
-    ( echo $countryName ; echo "." ; echo $cityName ; echo $orgName ; echo "." ; echo "." ; echo $emailName ) | ( openssl req -x509 -key "$privateKey" -days 365 -out "$keyCert" ) >/dev/null 2>&1
+    ( echo "$countryName" ; echo "$stateName" ; echo "$cityName" ; echo "$orgName" ; echo "$companyName" ; echo "$yourName" ; echo "$emailName" ) | ( openssl req -x509 -key "$privateKey" -days 365 -out "$keyCert" ) >/dev/null 2>&1
     chk $? 'generating certificate'
     if [[ -f $keyCert  ]]; then
       echo -e "\n"${keyType}"Key Certificate creation: SUCCESS"
@@ -136,15 +129,27 @@ fi
 }
 
 function infoKeyCert() {
-#You have to enter information in order to generate a custom self signed certificate as a part of your key pair for SDO Owner Attestation. What you are about to enter is what is called a Distinguished Name or a DN.
-#There are quite a few fields but you can leave some blank. For some fields there will be a default value, If you enter '.', the field will be left blank."
-  : ${countryName:?} ${cityName:?} ${orgName:?} ${emailName:?}
+echo "You have to enter information in order to generate a custom self signed certificate as a part of your key pair for SDO Owner Attestation. What you are about to enter is what is called a Distinguished Name or a DN.
+There are quite a few fields but you can leave some blank. For some fields there will be a default value, If you enter '.', the field will be left blank."
+  echo "Country Name (2 letter code) [AU]:"
+  read countryName
+  echo "State or Province Name (full name) [Some-State]:"
+  read stateName
+  echo "Locality Name (eg, city) []:"
+  read cityName
+  echo "Organization Name (eg, company) [Internet Widgits Pty Ltd]:"
+  read orgName
+  echo "Organizational Unit Name (eg, section) []:"
+  read companyName
+  echo "Common Name (e.g. server FQDN or YOUR name) []:"
+  read yourName
+  echo "Email Address []:"
+  read emailName
   echo '-------------------------------------------------'
 }
 
 #============================MAIN CODE=================================
 
-ensureWeAreUser
 infoKeyCert
 if [[ -n "$keyType" ]] && [[ "$keyType" = "all" ]]; then
   allKeys

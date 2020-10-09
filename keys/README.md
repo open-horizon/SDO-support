@@ -23,17 +23,8 @@ To run this script you must be using Ubuntu.
    curl -sSLO https://raw.githubusercontent.com/open-horizon/SDO-support/master/keys/generate-key-pair.sh
    chmod +x generate-key-pair.sh
    ```
-2. Run `./generate-key-pair.sh -h` to see the usage, and set environment variables if necessary. For Example:
-
-   ```bash
-   export KEEP_KEY_FILES=true
-   export countryName=US
-   export cityName=<enter-city>
-   export orgName=<enter-organization>
-   export emailName=<enter-email>
-   export SDO_KEY_PWD=<enter-keystore-password>
-   ```
-3. Start the `generate-key-pair.sh` script and respond to the prompts:
+   
+2. Run `generate-key-pair.sh` script. You will be prompted to answer a few questions in order to produce corresponding certificates to your private keys:
 
    ```bash
    ./generate-key-pair.sh
@@ -43,7 +34,7 @@ To run this script you must be using Ubuntu.
 
 Once you have created your key pair, pass them as arguments to these scripts:
 
-- `docker/run-sdo-owner-services.sh $VERSION Owner-Private-Keystore.p12`
+- `curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -X POST -H Content-Type:application/octet-stream --data-binary @owner-keys.tar.gz $HZN_SDO_SVC_URL/keys && echo`
 - `sample-mfg/simulate-mfg.sh Owner-Public-Key.pem`
 
 
@@ -95,12 +86,12 @@ The Intel documentation for doing this can be found in [secure-device-onboard/do
    openssl x509 -pubkey -noout -in <key-cert>.crt > <public-key>.pub
    ```
    
-4. Now you must place the private key and certificate into a keystore. This keystore is used as an argument when running `run-sdo-owner-services.sh` for Owner Attestation. It will ask you to create a password for this key store. 
+4. This is how to place a private key and certificate into a keystore. This keystore an be used as an argument when running `run-sdo-owner-services.sh` to pass your own Master Keystore. You will need to have a password for this key store. 
 
     ```bash
     openssl pkcs12 -export -in owner-cert.pem -inkey <owner-private-key>.pem -name Owner -out private-key-store.p12
     ```
-    **(Optional) In the case of importing one keystore into another, the password of the newly created keystore must match the existing keystore where it will be imported to. That is done through the following command**
+    **(Optional) In the case of importing one keystore into another, you must know the password of both keystores**
     ```bash
     keytool -importkeystore -destkeystore path/to/owner-keystore.p12 -srckeystore private-key-store.p12 -srcstoretype PKCS12 -alias Owner
     ```
