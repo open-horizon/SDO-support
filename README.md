@@ -7,7 +7,7 @@ Edge devices built with [Intel SDO](https://software.intel.com/en-us/secure-devi
 The software in this git repository makes it easy to use SDO-enabled edge devices with Open Horizon. The Horizon SDO support consists of these components:
 
 1. A consolidated docker image of all of the [SDO](https://software.intel.com/en-us/secure-device-onboard) "owner" services (those that run as peers to the Horizon management hub). It also includes a small REST API that enables remote configuration of the SDO OCS owner service.
-1. A script called `generate-key-pair.sh` to automate the process of creating private keys, certifications, and public keys so each tenant is able to import and use their key pairs.
+1. A script called `generate-key-pair.sh` to automate the process of creating private keys, certificates, and public keys so each tenant is able to import and use their key pairs.
 1. An `hzn` sub-command to import one or more ownership vouchers into a horizon instance. (An ownership voucher is a file that the device manufacturer gives to the purchaser along with the physical device.)
 1. A sample script called `simulate-mfg.sh` to run the SDO manufacturing components (SCT - Supply Chain Tools) on a test VM device to initialize it with SDO, create the voucher, and extend it to the customer/owner. This script performs the same steps that a real SDO-enabled device manufacturer would.
 1. A script called `owner-boot-device` that initiates the same SDO booting process on a test VM device that runs on a physical SDO-enabled device when it boots.
@@ -52,11 +52,11 @@ The SDO owner services are packaged as a single docker container that can be run
    export HZN_EXCHANGE_USER_AUTH=iamapikey:<api-key>
    ```
 
-3. Either choose or generate a password for the Master Keystore inside the container to support Owner Attestation. For example:
+3. Either choose or generate a password for the master keystore inside the owner services container and assign it to SDO_KEY_PWD. For example:
    ```bash
    export SDO_KEY_PWD=123456
    ```
-   **Note:** If you want to restart sdo-owner-services but wish to continue using an existing master keystore with an existing custom password, **DO NOT** forget your SDO_KEY_PWD. If you forget the password for the existing master keystore, then you must delete the container, delete the volume, and go back through [Start the SDO Owner Services](#start-services) 
+   **Note:** Save the password in a secure, persistent, place. You will need to pass this same password into the owner services container each time it is restarted. If you forget the password for the existing master keystore, then you must delete the container, delete the volume, and go back through [Start the SDO Owner Services](#start-services) 
 
 4. As part of installing the Horizon management hub, you should have run [edgeNodeFiles.sh](https://github.com/open-horizon/anax/blob/master/agent-install/edgeNodeFiles.sh), which created a tar file containing `agent-install.crt`. Use that to export this environment variable:
 
@@ -105,27 +105,26 @@ The SDO owner services are packaged as a single docker container that can be run
    
 ### <a name="gen-keypair"></a>Generate Owner Key Pairs
 
-If you want to expedite the process of creating key pairs, you can run `keys/generate-key-pair.sh`
-To run this script you must be using Ubuntu. 
+For production use of SDO, you need to create 3 key pairs and import them into the owner services container. These key pairs enable you to securely take over ownership of SDO ownership vouchers from SDO-enabled device manufacturers, and to securely configure your booting SDO devices. Use the provided `generate-key-pair.sh` script to easily create the necessary key pairs. (If you are only trying out SDO in a dev/test environment, you can use the sample default key pairs and skip this section. You can always add your own key pairs later.)
 
-1. Go to the directory where you want your generated keys to be saved then download `generate-key-pair.sh`, which is used to create key pairs for Owner Attestation:
+1. Go to the directory where you want your generated keys to be saved then download `generate-key-pair.sh`.
 
    ```bash
    curl -sSLO https://raw.githubusercontent.com/open-horizon/SDO-support/master/keys/generate-key-pair.sh
    chmod +x generate-key-pair.sh
    ```
    
-2. Run `generate-key-pair.sh` script. If this process is being ran for a non production environment you **do not** need to create your own keys. 
-You will be prompted to answer a few questions in order to produce corresponding certificates to your private keys:
+2. Run `generate-key-pair.sh` script. You will be prompted to answer a few questions in order to produce corresponding certificates to your private keys. You must be using Ubuntu to run this script.
 
    ```bash
    ./generate-key-pair.sh
    ```
 
 3. After running `generate-key-pair.sh` you will have created and been left with two files.
-- `owner-keys.tar.gz`: A tar file containing the 3 private keys and associated 3 certifications
-- `Owner-Public-Key.pem`: Device customer/owner public key. This is needed to extend the voucher to the owner. Either pass it as an argument in `simulate-mfg.sh` or give this public key to a device manufacturer.
-    Import your `owner-keys.tar.gz` to the master keystore inside the container by running this command 
+    - `owner-keys.tar.gz`: A tar file containing the 3 private keys and associated 3 certificates. This file will be imported into the owner services container in the next step.
+    - `owner-public-key.pem`: Device customer/owner public key. This is needed to extend the voucher to the owner. Pass this file as an argument whenever running simulate-mfg.sh and give this public key to each device manufacturer producing SDO-enabled devices for you.
+    
+4. Import your `owner-keys.tar.gz` to the master keystore inside the container by running this command 
     
    ```bash
    curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -X POST -H Content-Type:application/octet-stream --data-binary @owner-keys.tar.gz $HZN_SDO_SVC_URL/keys && echo
