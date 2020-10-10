@@ -9,13 +9,13 @@ Arguments:
   <encryption-keyType>  The type of encryption to use when generating owner key pair (ecdsa256, ecdsa384, rsa, or all). Will default to all.
 
 Option Environment Variables:
-  countryName - The country the user resides in. Necessary information for keyCertificate generation.
-  stateName - The state the user resides in. Necessary information for keyCertificate generation.
-  cityName - The city the user resides in. Necessary information for keyCertificate generation.
-  orgName - The organization the user works for. Necessary information for keyCertificate generation.
-  companyName - The company the user works for. Necessary information for keyCertificate generation.
-  yourName - The name of the user. Necessary information for keyCertificate generation.
-  emailName - The user's email. Necessary information for keyCertificate generation.
+  COUNTRY_NAME - The country the user resides in. Necessary information for keyCertificate generation.
+  STATE_NAME - The state the user resides in. Necessary information for keyCertificate generation.
+  CITY_NAME - The city the user resides in. Necessary information for keyCertificate generation.
+  ORG_NAME - The organization the user works for. Necessary information for keyCertificate generation.
+  COMPANY_NAME - The company the user works for. Necessary information for keyCertificate generation.
+  YOUR_NAME - The name of the user. Necessary information for keyCertificate generation.
+  EMAIL_NAME - The user's email. Necessary information for keyCertificate generation.
 
 EndOfMessage
   exit 1
@@ -88,13 +88,13 @@ function keyCertGenerator() {
     #You should have these environment variables set. If they aren't you will be prompted to enter values.
     echo -e "Generating a corresponding certificate."
     (
-      echo "$countryName"
-      echo "$stateName"
-      echo "$cityName"
-      echo "$companyName"
-      echo "$orgName"
-      echo "$yourName"
-      echo "$emailName"
+      echo "$COUNTRY_NAME"
+      echo "$STATE_NAME"
+      echo "$CITY_NAME"
+      echo "$COMPANY_NAME"
+      echo "$ORG_NAME"
+      echo "$YOUR_NAME"
+      echo "$EMAIL_NAME"
     ) | (openssl req -x509 -key "$privateKey" -days 365 -out "$keyCert") >/dev/null 2>&1
     chk $? 'generating certificate'
     if [[ -f $keyCert ]]; then
@@ -139,32 +139,32 @@ function combineKeys() {
 
 function infoKeyCert() {
   #If varaibles are not set, prompt this openssl certificate paragraph
-  if [[ -z $countryName ]] || [[ -z $stateName ]] || [[ -z $cityName ]] || [[ -z $orgName ]] || [[ -z $companyName ]] || [[ -z $yourName ]] || [[ -z $emailName ]]; then
+  if [[ -z $COUNTRY_NAME ]] || [[ -z $STATE_NAME ]] || [[ -z $CITY_NAME ]] || [[ -z $ORG_NAME ]] || [[ -z $COMPANY_NAME ]] || [[ -z $YOUR_NAME ]] || [[ -z $EMAIL_NAME ]]; then
     printf "You have to enter information in order to generate a custom self signed certificate as a part of your key pair for SDO Owner Attestation. What you are about to enter is what is called a Distinguished Name or a DN. There are quite a few fields but you can leave some blank. For some fields there will be a default value, If you enter '.', the field will be left blank." && echo
   fi
   #while variables are not set, prompt for whichever variable is not set
-  while [[ -z $countryName ]] || [[ -z $stateName ]] || [[ -z $cityName ]] || [[ -z $orgName ]] || [[ -z $companyName ]] || [[ -z $yourName ]] || [[ -z $emailName ]]; do
-    if [[ -z $countryName ]]; then
+  while [[ -z $COUNTRY_NAME ]] || [[ -z $STATE_NAME ]] || [[ -z $CITY_NAME ]] || [[ -z $ORG_NAME ]] || [[ -z $COMPANY_NAME ]] || [[ -z $YOUR_NAME ]] || [[ -z $EMAIL_NAME ]]; do
+    if [[ -z $COUNTRY_NAME ]]; then
       echo "Country Name (2 letter code) [AU]:"
-      read countryName && echo
-    elif [[ -z $stateName ]]; then
+      read COUNTRY_NAME && echo
+    elif [[ -z $STATE_NAME ]]; then
       echo "State or Province Name (full name) [Some-State]:"
-      read stateName && echo
-    elif [[ -z $cityName ]]; then
+      read STATE_NAME && echo
+    elif [[ -z $CITY_NAME ]]; then
       echo "Locality Name (eg, city) []:"
-      read cityName && echo
-    elif [[ -z $companyName ]]; then
+      read CITY_NAME && echo
+    elif [[ -z $COMPANY_NAME ]]; then
       echo "Organization Name (eg, company) [Internet Widgits Pty Ltd]:"
-      read companyName && echo
-    elif [[ -z $orgName ]]; then
+      read COMPANY_NAME && echo
+    elif [[ -z $ORG_NAME ]]; then
       echo "Organizational Unit Name (eg, section) []:"
-      read orgName && echo
-    elif [[ -z $yourName ]]; then
+      read ORG_NAME && echo
+    elif [[ -z $YOUR_NAME ]]; then
       echo "Common Name (e.g. server FQDN or YOUR name) []:"
-      read yourName && echo
-    elif [[ -z $emailName ]]; then
+      read YOUR_NAME && echo
+    elif [[ -z $EMAIL_NAME ]]; then
       echo "Email Address []:"
-      read emailName && echo
+      read EMAIL_NAME && echo
     fi
   done
 }
