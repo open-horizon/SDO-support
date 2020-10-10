@@ -8,7 +8,7 @@ Usage: ${0##*/} [<encryption-keyType>]
 Arguments:
   <encryption-keyType>  The type of encryption to use when generating owner key pair (ecdsa256, ecdsa384, rsa, or all). Will default to all.
 
-Option Environment Variables:
+Optional Environment Variables:
   COUNTRY_NAME - The country the user resides in. Necessary information for keyCertificate generation.
   STATE_NAME - The state the user resides in. Necessary information for keyCertificate generation.
   CITY_NAME - The city the user resides in. Necessary information for keyCertificate generation.
