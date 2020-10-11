@@ -88,10 +88,12 @@ if [[ -s 'ocs/config/owner-keystore.p12' ]]; then
     elif [[ -n "$keyPass" ]] && [[ ${#keyPass} -lt 6 ]]; then
       echo "SDO_KEY_PWD not long enough. Needs at least 6 characters"
       exit 1
+      #If password meets requirements, then check its validity
     elif [[ -n "$keyPass" ]] && [[ ${#keyPass} -ge 6 ]]; then
       echo "$keyPass" | keytool -list -v -keystore "$ownerPrivateKey" >/dev/null 2>&1
       chk $? 'Checking if SDO_KEY_PWD is correct'
       if [[ "$keyPass" != "$keyPassDefault" ]]; then
+        #update value in ocs/config/application.properties
         sed -i -e "s/^fs.owner.keystore-password=.*$/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
       fi
     fi

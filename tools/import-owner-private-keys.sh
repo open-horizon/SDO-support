@@ -18,6 +18,8 @@ fi
 if [[ -n "$1" && -f "$1" ]]; then
   TARFILE="$1"
 fi
+
+#Grabbing password from the ocs/config/application.properties inside the container to use for import
 keypwd="$(grep -E '^ *fs.owner.keystore-password=' ocs/config/application.properties)"
 SDO_KEY_PWD=${keypwd#fs.owner.keystore-password=}
 
@@ -47,6 +49,7 @@ ensureWeAreUser() {
 }
 
 function untarKeyFiles(){
+  #This function unpacks the tar file passed in through the OCS API
   if [[ -n "$TARFILE" && -f "$TARFILE" ]]; then
     tar -xf $TARFILE
     chk $? 'Extracting key pairs from tarball'
@@ -56,11 +59,8 @@ function untarKeyFiles(){
   fi
 }
 
-#This function will create a private key that is needed to create a private keystore. Encryption keyType passed will decide which command to run for private key creation
+#This function will take the private key and certificate that has been passed in, and use them to generate a keystore pkcs12 file containing both files.
 function genKeyStore(){
-  # This function is ran after the private key and owner certificate has been created. This function will create a public key to correspond with
-  # the owner private key/certificate. After the public key is made it will then place the private key and certificate inside a keystore.
-  # Generate a public key from the certificate file
   for i in "rsa" "ecdsa256" "ecdsa384"
       do
         # Convert the keyCertificate and private key into ‘PKCS12’ keystore format:
@@ -76,6 +76,7 @@ function insertKeys(){
   if [[ -f "${HZN_ORG_ID}_$i.p12" ]]; then
     for i in "rsa" "ecdsa256" "ecdsa384"
       do
+        #Import custom keystores into the master keystore
         echo "yes" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -importkeystore -destkeystore ocs/config/db/v1/creds/owner-keystore.p12 -deststorepass "$SDO_KEY_PWD" -srckeystore "${HZN_ORG_ID}_$i.p12" -srcstorepass "$SDO_KEY_PWD" -srcstoretype PKCS12 -alias "${HZN_ORG_ID}"_"$i"
         chk $? "Inserting "${HZN_ORG_ID}_$i.p12" keystore into ocs/config/db/v1/creds/owner-keystore.p12"
       done

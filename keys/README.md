@@ -86,7 +86,7 @@ The Intel documentation for doing this can be found in [secure-device-onboard/do
    openssl x509 -pubkey -noout -in <key-cert>.crt > <public-key>.pub
    ```
    
-4. This is how to place a private key and certificate into a keystore. This keystore an be used as an argument when running `run-sdo-owner-services.sh` to pass your own Master Keystore. You will need to have a password for this key store. 
+4. This is how to place a private key and certificate into a keystore. This keystore can be used as an argument when running `run-sdo-owner-services.sh` to pass your own Master Keystore. You will need to have a password for this key store. 
 
     ```bash
     openssl pkcs12 -export -in owner-cert.pem -inkey <owner-private-key>.pem -name Owner -out private-key-store.p12
