@@ -80,39 +80,41 @@ sed -i -e 's/^to0.scheduler.interval=.*$/to0.scheduler.interval=5/' -e 's/^to2.c
 # If the user specified their own owner private key, run-sdo-owner-services.sh will mount it at ocs/config/owner-keystore.p12, otherwise use the default
 mkdir -p $ocsDbDir/v1/creds
 if [[ -s 'ocs/config/owner-keystore.p12' ]]; then
-    echo "Your Owner Keystore Entry Has Been Found!"
-     #Will check if the SDO_KEY_PWD has already been set, and if SDO_KEY_PWD meets length requirements
+    echo "Using your owner keystore"
+    # Will check if the SDO_KEY_PWD has already been set, and if SDO_KEY_PWD meets length requirements
     if [[ -z "$keyPass" ]]; then
-      echo "SDO_KEY_PWD is not set"
-      exit 1
+        echo "When using your own keystore, SDO_KEY_PWD must be set"
+        exit 1
     elif [[ -n "$keyPass" ]] && [[ ${#keyPass} -lt 6 ]]; then
-      echo "SDO_KEY_PWD not long enough. Needs at least 6 characters"
-      exit 1
-      #If password meets requirements, then check its validity
+        echo "SDO_KEY_PWD not long enough. Needs to be at least 6 characters"
+        exit 1
+    # If password meets requirements, then check its validity
     elif [[ -n "$keyPass" ]] && [[ ${#keyPass} -ge 6 ]]; then
-      echo "$keyPass" | keytool -list -v -keystore "$ownerPrivateKey" >/dev/null 2>&1
-      chk $? 'Checking if SDO_KEY_PWD is correct'
-      if [[ "$keyPass" != "$keyPassDefault" ]]; then
-        #update value in ocs/config/application.properties
-        sed -i -e "s/^fs.owner.keystore-password=.*$/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
-      fi
+        echo "Verifying SDO_KEY_PWD is correct for your owner keystore..."
+        echo "$keyPass" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore "$ownerPrivateKey" >/dev/null 2>&1
+        chk $? 'Checking if SDO_KEY_PWD is correct'
+        if [[ "$keyPass" != "$keyPassDefault" ]]; then
+            # update value in ocs/config/application.properties
+            sed -i -e "s/^fs.owner.keystore-password=.*$/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
+        fi
     fi
     cp ocs/config/owner-keystore.p12 $ocsDbDir/v1/creds   # need to copy it, because can't move a mounted file
 elif [[ -s "$ocsDbDir/v1/creds/owner-keystore.p12" ]]; then
-    echo "Existing Owner Keystore found..."
+    echo "Existing owner keystore found..."
     if [[ -n "$keyPass" ]] && [[ ${#keyPass} -ge 6 ]]; then
-      echo "Testing SDO_KEY_PWD...."
-      echo "$keyPass" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore "$ocsDbDir/v1/creds/owner-keystore.p12" >/dev/null 2>&1
-      chk $? 'Checking if SDO_KEY_PWD is correct'
-      sed -i -e "s/^fs.owner.keystore-password=.*$/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
+        echo "Verifying SDO_KEY_PWD is correct for existing owner keystore..."
+        echo "$keyPass" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore "$ocsDbDir/v1/creds/owner-keystore.p12" >/dev/null 2>&1
+        chk $? 'Checking if SDO_KEY_PWD is correct'
+        sed -i -e "s/^fs.owner.keystore-password=.*$/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
     fi
 else
     # Use the default key file that Dockerfile stored, ocs/config/sample-owner-keystore.p12, but name it owner-keystore.p12
-    echo "Using Sample Owner Keystore..."
+    echo "Using sample owner keystore..."
     if [[ "$keyPass" != "$keyPassDefault" ]]; then
-      /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -storepasswd -keystore ocs/config/sample-owner-keystore.p12 -storepass $keyPassDefault -new $keyPass
-      chk $? 'Changing Sample Owner Keystore password'
-      sed -i -e "s/^fs.owner.keystore-password=.*$/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
+        echo "Changing sample owner keystore password from default to SDO_KEY_PWD ..."
+        /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -storepasswd -keystore ocs/config/sample-owner-keystore.p12 -storepass $keyPassDefault -new $keyPass
+        chk $? 'Changing Sample Owner Keystore password'
+        sed -i -e "s/^fs.owner.keystore-password=.*$/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
     fi
     mv ocs/config/sample-owner-keystore.p12 $ocsDbDir/v1/creds/owner-keystore.p12
 fi
