@@ -30,6 +30,14 @@ if [[ -n $keyType ]] && [[ $keyType != "ecdsa256" ]] && [[ $keyType != "ecdsa384
   exit 2
 fi
 
+if [ "$(uname)" == "Darwin" ]; then
+  arch="new"
+  req="req"
+else
+  arch="x509"
+  req="x509"
+fi
+
 #============================FUNCTIONS=================================
 
 chk() {
@@ -78,7 +86,6 @@ function genKey() {
   fi
 }
 
-#This function will create a keyCertificate that is needed to create a corresponding public key, as well as a private keystore.
 function keyCertGenerator() {
   if [[ -f "${keyType}"private-key.pem ]]; then
     local privateKey=""${keyType}"private-key.pem"
@@ -86,6 +93,8 @@ function keyCertGenerator() {
     echo -e ""${keyType}" private key creation: Successful"
     #Generate a self-signed certificate from the private key file.
     #You should have these environment variables set. If they aren't you will be prompted to enter values.
+    #openssl req -new -key privatekey.pem -out key.csr
+    #!/usr/bin/env bash
     echo -e "Generating a corresponding certificate."
     (
       echo "$COUNTRY_NAME"
@@ -95,7 +104,8 @@ function keyCertGenerator() {
       echo "$ORG_NAME"
       echo "$YOUR_NAME"
       echo "$EMAIL_NAME"
-    ) | (openssl req -x509 -key "$privateKey" -days 365 -out "$keyCert") >/dev/null 2>&1
+      echo
+    ) | (openssl req -"$arch" -key "$privateKey" -out "$keyCert") >/dev/null 2>&1
     chk $? 'generating certificate'
     if [[ -f $keyCert ]]; then
       echo -e ""${keyType}"Key Certificate creation: Successful"
@@ -114,7 +124,7 @@ function keyCertGenerator() {
 function genPublicKey() {
   # This function is ran after the private key and owner certificate has been created. This function will create a public key to correspond with
   # the owner private key/certificate. Generate a public key from the certificate file
-  openssl x509 -pubkey -noout -in $keyCert >"${keyType}"pub-key.pem
+  openssl "$req" -pubkey -noout -in $keyCert >"${keyType}"pub-key.pem
   chk $? 'Creating public key...'
   echo "Generating "${keyType}" public key..."
   mv "${keyType}"pub-key.pem ..
