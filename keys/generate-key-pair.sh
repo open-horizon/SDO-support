@@ -22,6 +22,7 @@ EndOfMessage
 fi
 
 keyType="${1:-all}"
+gencmd=""
 
 #If the argument passed for this script does not equal one of the encryption keyTypes, send error code and exit.
 #BY DEFAULT THE keyType WILL BE SET TO all
@@ -62,40 +63,73 @@ function allKeys() {
   for i in "rsa" "ecdsa256" "ecdsa384"; do
     keyType=$i
     genKey
-    wait
   done
 }
 
 #This function will create a private key that is needed to create a private keystore. Encryption keyType passed will decide which command to run for private key creation
 function genKey() {
+  local privateKey=""${keyType}"private-key.pem"
+  local keyCert=""${keyType}"Cert.crt"
   #Check if the folder is already created for the keyType (In case of multiple runs)
   mkdir -p "${keyType}"Key && pushd "${keyType}"Key >/dev/null || return
   #Generate a private RSA key.
   if [[ $keyType == "rsa" ]]; then
-    echo -e "Generating a "${keyType}" private key."
-    openssl genrsa -out "${keyType}"private-key.pem 2048 >/var/tmp/out 2>&1
-    chk $? 'Generating a rsa private key.'
+    if [ "$(uname)" == "Darwin" ]; then
+      echo "Using macOS, will generate private key and certificate simultaneously."
+      gencmd="openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout "$privateKey" -out "$keyCert""
+    else
+      echo -e "Generating an "${keyType}" private key."
+      openssl genrsa -out "${keyType}"private-key.pem 2048 >/dev/null 2>&1
+      chk $? 'Generating a rsa private key.'
+    fi
     keyCertGenerator
   #Generate a private ecdsa (256 or 384) key.
   elif [[ $keyType == "ecdsa256" ]] || [[ $keyType == "ecdsa384" ]]; then
     echo -e "Generating an "${keyType}" private key."
     local var2=$(echo $keyType | cut -f2 -da)
-    openssl ecparam -genkey -name secp"${var2}"r1 -out "${keyType}"private-key.pem >/dev/null 2>&1
-    chk $? 'Generating an ecdsa private key.'
+    if [ "$(uname)" == "Darwin" ]; then
+      echo "Using macOS, will generate private key and certificate simultaneously."
+    else
+      openssl ecparam -genkey -name secp"${var2}"r1 -out "${keyType}"private-key.pem >/dev/null 2>&1
+      chk $? 'Generating an ecdsa private key.'
+    fi
     keyCertGenerator
   fi
 }
 
 function keyCertGenerator() {
   if [[ -f "${keyType}"private-key.pem ]]; then
-    local privateKey=""${keyType}"private-key.pem"
-    local keyCert=""${keyType}"Cert.crt"
-    echo -e ""${keyType}" private key creation: Successful"
-    #Generate a self-signed certificate from the private key file.
-    #You should have these environment variables set. If they aren't you will be prompted to enter values.
-    #openssl req -new -key privatekey.pem -out key.csr
-    #!/usr/bin/env bash
-    echo -e "Generating a corresponding certificate."
+    if [ "$(uname)" == "Darwin" ]; then
+      rm "${keyType}"private-key.pem
+    else
+      echo -e ""${keyType}" private key creation: Successful"
+      gencmd="openssl req -"$arch" -key "$privateKey" -out "$keyCert""
+    fi
+  fi
+  #Generate a private key and self-signed certificate.
+  #You should have these environment variables set. If they aren't you will be prompted to enter values.
+  #!/usr/bin/env bash
+  if [ "$(uname)" == "Darwin" ]; then
+    if [[ $keyType == "ecdsa256" ]] || [[ $keyType == "ecdsa384" ]]; then
+      (
+      echo "$COUNTRY_NAME"
+      echo "$STATE_NAME"
+      echo "$CITY_NAME"
+      echo "$COMPANY_NAME"
+      echo "$ORG_NAME"
+      echo "$YOUR_NAME"
+      echo "$EMAIL_NAME"
+    ) | openssl req -x509 -nodes -days 365 -newkey ec:<(openssl genpkey -genparam -algorithm ec -pkeyopt ec_paramgen_curve:P-"${var2}") -keyout "$privateKey" -out "$keyCert" >/dev/null 2>&1
+      chk $? 'generating ec certificate'
+      if [[ -f "$privateKey" ]]; then
+        openssl ec -in ecdsa"${var2}"private-key.pem -out ecdsa"${var2}"private-key.pem >/dev/null 2>&1
+        chk $? 'decrypting ec private key for macOS'
+      else
+        echo "No EC private key found"
+      fi
+    fi
+  fi
+  if [[ $keyType == "rsa" ]] || [ "$(uname)" != "Darwin" ]; then
     (
       echo "$COUNTRY_NAME"
       echo "$STATE_NAME"
@@ -104,19 +138,20 @@ function keyCertGenerator() {
       echo "$ORG_NAME"
       echo "$YOUR_NAME"
       echo "$EMAIL_NAME"
-      echo
-    ) | (openssl req -"$arch" -key "$privateKey" -out "$keyCert") >/dev/null 2>&1
-    chk $? 'generating certificate'
-    if [[ -f $keyCert ]]; then
-      echo -e ""${keyType}"Key Certificate creation: Successful"
-      genPublicKey
-      popd >/dev/null
-    else
-      echo "Owner "${keyType}"Key Certificate not found"
-      exit 2
+    ) | $gencmd >/dev/null 2>&1
+    chk $? 'generating rsa certificate'
+    if [ "$(uname)" == "Darwin" ] && [[ $keyType == "rsa" ]] && [[ -f "$privateKey" ]]; then
+        openssl rsa -in "$privateKey" -out "$privateKey" >/dev/null 2>&1
+        chk $? 'decrypting rsa private key for macOS'
     fi
+  fi
+
+  if [[ -f $keyCert ]] && [[ -f "$privateKey" ]]; then
+    echo -e ""${keyType}" Private Key and "${keyType}"Key Certificate creation: Successful"
+    genPublicKey
+    popd >/dev/null
   else
-    echo ""${keyType}"private-key.pem not found"
+    echo ""${keyType}" Private Key and "${keyType}"Key Certificate not found"
     exit 2
   fi
 }
@@ -124,11 +159,16 @@ function keyCertGenerator() {
 function genPublicKey() {
   # This function is ran after the private key and owner certificate has been created. This function will create a public key to correspond with
   # the owner private key/certificate. Generate a public key from the certificate file
-  openssl "$req" -pubkey -noout -in $keyCert >"${keyType}"pub-key.pem
+  openssl x509 -pubkey -noout -in $keyCert >"${keyType}"pub-key.pem
   chk $? 'Creating public key...'
   echo "Generating "${keyType}" public key..."
-  mv "${keyType}"pub-key.pem ..
-  echo -e ""${keyType}" public key creation: Successful"
+  if [[ -f "${keyType}"pub-key.pem ]]; then
+    echo -e ""${keyType}" public key creation: Successful"
+    mv "${keyType}"pub-key.pem ..
+  else
+    echo -e ""${keyType}" public key creation: Unsuccessful"
+    exit 2
+  fi
 }
 
 function combineKeys() {
