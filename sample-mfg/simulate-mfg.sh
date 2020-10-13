@@ -61,6 +61,7 @@ sdoMariaDbDockerName='manufacturer-mariadb'   # both docker image and container
 dbUser='sdo'
 dbPw='sdo'
 sdoNativeDockerImage='sdo:1.8'
+IP_REGEX='^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$'
 
 #====================== Functions ======================
 
@@ -291,12 +292,16 @@ httpCode=$(curl -w "%{http_code}" -sSL -o /usr/sdo/sdo_to.service $SDO_SUPPORT_R
 chkHttp $? $httpCode 'getting sdo_to.service'
 # we will install it as a systemd service later
 
-# Ensure RV hostname is resolvable and pingable
+# Ensure RV hostname is resolvable, if it is not an IP address
 rvHost=${rvUrl#http*://}   # strip protocol
 rvHost=${rvHost%:*}   # strip optional port
-if ! ping -c 1 -W 5 $rvHost > /dev/null 2>&1 ; then
-    echo "Error: host $rvHost is not resolvable or pingable"
-    exit 1
+#if ! ping -c 1 -W 5 $rvHost > /dev/null 2>&1 ; then  # <- the intel RVs do not support ping
+if [[ ! $rvHost =~ $IP_REGEX ]]; then
+    echo "Verifying that rendezvous server $rvHost is resolvable..."
+    if ! nslookup "$rvHost" > /dev/null 2>&1 ; then
+        echo "Error: rendezvous server $rvHost is not resolvable. Booting SDO devices will not be able to reach it."
+        exit 1
+    fi
 fi
 
 # If they specified a self-signed cert, ensure we are root, then trust the cert.
