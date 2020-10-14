@@ -78,7 +78,7 @@ For production use of SDO, you need to create 3 key pairs and import them into t
    chmod +x generate-key-pair.sh
    ```
    
-2. Run the `generate-key-pair.sh` script. You will be prompted to answer a few questions in order to produce certificates for your private keys. (The prompts can be avoided by setting environment variables. See the script source for details.) You must be using Ubuntu to run this script.
+2. Run the `generate-key-pair.sh` script. You will be prompted to answer a few questions in order to produce certificates for your private keys. (The prompts can be avoided by setting environment variables. Run `./generate-key-pair.sh -h` for details.) You must be using Ubuntu to run this script.
 
    ```bash
    ./generate-key-pair.sh
@@ -109,13 +109,13 @@ export SDO_SAMPLE_MFG_KEEP_SVCS=true   # makes it faster if you run multiple tes
 ./simulate-mfg.sh
 ```
 
-This creates an ownership voucher in the file `voucher.json`.
+This creates an ownership voucher in the file `/var/sdo/voucher.json`.
 
 ### <a name="import-voucher"></a>Import the Ownership Voucher
 
 The ownership voucher created for the device in the previous step needs to be imported to the SDO owner services. **On the Horizon admin host**:
 
-1. When you purchase a physical SDO-enabled device, you receive an ownership voucher from the manufacturer. In the case of the VM device you have configured to simulate an SDO-enabled device, the analogous step is to copy the file `~/sdo/voucher.json` from your VM device to here.
+1. When you purchase a physical SDO-enabled device, you receive an ownership voucher from the manufacturer. In the case of the VM device you have configured to simulate an SDO-enabled device, the analogous step is to copy the file `/var/sdo/voucher.json` from your VM device to here.
 2. Import the ownership voucher, specifying that this device should be initialized with policy to run the helloworld example edge service:
 
    ```bash
@@ -124,9 +124,9 @@ The ownership voucher created for the device in the previous step needs to be im
 
 ### <a name="boot-device"></a>Boot the Device to Have it Configured
 
-When an SDO-enabled device boots, it starts the SDO process which first contacts the rendezvous server, which redirects it to the SDO owner services in your Horizon instance. **Back on your VM device**, simulate the booting of the device and watch SDO configure it:
+When an SDO-enabled device boots, it starts the SDO process. The first thing it does is contact the rendezvous server, which redirects it to the SDO owner services in your Horizon instance. To simulate this process in your VM device, perform these steps:
 
-1. Run the `owner-boot-device` script. This starts the SDO process that runs when an SDO-enabled device is booted.
+1. **Back on your VM device** run the `owner-boot-device` script:
 
    ```bash
    /usr/sdo/bin/owner-boot-device ibm.helloworld
@@ -266,6 +266,10 @@ When following the instructions in [Using the SDO Support](#use-sdo), set the fo
    export SDO_OWNER_SVC_HOST="1.2.3.4"
    # use the built-in rendezvous server instead of Intel's global RV
    export SDO_RV_URL=http://<sdo-owner-svc-host>:8040
+   # when running agent-install.sh on the edge device, it should get pkgs from CSS
+   export SDO_GET_PKGS_FROM=css:
+   # set your own password for the master keystore
+   export SDO_KEY_PWD=<pw>
    # when curling run-sdo-owner-services.sh use the master branch instead of the stable tag
    ```
 
