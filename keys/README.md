@@ -20,7 +20,7 @@ To run this script you must be using Ubuntu.
 1. Go to the directory where you want your generated keys to be saved then download `generate-key-pair.sh`, which is used to create key pairs for Owner Attestation:
 
    ```bash
-   curl -sSLO https://raw.githubusercontent.com/open-horizon/SDO-support/master/keys/generate-key-pair.sh
+   curl -sSLO https://github.com/open-horizon/SDO-support/releases/download/v1.8/generate-key-pair.sh
    chmod +x generate-key-pair.sh
    ```
    
