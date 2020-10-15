@@ -31,14 +31,6 @@ if [[ -n $keyType ]] && [[ $keyType != "ecdsa256" ]] && [[ $keyType != "ecdsa384
   exit 2
 fi
 
-if [ "$(uname)" == "Darwin" ]; then
-  arch="new"
-  req="req"
-else
-  arch="x509"
-  req="x509"
-fi
-
 #============================FUNCTIONS=================================
 
 chk() {
@@ -76,7 +68,7 @@ function genKey() {
   if [[ $keyType == "rsa" ]]; then
     if [ "$(uname)" == "Darwin" ]; then
       echo "Using macOS, will generate private key and certificate simultaneously."
-      gencmd="openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout "$privateKey" -out "$keyCert""
+      gencmd="openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout "$privateKey" -out "$keyCert""
     else
       echo -e "Generating an "${keyType}" private key."
       openssl genrsa -out "${keyType}"private-key.pem 2048 >/dev/null 2>&1
@@ -103,7 +95,7 @@ function keyCertGenerator() {
       rm "${keyType}"private-key.pem
     else
       echo -e ""${keyType}" private key creation: Successful"
-      gencmd="openssl req -"$arch" -key "$privateKey" -out "$keyCert""
+      gencmd="openssl req -x509 -key "$privateKey" -days 3650 -out "$keyCert""
     fi
   fi
   #Generate a private key and self-signed certificate.
@@ -119,7 +111,7 @@ function keyCertGenerator() {
       echo "$ORG_NAME"
       echo "$YOUR_NAME"
       echo "$EMAIL_NAME"
-    ) | openssl req -x509 -nodes -days 365 -newkey ec:<(openssl genpkey -genparam -algorithm ec -pkeyopt ec_paramgen_curve:P-"${var2}") -keyout "$privateKey" -out "$keyCert" >/dev/null 2>&1
+    ) | openssl req -x509 -nodes -days 3650 -newkey ec:<(openssl genpkey -genparam -algorithm ec -pkeyopt ec_paramgen_curve:P-"${var2}") -keyout "$privateKey" -out "$keyCert" >/dev/null 2>&1
       chk $? 'generating ec certificate'
       if [[ -f "$privateKey" ]]; then
         openssl ec -in ecdsa"${var2}"private-key.pem -out ecdsa"${var2}"private-key.pem >/dev/null 2>&1
