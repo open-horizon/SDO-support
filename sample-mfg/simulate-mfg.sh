@@ -23,7 +23,8 @@ Optional Environment Variables:
   SDO_MFG_IMAGE_TAG - version of the manufacturer and manufacturer-mariadb docker images that should be used. Defaults to 'stable'.
   HZN_MGMT_HUB_CERT - the base64 encoded content of the SDO owner services self-signed certificate (if it requires that). This is normally not necessary on the device, because the SDO protocols are secure over HTTP.
   SDO_SAMPLE_MFG_KEEP_SVCS - set to 'true' to skip shutting down the mfg docker containers at the end of this script. This is faster if running this script repeatedly during dev/test.
-  SDO_SUPPORT_REPO - if you need to use a more recent version of SDO files from the repo than the 'stable' tag.
+  SDO_SUPPORT_REPO - if you need to use a more recent version of SDO files from the repo than the 1.8 released files. This takes precedence over SDO_SUPPORT_RELEASE.
+  SDO_SUPPORT_RELEASE - if you need to use a specific set of released files.
   SDO_DEVICE_USE_NATIVE_CLIENT - normally detected automatically, but can be overridden explicitly: set to 'true' to use the native SDO device client. (To use this, you need to have the 'sdo' native docker image already loaded on this host.) Set to 'false' to use the reference implementation java device client. 
 
 ${0##*/} must be run in a directory where it has access to create a few files and directories.
@@ -51,7 +52,9 @@ fi
 
 # These environment variables can be overridden
 SDO_MFG_IMAGE_TAG=${SDO_MFG_IMAGE_TAG:-stable}
-SDO_SUPPORT_REPO=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/stable}
+# default SDO_SUPPORT_REPO to blank, so SDO_SUPPORT_RELEASE will be used
+#SDO_SUPPORT_REPO=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/master}
+SDO_SUPPORT_RELEASE=${SDO_SUPPORT_RELEASE:-https://github.com/open-horizon/SDO-support/releases/download/v1.8}
 useNativeClient=$SDO_DEVICE_USE_NATIVE_CLIENT   # if empty (recommended) this script will detect automatically which sdo client to use
 
 workingDir=/var/sdo
@@ -245,7 +248,7 @@ fi
 # Get the other files we need from our git repo, by way of our device binaries tar file
 if [[ ! -d $deviceBinaryDir ]]; then
     deviceBinaryTar="$deviceBinaryDir.tar.gz"
-    deviceBinaryUrl="https://github.com/open-horizon/SDO-support/releases/download/sdo_device_binaries_1.8/$deviceBinaryTar"
+    deviceBinaryUrl="$SDO_SUPPORT_RELEASE/$deviceBinaryTar"
     echo "Getting and unpacking $deviceBinaryDir ..."
     httpCode=$(curl -w "%{http_code}" --progress-bar -L -O $deviceBinaryUrl)
     chkHttp $? $httpCode "getting $deviceBinaryTar"
@@ -282,13 +285,21 @@ fi
 # Get the owner-boot-device script and sdo_to.service and leave it here for use when the "customer" is booting the device
 echo "Getting owner-boot-device script ..."
 mkdir -p /usr/sdo/bin
-httpCode=$(curl -w "%{http_code}" -sSL -o /usr/sdo/bin/owner-boot-device $SDO_SUPPORT_REPO/tools/owner-boot-device)
+if [[ -n $SDO_SUPPORT_REPO ]]; then
+    httpCode=$(curl -w "%{http_code}" -sSL -o /usr/sdo/bin/owner-boot-device $SDO_SUPPORT_REPO/tools/owner-boot-device)
+else
+    httpCode=$(curl -w "%{http_code}" -sSL -o /usr/sdo/bin/owner-boot-device $SDO_SUPPORT_RELEASE/owner-boot-device)
+fi
 chkHttp $? $httpCode 'getting owner-boot-device'
 chmod +x /usr/sdo/bin/owner-boot-device
 chk $? 'making owner-boot-device executable'
 
 echo "Getting sdo_to.service ..."
-httpCode=$(curl -w "%{http_code}" -sSL -o /usr/sdo/sdo_to.service $SDO_SUPPORT_REPO/sample-mfg/sdo_to.service)
+if [[ -n $SDO_SUPPORT_REPO ]]; then
+    httpCode=$(curl -w "%{http_code}" -sSL -o /usr/sdo/sdo_to.service $SDO_SUPPORT_REPO/sample-mfg/sdo_to.service)
+else
+    httpCode=$(curl -w "%{http_code}" -sSL -o /usr/sdo/sdo_to.service $SDO_SUPPORT_RELEASE/sdo_to.service)
+fi
 chkHttp $? $httpCode 'getting sdo_to.service'
 # we will install it as a systemd service later
 

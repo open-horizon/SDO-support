@@ -14,7 +14,7 @@ These steps only need to be performed by developers of this project.
   make sdo_device_binaries_1.8_linux_x64.tar.gz
   ```
 
-2. Upload the tar file to https://github.com/open-horizon/SDO-support/releases with the title `SDO device binaries 1.8`, so the tar file download URL will be https://github.com/open-horizon/SDO-support/releases/download/sdo_device_binaries_1.8/sdo_device_binaries_1.8_linux_x64.tar.gz
+2. Upload the tar file to https://github.com/open-horizon/SDO-support/releases with the title `SDO 1.8` and tag `v1.8`, so the tar file download URL will be https://github.com/open-horizon/SDO-support/releases/download/v1.8/sdo_device_binaries_1.8_linux_x64.tar.gz
 
 ### Build the Sample SDO Manufacturer Docker Images
 

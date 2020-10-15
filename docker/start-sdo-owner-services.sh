@@ -95,7 +95,7 @@ if [[ -s 'ocs/config/owner-keystore.p12' ]]; then
         chk $? 'Checking if SDO_KEY_PWD is correct'
         if [[ "$keyPass" != "$keyPassDefault" ]]; then
             # update value in ocs/config/application.properties
-            sed -i -e "s/^fs.owner.keystore-password=.*$/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
+            sed -i -e "s/^fs.owner.keystore-password=.*/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
         fi
     fi
     cp ocs/config/owner-keystore.p12 $ocsDbDir/v1/creds   # need to copy it, because can't move a mounted file
@@ -105,7 +105,7 @@ elif [[ -s "$ocsDbDir/v1/creds/owner-keystore.p12" ]]; then
         echo "Verifying SDO_KEY_PWD is correct for existing owner keystore..."
         echo "$keyPass" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore "$ocsDbDir/v1/creds/owner-keystore.p12" >/dev/null 2>&1
         chk $? 'Checking if SDO_KEY_PWD is correct'
-        sed -i -e "s/^fs.owner.keystore-password=.*$/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
+        sed -i -e "s/^fs.owner.keystore-password=.*/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
     fi
 else
     # Use the default key file that Dockerfile stored, ocs/config/sample-owner-keystore.p12, but name it owner-keystore.p12
@@ -114,7 +114,7 @@ else
         echo "Changing sample owner keystore password from default to SDO_KEY_PWD ..."
         /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -storepasswd -keystore ocs/config/sample-owner-keystore.p12 -storepass $keyPassDefault -new $keyPass
         chk $? 'Changing Sample Owner Keystore password'
-        sed -i -e "s/^fs.owner.keystore-password=.*$/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
+        sed -i -e "s/^fs.owner.keystore-password=.*/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
     fi
     mv ocs/config/sample-owner-keystore.p12 $ocsDbDir/v1/creds/owner-keystore.p12
 fi
