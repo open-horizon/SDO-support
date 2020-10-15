@@ -58,6 +58,12 @@ The device certificate `device.crt` can be found in `sdo_device_binaries_1.8_lin
    ```bash
    openssl x509 -in <owner-certificate.crt> -text
    ```
+3. To extract a private key from a .p12 file, then decrypt that key
+    ```bush
+    openssl pkcs12 -in <owner-keystore.p12> -nocerts -out <private-key.pem>
+    cat <private-key.pem>
+    openssl rsa -in <private-key.pem> -out <private-key.pem>
+    ```
 
 ### Creating Your Own Owner Key Pair
 
