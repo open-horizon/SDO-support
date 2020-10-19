@@ -39,7 +39,7 @@ Before continuing with the rest of the SDO process, it is good to verify that yo
    export HZN_ORG_ID=<exchange-org>
    export HZN_EXCHANGE_USER_AUTH=iamapikey:<api-key>
    export HZN_SDO_SVC_URL=<protocol>://<sdo-owner-svc-host>:<ocs-api-port>/<ocs-api-path>
-   export SDO_RV_URL=http://sdo-sbx.trustedservices.intel.com
+   export SDO_RV_URL=http://sdo-sbx.trustedservices.intel.com:80
    ```
 
    **Note:**
@@ -105,7 +105,7 @@ The sample script called `simulate-mfg.sh` simulates the steps of an SDO-enabled
 mkdir -p $HOME/sdo && cd $HOME/sdo
 curl -sSLO https://github.com/open-horizon/SDO-support/releases/download/v1.8/simulate-mfg.sh
 chmod +x simulate-mfg.sh
-export SDO_RV_URL=http://sdo-sbx.trustedservices.intel.com
+export SDO_RV_URL=http://sdo-sbx.trustedservices.intel.com:80
 export SDO_SAMPLE_MFG_KEEP_SVCS=true   # makes it faster if you run multiple tests
 ./simulate-mfg.sh
 ```
