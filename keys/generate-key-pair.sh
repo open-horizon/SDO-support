@@ -23,6 +23,7 @@ fi
 
 keyType="${1:-all}"
 gencmd=""
+str="$(openssl version)"
 
 #If the argument passed for this script does not equal one of the encryption keyTypes, send error code and exit.
 #BY DEFAULT THE keyType WILL BE SET TO all
@@ -31,6 +32,14 @@ if [[ -n $keyType ]] && [[ $keyType != "ecdsa256" ]] && [[ $keyType != "ecdsa384
   exit 2
 fi
 
+if [[ ${str} =~ OpenSSL ]]; then
+  echo "Found Homebrew Openssl"
+else
+	echo "You are not using the homebrew version of OpenSSL. In order to run this script you must be using the Homebrew version of OpenSSL.
+	Go to this website and follow the instructions to set up your OpenSSL environment:
+	https://medium.com/@maxim.mahovik/upgrade-openssl-for-macos-e7a9ed82a76b "
+	exit
+fi
 #============================FUNCTIONS=================================
 
 chk() {
