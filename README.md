@@ -29,21 +29,20 @@ The SDO owner services respond to booting devices and enable administrators to i
 
 If you need to run your own instance of the SDO owner services for development purposes, see [Starting Your Own Instance of the SDO Owner Services](#start-services-developer).
 
-#### Verify the SDO Owner Services API Endpoints
+#### <a name="verify-services"></a>Verify the SDO Owner Services API Endpoints
 
 Before continuing with the rest of the SDO process, it is good to verify that you have the correct information necessary to reach the SDO owner service endpoints. **On a Horizon "admin" host** run these simple SDO APIs to verify that the services within the docker container are accessible and responding properly. (A Horizon admin host is one that has the `horizon-cli` package installed, which provides the `hzn` command, and has the environment variables `HZN_EXCHANGE_URL`, `HZN_SDO_SVC_URL`, `HZN_ORG_ID`, and `HZN_EXCHANGE_USER_AUTH` set correctly for your Horizon management hub.)
 
-1. Export these environment variables for the subsequent steps:
+1. Export these environment variables for the subsequent steps. Contact the management hub installer for the exact values:
 
    ```bash
    export HZN_ORG_ID=<exchange-org>
    export HZN_EXCHANGE_USER_AUTH=iamapikey:<api-key>
-   export HZN_SDO_SVC_URL=http://<sdo-owner-svc-host>:<ocs-api-port>/api
-   export SDO_RV_URL=http://sdo-sbx.trustedservices.intel.com
+   export HZN_SDO_SVC_URL=<protocol>://<sdo-owner-svc-host>:<ocs-api-port>/<ocs-api-path>
+   export SDO_RV_URL=http://sdo-sbx.trustedservices.intel.com:80
    ```
 
-   **Notes:**
-   * If you are using the [All-in-1 developer management hub](https://github.com/open-horizon/devops/blob/master/mgmt-hub/README.md), `<ocs-api-port>` should be `9008`. If you are using a vendor's Horizon management hub, see their documentation for this value.
+   **Note:**
    * The Open Horizon SDO support code includes a built-in rendezvous server that can be used during development or air-gapped environments. See [Running the SDO Support During Dev/Test](#running-dev-test).
 
 2. Query the OCS API version:
@@ -70,6 +69,8 @@ Before continuing with the rest of the SDO process, it is good to verify that yo
 ### <a name="gen-keypair"></a>Generate Owner Key Pairs
 
 For production use of SDO, you need to create 3 key pairs and import them into the owner services container. These key pairs enable you to securely take over ownership of SDO ownership vouchers from SDO-enabled device manufacturers, and to securely configure your booting SDO devices. Use the provided `generate-key-pair.sh` script to easily create the necessary key pairs. (If you are only trying out SDO in a dev/test environment, you can use the built-in sample key pairs and skip this section. You can always add your own key pairs later.)
+
+Note: you only have to perform the steps in this section once. The keys create and import can be used with all of your devices.
 
 1. Go to the directory where you want your generated keys to be saved then download `generate-key-pair.sh`.
 
@@ -104,7 +105,7 @@ The sample script called `simulate-mfg.sh` simulates the steps of an SDO-enabled
 mkdir -p $HOME/sdo && cd $HOME/sdo
 curl -sSLO https://github.com/open-horizon/SDO-support/releases/download/v1.8/simulate-mfg.sh
 chmod +x simulate-mfg.sh
-export SDO_RV_URL=http://sdo-sbx.trustedservices.intel.com
+export SDO_RV_URL=http://sdo-sbx.trustedservices.intel.com:80
 export SDO_SAMPLE_MFG_KEEP_SVCS=true   # makes it faster if you run multiple tests
 ./simulate-mfg.sh
 ```
@@ -251,7 +252,19 @@ The SDO owner services are packaged as a single docker container that can be run
    ./run-sdo-owner-services.sh
    docker logs -f sdo-owner-services
    ```
-   *In the logs you will find `<sdo-owner-svc-host>` that is needed for the subsequent steps*
+
+5. Perform the user verification steps in [Verify the SDO Owner Services API Endpoints](#verify-services).
+
+6. Perform these additional developer verification steps:
+
+   ```bash
+   guid=$(jq -r .oh.g voucher.json)   # if you have a current voucher
+   guid='ox0fh+4kSJC6vbpCTpKbLg=='  # if you do NOT have a current voucher
+   curl -sS -w "%{http_code}" -H Content-Type:application/json -d '{"g2":"'$guid'","n5":"qoVoYKjUn7d6g3KaBrFXfQ==","pe":1,"kx":"ECDH","cs":"AES128/CTR/HMAC-SHA256","eA":[13,0,""]}' -X POST http://$SDO_OWNER_SVC_HOST:$SDO_OPS_EXTERNAL_PORT/mp/113/msg/40 | jq
+   # an http code of 200 or 400 means it can successfully communicate with OPS
+   curl -sS -w "%{http_code}" -H Content-Type:application/json -d '{"g2":"'$guid'","eA":[13,0,""]}' -X POST $SDO_RV_URL/mp/113/msg/30 | jq
+   # an http code of 200 or 500 means it can successfully communicate with RV
+   ```
 
 ### <a name="running-dev-test"></a>Running the SDO Support During Dev/Test
 
