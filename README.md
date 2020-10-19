@@ -78,7 +78,7 @@ For production use of SDO, you need to create 3 key pairs and import them into t
    chmod +x generate-key-pair.sh
    ```
    
-2. Run the `generate-key-pair.sh` script. You will be prompted to answer a few questions in order to produce certificates for your private keys. (The prompts can be avoided by setting environment variables. Run `./generate-key-pair.sh -h` for details.) You must be using Ubuntu to run this script.
+2. Run the `generate-key-pair.sh` script. You will be prompted to answer a few questions in order to produce certificates for your private keys. (The prompts can be avoided by setting environment variables. Run `./generate-key-pair.sh -h` for details.) Supports Ubuntu and macOS.
 
    ```bash
    ./generate-key-pair.sh
