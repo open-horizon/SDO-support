@@ -105,7 +105,7 @@ if [ -f /target/boot/inside-sdo-container ]; then
     find . -maxdepth 1 -type f ! -name inside-sdo-container ! -name linux-client ! -name run_csdk_sdo.sh -exec cp -p -t /target/boot/ {} +
     if [ $? -ne 0 ]; then echo "Error: can not copy downloaded files to /target/boot"; fi
     # The <device-uuid>_exec file is not actually saved to disk, so recreate it (with a fixed name)
-    echo "/bin/sh agent-install-wrapper.sh \"$1\" \"$2\" \"$3\" \"$4\" \"$5\" \"$6\" \"$7\" \"$8\" " > /target/boot/device_exec
+    echo "/bin/sh agent-install-wrapper.sh \"$1\" \"$2\" \"$3\" \"$4\" " > /target/boot/device_exec
     chmod +x /target/boot/device_exec
     echo "Created /target/boot/device_exec: $(cat /target/boot/device_exec)"
     exit
@@ -122,7 +122,6 @@ chmod 755 agent-install.sh
 # If tee is installed, use it so the output can go to both stdout/stderr and the log file
 if command -v tee >/dev/null 2>&1; then
     # Note: the individual arg variables need to be listed like this and quoted to handle spaces in an arg
-    # "bash agent-install.sh -i " + aptRepo + " -t " + aptChannel + " -j apt-repo-public.key -d " + uuid.String() + ":" + nodeToken
     exec ./agent-install.sh "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" 2>&1 | tee $logFile
 else
     exec ./agent-install.sh "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" 2>&1 > $logFile

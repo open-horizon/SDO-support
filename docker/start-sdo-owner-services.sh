@@ -7,6 +7,7 @@ opsPortDefault='8042'
 rvPortDefault='8040'
 ocsApiPortDefault='9008'
 keyPassDefault='MLP3QA!Z'
+rvVoucherTtlDefault='7200'
 
 # These can be passed in via CLI args or env vars
 ocsDbDir="${1:-$SDO_OCS_DB_PATH}"
@@ -16,17 +17,26 @@ keyPass="${SDO_KEY_PWD:-$keyPassDefault}"
 opsPort=${SDO_OPS_PORT:-$opsPortDefault}
 opsExternalPort=${SDO_OPS_EXTERNAL_PORT:-$opsPort}
 rvPort=${SDO_RV_PORT:-$rvPortDefault}
+#VERBOSE='true'   # let it be set by the container provisioner
 
 if [[ "$1" == "-h" || "$1" == "--help" || -z "$SDO_OCS_DB_PATH" || -z "$SDO_OCS_API_PORT" ]]; then
     cat << EndOfMessage
 Usage: ${0##*/} [<ocs-db-path>] [<ocs-api-port>]
+
 Environment variables that can be used instead of CLI args: SDO_OCS_DB_PATH, SDO_OCS_API_PORT
 Required environment variables: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID
 Recommended environment variables: HZN_MGMT_HUB_CERT (unless the mgmt hub uses http or a CA-trusted certificate), SDO_KEY_PWD (unless using sample key files)
-Additional environment variables: SDO_RV_PORT, SDO_OPS_PORT, SDO_OPS_EXTERNAL_PORT, EXCHANGE_INTERNAL_URL
+Additional environment variables: SDO_RV_PORT, SDO_OPS_PORT, SDO_OPS_EXTERNAL_PORT, EXCHANGE_INTERNAL_URL, VERBOSE
 EndOfMessage
     exit 1
 fi
+
+# Only echo this if VERBOSE is 1 or true
+verbose() {
+    if [[ "$VERBOSE" == '1' || "$VERBOSE" == 'true' ]]; then
+        echo 'Verbose:' "$*"
+    fi
+}
 
 chk() {
     local exitCode=$1
@@ -50,62 +60,75 @@ echo "Using external SDO_OWNER_SVC_HOST: $SDO_OWNER_SVC_HOST (for now only used 
 # So to0scheduler will point RV (and by extension, the device) to the correct OPS host. Can be a hostname or IP address
 if [[ $SDO_OWNER_SVC_HOST =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     # IP address
-    #sed -i -e "s/^com.intel.sdo.to0.ownersign.to1d.bo.i1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.i1=$SDO_OWNER_SVC_HOST/" -e "s/^com.intel.sdo.to0.ownersign.to1d.bo.dns1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.dns1=/" to0scheduler/config/application.properties
-    sed -i -e "s/^ip=.*$/ip=$SDO_OWNER_SVC_HOST/" -e "s/^dns=.*$/dns=/" to0scheduler/config/redirect.properties
+    sed -i -e "s|^ip=.*|ip=${SDO_OWNER_SVC_HOST}|" -e "s|^dns=.*|dns=|" to0scheduler/config/redirect.properties
+    chk $? 'sed ip in to0scheduler/config/redirect.properties'
 else
     # hostname
-    #sed -i -e "s/^com.intel.sdo.to0.ownersign.to1d.bo.dns1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.dns1=$SDO_OWNER_SVC_HOST/" to0scheduler/config/application.properties
-    sed -i -e "s/^dns=.*$/dns=$SDO_OWNER_SVC_HOST/" to0scheduler/config/redirect.properties
+    sed -i -e "s|^dns=.*|dns=${SDO_OWNER_SVC_HOST}|" to0scheduler/config/redirect.properties
+    chk $? 'sed dns in to0scheduler/config/redirect.properties'
 fi
 
 # If using a non-default port number for OPS, configure both ops and to0scheduler with that value
 if [[ "$opsPort" != "$opsPortDefault" ]]; then
-    sed -i -e "s/^server.port=.*$/server.port=$opsPort/" ops/config/application.properties
+    sed -i -e "s|^server.port=.*|server.port=${opsPort}|" ops/config/application.properties
+    chk $? 'sed port in ops/config/application.properties'
 fi
 if [[ "$opsExternalPort" != "$opsPortDefault" ]]; then
-    #sed -i -e "s/^com.intel.sdo.to0.ownersign.to1d.bo.port1=.*$/com.intel.sdo.to0.ownersign.to1d.bo.port1=$opsExternalPort/" to0scheduler/config/application.properties
-    sed -i -e "s/^port=.*$/port=$opsExternalPort/" to0scheduler/config/redirect.properties
+    sed -i -e "s|^port=.*|port=${opsExternalPort}|" to0scheduler/config/redirect.properties
+    chk $? 'sed port in to0scheduler/config/redirect.properties'
 fi
 
 # If using a non-default port number for the RV to listen on inside the container, configure RV with that value
 if [[ "$rvPort" != "$rvPortDefault" ]]; then
-    sed -i -e "s/^server.port=.*$/server.port=$rvPort/" rv/application.properties
+    sed -i -e "s|^server.port=.*|server.port=${rvPort}|" rv/application.properties
+    chk $? 'sed port in rv/application.properties'
 fi
 
 # This sed is for dev/test/demo and makes the to0scheduler respond to changes more quickly, and let us use the same voucher over again
 #todo: should we not do this for production? If so, add an env var that will do this for dev/test
-sed -i -e 's/^to0.scheduler.interval=.*$/to0.scheduler.interval=5/' -e 's/^to2.credential-reuse.enabled=.*$/to2.credential-reuse.enabled=true/' ocs/config/application.properties
+sed -i -e 's|^to0.scheduler.interval=.*|to0.scheduler.interval=5|' -e 's|^to2.credential-reuse.enabled=.*|to2.credential-reuse.enabled=true|' ocs/config/application.properties
+chk $? 'sed ocs/config/application.properties'
+
+# Sometimes during dev/test, it is useful for the vouchers to persist in RV longer than the default 2 hours
+if [[ -n $SDO_RV_VOUCHER_TTL && $SDO_RV_VOUCHER_TTL != $rvVoucherTtlDefault ]]; then
+    echo "Setting RV voucher TTL (to0.waitseconds) to $SDO_RV_VOUCHER_TTL ..."
+    sed -i -e "s|^to0.waitseconds=.*|to0.waitseconds=${SDO_RV_VOUCHER_TTL}|" ocs/config/application.properties
+    chk $? 'sed to0.waitseconds ocs/config/application.properties'
+fi
 
 # Need to move this file into the ocs db *after* the docker run mount is done
 # If the user specified their own owner private key, run-sdo-owner-services.sh will mount it at ocs/config/owner-keystore.p12, otherwise use the default
 mkdir -p $ocsDbDir/v1/creds
+# first check pw for length and disallowed chars (that cause the sed cmds below to fail)
+# Note: keyPass is always set, because it is set to the default pw if SDO_KEY_PWD not set
+if [[ ${#keyPass} -lt 6 || $keyPass == *$'\n'* || $keyPass == *'|'* ]]; then
+    # newlines and vertical bars aren't allowed in the pw, because they cause the sed cmds below to fail
+    echo "Error: SDO_KEY_PWD must be at least 6 characters and not contain newlines or '|'"
+    exit 1
+fi
+# Note: ocs/config/application.properties is NOT in the volume, so the keystore-password setting is the default every time our container starts
 if [[ -s 'ocs/config/owner-keystore.p12' ]]; then
     echo "Using your owner keystore"
-    # Will check if the SDO_KEY_PWD has already been set, and if SDO_KEY_PWD meets length requirements
-    if [[ -z "$keyPass" ]]; then
-        echo "When using your own keystore, SDO_KEY_PWD must be set"
-        exit 1
-    elif [[ -n "$keyPass" ]] && [[ ${#keyPass} -lt 6 ]]; then
-        echo "SDO_KEY_PWD not long enough. Needs to be at least 6 characters"
-        exit 1
-    # If password meets requirements, then check its validity
-    elif [[ -n "$keyPass" ]] && [[ ${#keyPass} -ge 6 ]]; then
-        echo "Verifying SDO_KEY_PWD is correct for your owner keystore..."
-        echo "$keyPass" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore "$ownerPrivateKey" >/dev/null 2>&1
-        chk $? 'Checking if SDO_KEY_PWD is correct'
-        if [[ "$keyPass" != "$keyPassDefault" ]]; then
-            # update value in ocs/config/application.properties
-            sed -i -e "s/^fs.owner.keystore-password=.*/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
-        fi
+    echo "Verifying SDO_KEY_PWD or default is correct for your owner keystore..."
+    echo "$keyPass" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore "$ownerPrivateKey" >/dev/null 2>&1
+    chk $? 'Checking if SDO_KEY_PWD is correct'
+    if [[ "$keyPass" != "$keyPassDefault" ]]; then
+        echo "Updating fs.owner.keystore-password value in ocs/config/application.properties ..."
+        verbose sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
+        sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
+        chk $? 'sed password in ocs/config/application.properties'
     fi
     cp ocs/config/owner-keystore.p12 $ocsDbDir/v1/creds   # need to copy it, because can't move a mounted file
 elif [[ -s "$ocsDbDir/v1/creds/owner-keystore.p12" ]]; then
     echo "Existing owner keystore found..."
-    if [[ -n "$keyPass" ]] && [[ ${#keyPass} -ge 6 ]]; then
-        echo "Verifying SDO_KEY_PWD is correct for existing owner keystore..."
-        echo "$keyPass" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore "$ocsDbDir/v1/creds/owner-keystore.p12" >/dev/null 2>&1
-        chk $? 'Checking if SDO_KEY_PWD is correct'
-        sed -i -e "s/^fs.owner.keystore-password=.*/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
+    echo "Verifying SDO_KEY_PWD or default is correct for existing owner keystore..."
+    echo "$keyPass" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore "$ocsDbDir/v1/creds/owner-keystore.p12" >/dev/null 2>&1
+    chk $? 'Checking if SDO_KEY_PWD is correct'
+    if [[ "$keyPass" != "$keyPassDefault" ]]; then
+        echo "Updating fs.owner.keystore-password value in ocs/config/application.properties ..."
+        verbose sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
+        sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
+        chk $? 'sed password in ocs/config/application.properties'
     fi
 else
     # Use the default key file that Dockerfile stored, ocs/config/sample-owner-keystore.p12, but name it owner-keystore.p12
@@ -114,7 +137,10 @@ else
         echo "Changing sample owner keystore password from default to SDO_KEY_PWD ..."
         /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -storepasswd -keystore ocs/config/sample-owner-keystore.p12 -storepass $keyPassDefault -new $keyPass
         chk $? 'Changing Sample Owner Keystore password'
-        sed -i -e "s/^fs.owner.keystore-password=.*/fs.owner.keystore-password=$keyPass/" ocs/config/application.properties
+        echo "Updating fs.owner.keystore-password value in ocs/config/application.properties ..."
+        verbose sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
+        sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
+        chk $? 'sed password in ocs/config/application.properties'
     fi
     mv ocs/config/sample-owner-keystore.p12 $ocsDbDir/v1/creds/owner-keystore.p12
 fi

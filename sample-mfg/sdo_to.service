@@ -8,6 +8,7 @@ After=network-online.target
 Before=user-sessions.service
 
 [Service]
+# For oneshot, systemd expects the command to NOT fork itself, and timeout is disabled by default
 Type=oneshot
 WorkingDirectory=/var/sdo
 ExecStart=/bin/bash /usr/sdo/bin/owner-boot-device

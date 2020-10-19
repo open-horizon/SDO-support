@@ -391,8 +391,6 @@ if [[ $useNativeClient == 'true' ]]; then
     chk $? "creating and cding into $BOOTFS"
     SCT_IP_ADDRESS='manufacturer'   # we are running the DI container on the manufacturer_network, so we can reach the manufactuer container via its internal connection info
     SCT_PORT=8080
-    #SCT_IP_ADDRESS="$(getPrivateIp)"   # when we did not connect to the manufacturer_network, we had to use 1 of the IP addresses so the DI container could reach the manufactuer container
-    #SCT_PORT=8039
     Serial_Number_String="$(dmidecode -t system 2>/dev/null | grep Serial | awk '{print $3}')"
     if [[ -z "$Serial_Number_String" || "$Serial_Number_String" == 'Not' ]]; then
         Serial_Number_String='1234567'
