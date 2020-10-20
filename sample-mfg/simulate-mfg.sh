@@ -504,5 +504,5 @@ echo '-------------------------------------------------'
 echo "Device UUID: $voucherDevUuid"
 echo '-------------------------------------------------'
 
-echo "The extended ownership voucher is in file: voucher.json"
+echo "The extended ownership voucher is in file: ${workingDir}/voucher.json"
 echo "Device manufacturing initialization complete."
