@@ -37,7 +37,7 @@ Before continuing with the rest of the SDO process, it is good to verify that yo
 
    ```bash
    export HZN_ORG_ID=<exchange-org>
-   export HZN_EXCHANGE_USER_AUTH=iamapikey:<api-key>
+   export HZN_EXCHANGE_USER_AUTH=<user>:<password>
    export HZN_SDO_SVC_URL=<protocol>://<sdo-owner-svc-host>:<ocs-api-port>/<ocs-api-path>
    export SDO_RV_URL=http://sdo-sbx.trustedservices.intel.com:80
    ```
@@ -89,7 +89,7 @@ Note: you only have to perform the steps in this section once. The keys create a
    - `owner-keys.tar.gz`: A tar file containing the 3 private keys and associated certificates. This file will be imported into the owner services container in the next step.
    - `owner-public-key.pem`: The corresponding customer/owner public keys (all in a single file). This is used by the device manufacturer to securely extend the vouchers to the owner. Pass this file as an argument whenever running simulate-mfg.sh, and give this public key to each device manufacturer producing SDO-enabled devices for you.
     
-4. Import `owner-keys.tar.gz` into the SDO owner services: 
+4. **On your admin host** import `owner-keys.tar.gz` into the SDO owner services: 
     
    ```bash
    curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -X POST -H Content-Type:application/octet-stream --data-binary @owner-keys.tar.gz $HZN_SDO_SVC_URL/keys && echo
