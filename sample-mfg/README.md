@@ -45,7 +45,7 @@ These steps only need to be performed by developers of this project.
   make publish-sdo-mfg-services
   ```
 
-5. On a fully tested release boundary (usually when the 2nd number of the version changes), publish them to docker hub with the `stable` tag:
+5. On a fully tested release boundary (usually when the 2nd number of the version changes), publish them to docker hub with the tag considered stable:
 
   ```bash
   make promote-sdo-mfg-services

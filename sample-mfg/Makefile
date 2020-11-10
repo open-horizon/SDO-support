@@ -2,6 +2,7 @@ SHELL ?= /bin/bash -e
 
 # Use VERSION from the top-level Makefile as the default
 export MFG_VERSION ?= $(shell grep -m 1 -E '^export VERSION \?=' ../Makefile | awk '{print$$4}')
+STABLE_VERSION ?= 1.8
 
 DOCKER_REGISTRY ?= openhorizon
 SDO_MFG_DOCKER_IMAGE ?= manufacturer
@@ -42,12 +43,12 @@ publish-sdo-mfg-services:
 	docker tag $(SDO_MARIADB_DOCKER_IMAGE):1.8 $(DOCKER_REGISTRY)/$(SDO_MARIADB_DOCKER_IMAGE):latest
 	docker push $(DOCKER_REGISTRY)/$(SDO_MARIADB_DOCKER_IMAGE):latest
 
-# Push the SDO mfg docker images to the registry with stable tag
+# Push the SDO mfg docker images to the registry with $(STABLE_VERSION) tag
 promote-sdo-mfg-services:
-	docker tag $(SDO_MFG_DOCKER_IMAGE):1.8 $(DOCKER_REGISTRY)/$(SDO_MFG_DOCKER_IMAGE):stable
-	docker push $(DOCKER_REGISTRY)/$(SDO_MFG_DOCKER_IMAGE):stable
-	docker tag $(SDO_MARIADB_DOCKER_IMAGE):1.8 $(DOCKER_REGISTRY)/$(SDO_MARIADB_DOCKER_IMAGE):stable
-	docker push $(DOCKER_REGISTRY)/$(SDO_MARIADB_DOCKER_IMAGE):stable
+	docker tag $(SDO_MFG_DOCKER_IMAGE):1.8 $(DOCKER_REGISTRY)/$(SDO_MFG_DOCKER_IMAGE):$(STABLE_VERSION)
+	docker push $(DOCKER_REGISTRY)/$(SDO_MFG_DOCKER_IMAGE):$(STABLE_VERSION)
+	docker tag $(SDO_MARIADB_DOCKER_IMAGE):1.8 $(DOCKER_REGISTRY)/$(SDO_MARIADB_DOCKER_IMAGE):$(STABLE_VERSION)
+	docker push $(DOCKER_REGISTRY)/$(SDO_MARIADB_DOCKER_IMAGE):$(STABLE_VERSION)
 
 # Use this if you are on a machine where you did not build the images
 pull-sdo-mfg-services:

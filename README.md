@@ -196,7 +196,7 @@ These steps only need to be performed by developers of this project.
    make publish-sdo-owner-services
    ```
 
-5. On a fully tested release boundary (usually when the 2nd number of the version changes), publish it to docker hub with the `stable` tag:
+5. On a fully tested release boundary (usually when the 2nd number of the version changes), publish it to docker hub with the tag considered stable:
 
    ```bash
    make promote-sdo-owner-services
@@ -283,7 +283,7 @@ When following the instructions in [Using the SDO Support](#use-sdo), set the fo
    export SDO_GET_PKGS_FROM=css:
    # set your own password for the master keystore
    export SDO_KEY_PWD=<pw>
-   # when curling run-sdo-owner-services.sh use the master branch instead of the stable tag
+   # when curling run-sdo-owner-services.sh use the master branch instead of the 1.8 tag
    ```
 
 - In [Initialize a Device with SDO](#init-device) set:
@@ -299,7 +299,7 @@ When following the instructions in [Using the SDO Support](#use-sdo), set the fo
    export SDO_MFG_IMAGE_TAG=1.2.3   # using the docker image you are still working on
    # this will speed repetitive testing, because it will leave the mfg containers running if they haven't changed
    export SDO_SAMPLE_MFG_KEEP_SVCS=true
-   # when curling simulate-mfg.sh use the master branch instead of the stable tag
+   # when curling simulate-mfg.sh use the master branch instead of the 1.8 tag
    ```
 
 - In [Import the Ownership Voucher](#import-voucher) set: (nothing special so far)
