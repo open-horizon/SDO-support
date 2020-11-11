@@ -1,5 +1,7 @@
 # SDO-support
 
+## Under construction, do not use yet!!!!
+
 ## Overview of the Open Horizon SDO Support
 
 Edge devices built with [Intel SDO](https://software.intel.com/en-us/secure-device-onboard) (Secure Device Onboard) can be added to an Open Horizon instance by simply importing their associated ownership vouchers and then powering on the devices.
@@ -75,11 +77,11 @@ Note: you only have to perform the steps in this section once. The keys create a
 1. Go to the directory where you want your generated keys to be saved then download `generate-key-pair.sh`.
 
    ```bash
-   curl -sSLO https://github.com/open-horizon/SDO-support/releases/download/v1.8/generate-key-pair.sh
+   curl -sSLO https://github.com/open-horizon/SDO-support/releases/download/v1.9/generate-key-pair.sh
    chmod +x generate-key-pair.sh
    ```
    
-2. Run the `generate-key-pair.sh` script. You will be prompted to answer a few questions in order to produce certificates for your private keys. (The prompts can be avoided by setting environment variables. Run `./generate-key-pair.sh -h` for details.) Supports Ubuntu and macOS.
+2. Run the `generate-key-pair.sh` script. You will be prompted to answer a few questions in order to produce certificates for your private keys. (The prompts can be avoided by setting environment variables. Run `./generate-key-pair.sh -h` for details.) You must be using Ubuntu to run this script.
 
    ```bash
    ./generate-key-pair.sh
@@ -103,7 +105,7 @@ The sample script called `simulate-mfg.sh` simulates the steps of an SDO-enabled
 
 ```bash
 mkdir -p $HOME/sdo && cd $HOME/sdo
-curl -sSLO https://github.com/open-horizon/SDO-support/releases/download/v1.8/simulate-mfg.sh
+curl -sSLO https://github.com/open-horizon/SDO-support/releases/download/v1.9/simulate-mfg.sh
 chmod +x simulate-mfg.sh
 export SDO_RV_URL=http://sdo-sbx.trustedservices.intel.com:80
 export SDO_SAMPLE_MFG_KEEP_SVCS=true   # makes it faster if you run multiple tests
@@ -221,7 +223,7 @@ The SDO owner services are packaged as a single docker container that can be run
 
    ```bash
    mkdir $HOME/sdo; cd $HOME/sdo
-   curl -sSLO https://raw.githubusercontent.com/open-horizon/SDO-support/v1.8/docker/run-sdo-owner-services.sh
+   curl -sSLO https://raw.githubusercontent.com/open-horizon/SDO-support/master/docker/run-sdo-owner-services.sh
    chmod +x run-sdo-owner-services.sh
    ```
 
@@ -283,7 +285,7 @@ When following the instructions in [Using the SDO Support](#use-sdo), set the fo
    export SDO_GET_PKGS_FROM=css:
    # set your own password for the master keystore
    export SDO_KEY_PWD=<pw>
-   # when curling run-sdo-owner-services.sh use the master branch instead of the 1.8 tag
+   # when curling run-sdo-owner-services.sh use the master branch instead of the 1.9 tag
    ```
 
 - In [Initialize a Device with SDO](#init-device) set:
@@ -299,7 +301,7 @@ When following the instructions in [Using the SDO Support](#use-sdo), set the fo
    export SDO_MFG_IMAGE_TAG=1.2.3   # using the docker image you are still working on
    # this will speed repetitive testing, because it will leave the mfg containers running if they haven't changed
    export SDO_SAMPLE_MFG_KEEP_SVCS=true
-   # when curling simulate-mfg.sh use the master branch instead of the 1.8 tag
+   # when curling simulate-mfg.sh use the master branch instead of the 1.9 tag
    ```
 
 - In [Import the Ownership Voucher](#import-voucher) set: (nothing special so far)

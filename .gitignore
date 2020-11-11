@@ -5,7 +5,7 @@
 /keys/ecdsa384Key/
 /keys/rsaKey/
 
-# Where the SDO 1.8 tar files are downloaded to
+# Where the SDO 1.9 tar files are downloaded to
 /sdo/
 
 /vendor/
