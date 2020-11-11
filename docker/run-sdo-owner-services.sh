@@ -7,7 +7,7 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
 Usage: ${0##*/} [<image-version>] [<owner-private-key-file>]
 
 Arguments:
-  <image-version>  The image tag to use. Defaults to '1.8'
+  <image-version>  The image tag to use. Defaults to '1.9'
   <owner-private-key-file>  The p12 private key you have created to use with the sdo-owner-services. Must supply the corresponding public key to sample-mfg/simulate-mfg.sh. If the private key isn't specified here, the default is keys/sample-owner-keystore.p12
 
 Required environment variables:
@@ -26,7 +26,7 @@ Additional environment variables (that do not usually need to be set):
   SDO_OPS_EXTERNAL_PORT - external port number that RV should tell the device to reach OPS at. Defaults to the internal OPS port number.
   SDO_OCS_API_PORT - port number OCS-API should listen on *inside* the container. Default is 9008.
   EXCHANGE_INTERNAL_URL - how OCS-API should contact the exchange for authentication. Will default to HZN_EXCHANGE_URL.
-  AGENT_INSTALL_URL - where to get agent-install.sh from. Valid values: file:///<path-to-agent-install> (will be mounted into the container), https://raw.githubusercontent.com/open-horizon/anax/master/agent-install/agent-install.sh (get the most recently committed version), https://github.com/open-horizon/anax/releases/latest/download/agent-install.sh (the latest tested patch version - this is the default), https://github.com/open-horizon/anax/releases/download/1.8.6/agent-install.sh (the last fully tested version)
+  AGENT_INSTALL_URL - where to get agent-install.sh from. Valid values: file:///<path-to-agent-install> (will be mounted into the container), https://raw.githubusercontent.com/open-horizon/anax/master/agent-install/agent-install.sh (get the most recently committed version), https://github.com/open-horizon/anax/releases/latest/download/agent-install.sh (the latest tested patch version - this is the default), https://github.com/open-horizon/anax/releases/download/1.9.0/agent-install.sh (the last fully tested version)
   SDO_GET_PKGS_FROM - where to have the edge devices get the horizon packages from. If set to css:, it will be expanded to css:/api/v1/objects/IBM/agent_files. If set to https://github.com/open-horizon/anax/releases it will be expanded to https://github.com/open-horizon/anax/releases/latest/download (default).
   SDO_RV_VOUCHER_TTL - tell the rendezvous server to persist vouchers for this number of seconds (default 7200).
   VERBOSE - set to 1 or 'true' for more verbose output.
@@ -41,7 +41,7 @@ if [[ $HZN_MGMT_HUB_CERT == 'N/A' || $HZN_MGMT_HUB_CERT == 'n/a' ]]; then
     unset HZN_MGMT_HUB_CERT
 fi
 
-VERSION="${1:-1.8}"
+VERSION="${1:-1.9}"
 ownerPrivateKey="$2"
 if [[ -n "$ownerPrivateKey" && ! -f "$ownerPrivateKey" ]]; then
     echo "Error: specified owner-private-key-file '$ownerPrivateKey' does not exist."
@@ -129,7 +129,7 @@ fi
 if [[ "$DOCKER_DONTPULL" == '1' || "$DOCKER_DONTPULL" == 'true' ]]; then
     echo "Using local Dockerfile, because DOCKER_DONTPULL=$DOCKER_DONTPULL"
 else
-# If VERSION is a generic tag like latest, 1.8, or testing we have to make sure we pull the most recent
+# If VERSION is a generic tag like latest, 1.9, or testing we have to make sure we pull the most recent
     docker pull $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
     chk $? 'Pulling from Docker Hub...'
 fi
