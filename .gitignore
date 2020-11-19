@@ -7,6 +7,8 @@
 
 # Where the SDO 1.9 tar files are downloaded to
 /sdo/
+#todo: remove
+/sdo-1.8/
 
 /vendor/
 /.vscode/

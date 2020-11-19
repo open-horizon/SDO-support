@@ -334,8 +334,8 @@ if which hzn >/dev/null; then
 fi
 
 # Prepare to have docker-compose start the SCT services
-cp $deviceBinaryDir/docker-compose.yml .
-chk $? 'copying docker-compose.yml in place'
+cp $deviceBinaryDir/{docker-compose.yml,*.env} .
+chk $? 'copying docker-compose.yml and *.env in place'
 
 # Copy the mfg private key and the owner public key to the places docker-compose looks for them (unless they are already there)
 if [[ $privateKeyFile != 'keys/manufacturer-keystore.p12' && $privateKeyFile != './keys/manufacturer-keystore.p12' ]]; then
@@ -412,9 +412,9 @@ else
     # this creates an ownership voucher and puts it in the mariadb rt_ownership_voucher table
     ./device
     chk $? 'running java DI'
-    cd creds/saved
+    cd creds
     deviceOcFile=$(ls -t *.oc | head -1)   # get the most recently created credentials
-    cd ../..
+    cd ..
     deviceOcFileUuid=${deviceOcFile%.oc}
     echo "Device UUID: $deviceOcFileUuid"
     cd ../..
@@ -450,12 +450,14 @@ if [[ -f voucher.json ]]; then
     mkdir -p saved
     mv voucher.json saved
 fi
-httpCode=$(curl -sS -w "%{http_code}" -X GET -o voucher.json http://localhost:8039/api/v1/vouchers/$devSerialNum)
+#httpCode=$(curl -sS -w "%{http_code}" -X GET -o voucher.json http://localhost:8039/api/v1/vouchers/$devSerialNum)   # this no longer works
+docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo --skip-column-names -s -e "select voucher from rt_ownership_voucher where device_serial_no = '$devSerialNum'" > voucher.json
 chk $? 'getting voucher from SCT DB'
-if [[ $httpCode -ne 200 ]]; then
-    echo "Error: HTTP code $httpCode when trying to get the voucher from the SCT service"
-    exit 5
-elif [[ ! -f voucher.json ]]; then
+#if [[ $httpCode -ne 200 ]]; then
+#    echo "Error: HTTP code $httpCode when trying to get the voucher from the SCT service"
+#    exit 5
+#elif [[ ! -f voucher.json ]]; then
+if [[ ! -f voucher.json ]]; then
     echo "Error: file voucher.json not created"
     exit 5
 fi
@@ -463,7 +465,7 @@ fi
 # Verify that the device UUID in the voucher is the same as what we found above
 voucherDevUuid=$(parseVoucher voucher.json)
 if [[ -n "$deviceOcFileUuid" && "$deviceOcFileUuid" != "$voucherDevUuid" ]]; then
-    echo "Error: the device uuid in creds/saved ($deviceOcFileUuid) does not equal the device uuid in the voucher ($voucherDevUuid)"
+    echo "Error: the device uuid in creds ($deviceOcFileUuid) does not equal the device uuid in the voucher ($voucherDevUuid)"
     exit 4
 fi
 
@@ -483,8 +485,8 @@ else
     # Java client. Switch the device into owner mode
     cd $deviceBinaryDir/device
     echo "Switching the device into owner mode with credential file $deviceOcFile ..."
-    mv creds/saved/$deviceOcFile creds
-    chk $? 'moving device .oc file'
+    #mv creds/saved/$deviceOcFile creds   # no longer need
+    #chk $? 'moving device .oc file'
     sed -i -e "s|^#*org.sdo.device.credentials=.*$|org.sdo.device.credentials=creds/$deviceOcFile|" application.properties
     chk $? 'switching device to owner mode'
     cd ../..

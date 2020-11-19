@@ -47,19 +47,10 @@ RUN curl -sS -o epel-release-latest-8.noarch.rpm https://dl.fedoraproject.org/pu
     microdnf clean all && \
     groupadd -g 1000 sdouser && adduser -u 1000 -g sdouser sdouser
 
-# Install openjdk-11. The tar.gz file is 193 MB, unpacked is 297 MB
-#RUN curl -sS -o openjdk-11_linux-x64_bin.tar.gz https://download.java.net/java/ga/jdk11/openjdk-11_linux-x64_bin.tar.gz && \
-#    sha256sum openjdk-11_linux-x64_bin.tar.gz && \
-#    tar xzvf openjdk-11_linux-x64_bin.tar.gz && \
-#    rm openjdk-11_linux-x64_bin.tar.gz && \
-#    mkdir /usr/lib/jvm && \
-#    mv jdk-11 /usr/lib/jvm/openjdk-11-manual-installation/ && \
-#    update-alternatives --install /usr/bin/java java /usr/lib/jvm/openjdk-11-manual-installation/bin/java 1 && \
-#    update-alternatives --install /usr/bin/javac javac /usr/lib/jvm/openjdk-11-manual-installation/bin/javac 1
-
 # Install openjdk-11-jre. The tar.gz file is 43 MB, unpacked is 124 MB
 # Note: with SDO 1.7, it is necessary to use java 11.0.4 or earlier, because there is an issue with the SDO bouncycastle version and 11.0.5 and above
-RUN curl -sS -o openjre-11_linux-x64_bin.tar.gz https://cdn.azul.com/zulu/bin/zulu11.33.15-ca-jre11.0.4-linux_x64.tar.gz && \
+#RUN curl -sS -o openjre-11_linux-x64_bin.tar.gz https://cdn.azul.com/zulu/bin/zulu11.33.15-ca-jre11.0.4-linux_x64.tar.gz && \
+RUN curl -sS -o openjre-11_linux-x64_bin.tar.gz https://cdn.azul.com/zulu/bin/zulu11.43.55-ca-jdk11.0.9.1-linux_x64.tar.gz && \
     sha256sum openjre-11_linux-x64_bin.tar.gz && \
     tar xzvf openjre-11_linux-x64_bin.tar.gz && \
     rm openjre-11_linux-x64_bin.tar.gz && \
@@ -75,22 +66,18 @@ WORKDIR $WORKDIR
 
 # Get the license file
 COPY LICENSE.txt /licenses/
-#COPY sdo_sdk_binaries_linux_x64/NOTICES/SDOIotPlatformSDK/* /licenses/SDOIotPlatformSDK/
-COPY sdo/NOTICES/iot-platform-sdk/* /licenses/SDOIotPlatformSDK/
+COPY sdo/NOTICES-v1.9.0/iot-platform-sdk/* /licenses/SDOIotPlatformSDK/
 
 # Get rendezvous files. The rv subdir will be created automatically by COPY
 # Note: need to use uid and gid to be able to build on non-linux hosts
-#COPY --chown=1000:1000 sdo_sdk_binaries_linux_x64/demo/rendezvous/application.properties  sdo_sdk_binaries_linux_x64/demo/rendezvous/logback-spring.xml  sdo_sdk_binaries_linux_x64/demo/rendezvous/rendezvous  sdo_sdk_binaries_linux_x64/cri/rendezvous-1.7.0.war  $WORKDIR/rv/
-COPY --chown=1000:1000 sdo/pri-v1.8.0/rendezvous/* $WORKDIR/rv/
+COPY --chown=1000:1000 sdo/pri-v1.9.0/rendezvous/* $WORKDIR/rv/
 
 # Get to0scheduler files
-#COPY --chown=1000:1000 sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/to0scheduler $WORKDIR/to0scheduler/
-COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.8.0/to0scheduler $WORKDIR/to0scheduler/
+COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.9.0/to0scheduler $WORKDIR/to0scheduler/
 
 # Get OCS files
 # Note: we don't want the contents of ocs/config/db, that is excluded in the .dockerignore file
-#COPY --chown=1000:1000 sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/ocs $WORKDIR/ocs/
-COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.8.0/ocs $WORKDIR/ocs/
+COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.9.0/ocs $WORKDIR/ocs/
 # This is only the default owner private key. It will be moved into ocs/config/db/v1/creds by start-sdo-owner-servic es.sh if they don't specify their own key in run-sdo-owner-services.sh
 COPY --chown=1000:1000 keys/sample-owner-keystore.p12 $WORKDIR/ocs/config/sample-owner-keystore.p12
 #This command gives `USER sdouser` the correct permissions for mounting this key inside the container
@@ -99,8 +86,7 @@ RUN touch ocs/config/owner-keystore.p12 && chown sdouser:sdouser ocs/config/owne
 RUN mkdir -p $SDO_OCS_DB_PATH/v1/{creds,devices,values} && chown -R 1000:1000 $SDO_OCS_DB_PATH
 
 # Get OPS files
-#COPY --chown=1000:1000 sdo_sdk_binaries_linux_x64/SDOIotPlatformSDK/ops $WORKDIR/ops/
-COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.8.0/ops $WORKDIR/ops/
+COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.9.0/ops $WORKDIR/ops/
 
 # Get our ocs-api binary, startup script, and import-owner-private-keys.sh
 COPY --chown=1000:1000 ocs-api/linux/ocs-api docker/start-sdo-owner-services.sh tools/import-owner-private-keys.sh $WORKDIR/

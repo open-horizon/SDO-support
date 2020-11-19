@@ -11,19 +11,19 @@ These steps only need to be performed by developers of this project.
 1. Create the small tar file that will be needed on each simulated device:
 
   ```bash
-  make sdo_device_binaries_1.8_linux_x64.tar.gz
+  make sdo_device_binaries_1.9_linux_x64.tar.gz
   ```
 
-2. Upload the tar file to https://github.com/open-horizon/SDO-support/releases with the title `SDO 1.8` and tag `v1.8`, so the tar file download URL will be https://github.com/open-horizon/SDO-support/releases/download/v1.8/sdo_device_binaries_1.8_linux_x64.tar.gz
+2. Upload the tar file to https://github.com/open-horizon/SDO-support/releases with the title `SDO 1.9` and tag `v1.9`, so the tar file download URL will be https://github.com/open-horizon/SDO-support/releases/download/v1.9/sdo_device_binaries_1.9_linux_x64.tar.gz
 
 ### Build the Sample SDO Manufacturer Docker Images
 
-1. Download this tar file from [Intel SDO Release 1.8](https://github.com/secure-device-onboard/release/releases/tag/v1.8.0) to directory `../sdo/` and uppack it:
+1. Download this tar file from [Intel SDO Release 1.9](https://github.com/secure-device-onboard/release/releases/tag/v1.9.0) to directory `../sdo/` and uppack it:
 
   ```bash
   mkdir -p ../sdo && cd ../sdo
-  curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.8.0/supply-chain-tools-v1.8.0.tar.gz
-  tar -zxf supply-chain-tools-v1.8.0.tar.gz
+  curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.9.0/supply-chain-tools-v1.9.0.tar.gz
+  tar -zxf supply-chain-tools-v1.9.0.tar.gz
   cd ../sample-mfg
   ```
 

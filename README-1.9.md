@@ -164,18 +164,18 @@ These steps only need to be performed by developers of this project.
 
 ### <a name="build-owner-svcs"></a>Build the SDO Owner Services for Open Horizon
 
-1. Download these tar files from [Intel SDO Release 1.8](https://github.com/secure-device-onboard/release/releases/tag/v1.8.0) to directory `sdo/` and uppack them:
+1. Download these tar files from [Intel SDO Release 1.9](https://github.com/secure-device-onboard/release/releases/tag/v1.9.0) to directory `sdo/` and unpack them:
 
    ```bash
    mkdir -p sdo && cd sdo
-   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.8.0/iot-platform-sdk-v1.8.0.tar.gz
-   tar -zxf iot-platform-sdk-v1.8.0.tar.gz
-   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.8.0/rendezvous-service-v1.8.0.tar.gz
-   tar -zxf rendezvous-service-v1.8.0.tar.gz
-   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.8.0/pri-v1.8.0.tar.gz
-   tar -zxf pri-v1.8.0.tar.gz
-   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.8.0/NOTICES.tar.gz
-   tar -zxf NOTICES.tar.gz
+   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.9.0/iot-platform-sdk-v1.9.0.tar.gz
+   tar -zxf iot-platform-sdk-v1.9.0.tar.gz
+   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.9.0/rendezvous-service-v1.9.0.tar.gz
+   tar -zxf rendezvous-service-v1.9.0.tar.gz
+   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.9.0/pri-v1.9.0.tar.gz
+   tar -zxf pri-v1.9.0.tar.gz
+   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.9.0/NOTICES-v1.9.0.tar.gz
+   tar -zxf NOTICES-v1.9.0.tar.gz
    cd ..
    ```
 

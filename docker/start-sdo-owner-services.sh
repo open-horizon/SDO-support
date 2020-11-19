@@ -70,8 +70,10 @@ fi
 
 # If using a non-default port number for OPS, configure both ops and to0scheduler with that value
 if [[ "$opsPort" != "$opsPortDefault" ]]; then
-    sed -i -e "s|^server.port=.*|server.port=${opsPort}|" ops/config/application.properties
-    chk $? 'sed port in ops/config/application.properties'
+    #sed -i -e "s|^server.port=.*|server.port=${opsPort}|" ops/config/application.properties
+    #chk $? 'sed port in ops/config/application.properties'
+    sed -i -e "s|^SERVER_PORT=.*|SERVER_PORT=${opsPort}|" ops/ops.env
+    chk $? 'sed port in ops/ops.env'
 fi
 if [[ "$opsExternalPort" != "$opsPortDefault" ]]; then
     sed -i -e "s|^port=.*|port=${opsExternalPort}|" to0scheduler/config/redirect.properties
@@ -86,14 +88,18 @@ fi
 
 # This sed is for dev/test/demo and makes the to0scheduler respond to changes more quickly, and let us use the same voucher over again
 #todo: should we not do this for production? If so, add an env var that will do this for dev/test
-sed -i -e 's|^to0.scheduler.interval=.*|to0.scheduler.interval=5|' -e 's|^to2.credential-reuse.enabled=.*|to2.credential-reuse.enabled=true|' ocs/config/application.properties
-chk $? 'sed ocs/config/application.properties'
+#sed -i -e 's|^to0.scheduler.interval=.*|to0.scheduler.interval=5|' -e 's|^to2.credential-reuse.enabled=.*|to2.credential-reuse.enabled=true|' ocs/config/application.properties
+#chk $? 'sed ocs/config/application.properties'
+sed -i -e 's|^TO0_SCHEDULER_INTERVAL=.*|TO0_SCHEDULER_INTERVAL=5|' -e 's|^TO2_CREDENTIAL_REUSE_ENABLED=.*|TO2_CREDENTIAL_REUSE_ENABLED=true|' ocs/ocs.env
+chk $? 'sed ocs/ocs.env'
 
 # Sometimes during dev/test, it is useful for the vouchers to persist in RV longer than the default 2 hours
 if [[ -n $SDO_RV_VOUCHER_TTL && $SDO_RV_VOUCHER_TTL != $rvVoucherTtlDefault ]]; then
     echo "Setting RV voucher TTL (to0.waitseconds) to $SDO_RV_VOUCHER_TTL ..."
-    sed -i -e "s|^to0.waitseconds=.*|to0.waitseconds=${SDO_RV_VOUCHER_TTL}|" ocs/config/application.properties
-    chk $? 'sed to0.waitseconds ocs/config/application.properties'
+    #sed -i -e "s|^to0.waitseconds=.*|to0.waitseconds=${SDO_RV_VOUCHER_TTL}|" ocs/config/application.properties
+    #chk $? 'sed to0.waitseconds ocs/config/application.properties'
+    sed -i -e "s|^TO0_WAITSECONDS=.*|TO0_WAITSECONDS=${SDO_RV_VOUCHER_TTL}|" ocs/ocs.env
+    chk $? 'sed to0.waitseconds ocs/ocs.env'
 fi
 
 # Need to move this file into the ocs db *after* the docker run mount is done
@@ -113,10 +119,14 @@ if [[ -s 'ocs/config/owner-keystore.p12' ]]; then
     echo "$keyPass" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore "$ownerPrivateKey" >/dev/null 2>&1
     chk $? 'Checking if SDO_KEY_PWD is correct'
     if [[ "$keyPass" != "$keyPassDefault" ]]; then
-        echo "Updating fs.owner.keystore-password value in ocs/config/application.properties ..."
-        verbose sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
-        sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
-        chk $? 'sed password in ocs/config/application.properties'
+        #echo "Updating fs.owner.keystore-password value in ocs/config/application.properties ..."
+        #verbose sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
+        #sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
+        #chk $? 'sed password in ocs/config/application.properties'
+        echo "Updating FS_OWNER_KEYSTORE_PASSWORD value in ocs/ocs.env ..."
+        verbose sed -i -e "s|^FS_OWNER_KEYSTORE_PASSWORD=.*|FS_OWNER_KEYSTORE_PASSWORD=${keyPass}|" ocs/ocs.env
+        sed -i -e "s|^fs.FS_OWNER_KEYSTORE_PASSWORD=.*|FS_OWNER_KEYSTORE_PASSWORD=${keyPass}|" ocs/ocs.env
+        chk $? 'sed password in ocs/ocs.env'
     fi
     cp ocs/config/owner-keystore.p12 $ocsDbDir/v1/creds   # need to copy it, because can't move a mounted file
 elif [[ -s "$ocsDbDir/v1/creds/owner-keystore.p12" ]]; then
@@ -125,10 +135,14 @@ elif [[ -s "$ocsDbDir/v1/creds/owner-keystore.p12" ]]; then
     echo "$keyPass" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore "$ocsDbDir/v1/creds/owner-keystore.p12" >/dev/null 2>&1
     chk $? 'Checking if SDO_KEY_PWD is correct'
     if [[ "$keyPass" != "$keyPassDefault" ]]; then
-        echo "Updating fs.owner.keystore-password value in ocs/config/application.properties ..."
-        verbose sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
-        sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
-        chk $? 'sed password in ocs/config/application.properties'
+        #echo "Updating fs.owner.keystore-password value in ocs/config/application.properties ..."
+        #verbose sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
+        #sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
+        #chk $? 'sed password in ocs/config/application.properties'
+        echo "Updating FS_OWNER_KEYSTORE_PASSWORD value in ocs/ocs.env ..."
+        verbose sed -i -e "s|^FS_OWNER_KEYSTORE_PASSWORD=.*|FS_OWNER_KEYSTORE_PASSWORD=${keyPass}|" ocs/ocs.env
+        sed -i -e "s|^FS_OWNER_KEYSTORE_PASSWORD=.*|FS_OWNER_KEYSTORE_PASSWORD=${keyPass}|" ocs/ocs.env
+        chk $? 'sed password in ocs/ocs.env'
     fi
 else
     # Use the default key file that Dockerfile stored, ocs/config/sample-owner-keystore.p12, but name it owner-keystore.p12
@@ -137,22 +151,27 @@ else
         echo "Changing sample owner keystore password from default to SDO_KEY_PWD ..."
         /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -storepasswd -keystore ocs/config/sample-owner-keystore.p12 -storepass $keyPassDefault -new $keyPass
         chk $? 'Changing Sample Owner Keystore password'
-        echo "Updating fs.owner.keystore-password value in ocs/config/application.properties ..."
-        verbose sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
-        sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
-        chk $? 'sed password in ocs/config/application.properties'
+        #echo "Updating fs.owner.keystore-password value in ocs/config/application.properties ..."
+        #verbose sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
+        #sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
+        #chk $? 'sed password in ocs/config/application.properties'
+        echo "Updating FS_OWNER_KEYSTORE_PASSWORD value in ocs/ocs.env ..."
+        verbose sed -i -e "s|^FS_OWNER_KEYSTORE_PASSWORD=.*|FS_OWNER_KEYSTORE_PASSWORD=${keyPass}|" ocs/ocs.env
+        sed -i -e "s|^FS_OWNER_KEYSTORE_PASSWORD=.*|FS_OWNER_KEYSTORE_PASSWORD=${keyPass}|" ocs/ocs.env
+        chk $? 'sed password in ocs/ocs.env'
     fi
     mv ocs/config/sample-owner-keystore.p12 $ocsDbDir/v1/creds/owner-keystore.p12
 fi
 
 # Run all of the services
 echo "Starting rendezvous service..."
-(cd rv && ./rendezvous) &
+(cd rv && ./rendezvous) &   #todo: convert to sdo/rendezvous-service-v1.9.0 (with redis)
+#todo: remove the env cmds below
 echo "Starting to0scheduler service..."
-(cd to0scheduler/config && ./run-to0scheduler) &
+(cd to0scheduler/config && eval export $(sed -e '/^ *#/d' -e '/^$/d' -e "s/=\(.*\)$/='\1'/" ../to0scheduler.env) && echo '===== TO0SCHEDULER =====' && env && ./run-to0scheduler) &
 echo "Starting ocs service..."
-(cd ocs/config && ./run-ocs) &
+(cd ocs/config && eval export $(sed -e '/^ *#/d' -e '/^$/d' -e "s/=\(.*\)$/='\1'/" ../ocs.env) && echo '===== OCS =====' && env && ./run-ocs) &
 echo "Starting ops service..."
-(cd ops/config && ./run-ops) &
+(cd ops/config && eval export $(sed -e '/^ *#/d' -e '/^$/d' -e "s/=\(.*\)$/='\1'/" ../ops.env) && echo '===== OPS =====' && env && ./run-ops) &
 echo "Starting ocs-api service..."
 ${0%/*}/ocs-api $ocsApiPort $ocsDbDir  # run this in the foreground so the start cmd doesn't end
