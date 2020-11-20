@@ -450,14 +450,14 @@ if [[ -f voucher.json ]]; then
     mkdir -p saved
     mv voucher.json saved
 fi
-#httpCode=$(curl -sS -w "%{http_code}" -X GET -o voucher.json http://localhost:8039/api/v1/vouchers/$devSerialNum)   # this no longer works
-docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo --skip-column-names -s -e "select voucher from rt_ownership_voucher where device_serial_no = '$devSerialNum'" > voucher.json
+httpCode=$(curl -sS -w "%{http_code}" -X GET -o voucher.json http://localhost:8039/api/v1/vouchers/$devSerialNum)   # this no longer works
+#docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo --skip-column-names -s -e "select voucher from rt_ownership_voucher where device_serial_no = '$devSerialNum'" > voucher.json
 chk $? 'getting voucher from SCT DB'
-#if [[ $httpCode -ne 200 ]]; then
-#    echo "Error: HTTP code $httpCode when trying to get the voucher from the SCT service"
-#    exit 5
-#elif [[ ! -f voucher.json ]]; then
-if [[ ! -f voucher.json ]]; then
+if [[ $httpCode -ne 200 ]]; then
+    echo "Error: HTTP code $httpCode when trying to get the voucher from the SCT service"
+    exit 5
+elif [[ ! -f voucher.json ]]; then
+#if [[ ! -f voucher.json ]]; then
     echo "Error: file voucher.json not created"
     exit 5
 fi
