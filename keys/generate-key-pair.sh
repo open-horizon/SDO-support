@@ -31,14 +31,15 @@ if [[ -n $keyType ]] && [[ $keyType != "ecdsa256" ]] && [[ $keyType != "ecdsa384
   echo "Error: specified encryption keyType '$keyType' is not supported."
   exit 2
 fi
-
-if [[ ${str} =~ OpenSSL ]]; then
-  echo "Found Homebrew Openssl"
-else
-	echo "You are not using the Homebrew version of OpenSSL. In order to run this script you must be using the Homebrew version of OpenSSL.
-	Go to this website and follow the instructions to set up your OpenSSL environment:
-	https://medium.com/@maxim.mahovik/upgrade-openssl-for-macos-e7a9ed82a76b "
+if [[ $OSTYPE == darwin* ]]; then
+  if [[ ${str} =~ OpenSSL ]]; then
+    echo "Found Homebrew Openssl"
+  else
+	  echo "You are not using the Homebrew version of OpenSSL. In order to run this script you must be using the Homebrew version of OpenSSL.
+	  Go to this website and follow the instructions to set up your OpenSSL environment:
+	  https://medium.com/@maxim.mahovik/upgrade-openssl-for-macos-e7a9ed82a76b "
 	exit
+  fi
 fi
 #============================FUNCTIONS=================================
 
