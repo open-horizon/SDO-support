@@ -79,7 +79,7 @@ Note: you only have to perform the steps in this section once. The keys create a
    chmod +x generate-key-pair.sh
    ```
    
-2. Run the `generate-key-pair.sh` script. You will be prompted to answer a few questions in order to produce certificates for your private keys. (The prompts can be avoided by setting environment variables. Run `./generate-key-pair.sh -h` for details.) You must be using Ubuntu to run this script.
+2. Run the `generate-key-pair.sh` script. You will be prompted to answer a few questions in order to produce certificates for your private keys. (The prompts can be avoided by setting environment variables. Run `./generate-key-pair.sh -h` for details.) Supports Ubuntu and macOS.
 
    ```bash
    ./generate-key-pair.sh
