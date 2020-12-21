@@ -19,9 +19,9 @@ if [[ -n "$1" && -f "$1" ]]; then
   TARFILE="$1"
 fi
 
-#Grabbing password from the ocs/config/application.properties inside the container to use for import
-keypwd="$(grep -E '^ *fs.owner.keystore-password=' ocs/config/application.properties)"
-SDO_KEY_PWD=${keypwd#fs.owner.keystore-password=}
+# Grab the owner keystore password from ocs/ocs.env inside the container, to use for import
+keypwd="$(grep -E '^ *FS_OWNER_KEYSTORE_PASSWORD=' ocs/ocs.env)"
+SDO_KEY_PWD=${keypwd#*FS_OWNER_KEYSTORE_PASSWORD=}
 
 if [[ ! -f $TARFILE ]]; then
     echo "Error: No owner keys tarfile '$TARFILE' found."
