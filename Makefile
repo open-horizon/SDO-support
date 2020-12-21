@@ -1,6 +1,6 @@
 SHELL ?= /bin/bash -e
 # Set this before building the ocs-api binary and sdo-owner-services (for now they use the samme version number)
-export VERSION ?= 1.9.0
+export VERSION ?= 1.9.1
 STABLE_VERSION ?= 1.9
 
 export DOCKER_REGISTRY ?= openhorizon
@@ -12,18 +12,22 @@ SDO_IMAGE_LABELS ?= --label "vendor=IBM" --label "name=$(SDO_DOCKER_IMAGE)" --la
 # can override this in the environment, e.g. set it to: --no-cache
 DOCKER_OPTS ?=
 
+# Used to set the version in the ocs-api executable
+# if VERSION is like 1.9.0-105.202011140410.c6b4a80 it will strip the last 2 fields and end up with 1.9.0-105
+TRIMMED_VERSION := $(shell echo '$(VERSION)' | sed -e 's/\(-[0-9]*\)\..*/\1/')
+#GO_BUILD_LDFLAGS ?= -ldflags="-X 'github.com/open-horizon/SDO-support/main.OCS_API_VERSION=$(VERSION)'"
+GO_BUILD_LDFLAGS ?= -ldflags="-X 'main.OCS_API_VERSION=$(VERSION)'"
+
 default: $(SDO_DOCKER_IMAGE)
 
 # Build the ocs rest api for linux for the sdo-owner-services container
 ocs-api/linux/ocs-api: ocs-api/*.go ocs-api/*/*.go Makefile
-	echo 'package main; const OCS_API_VERSION = "$(VERSION)"' > ocs-api/version.go
 	mkdir -p ocs-api/linux
-	(cd ocs-api && GOOS=linux go build -o linux/ocs-api)
+	(cd ocs-api && GOOS=linux go build $(GO_BUILD_LDFLAGS) -o linux/ocs-api)
 
 # For building and running the ocs rest api on mac for debugging
 ocs-api/ocs-api: ocs-api/*.go ocs-api/*/*.go Makefile
-	echo 'package main; const OCS_API_VERSION = "$(VERSION)"' > ocs-api/version.go
-	(cd ocs-api && go build -o ocs-api)
+	(cd ocs-api && go build $(GO_BUILD_LDFLAGS) -o ocs-api)
 
 run-ocs-api: ocs-api/ocs-api
 	- tools/stop-ocs-api.sh || :
