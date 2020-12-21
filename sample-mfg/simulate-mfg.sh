@@ -352,8 +352,10 @@ fi
 # Start mfg services (originally done by SCT/startup-docker.sh)
 echo "Pulling and tagging the SDO SCT services..."
 docker pull openhorizon/$sdoMfgDockerName:$SDO_MFG_IMAGE_TAG
+chk $? "pulling openhorizon/$sdoMfgDockerName:$SDO_MFG_IMAGE_TAG"
 docker tag openhorizon/$sdoMfgDockerName:$SDO_MFG_IMAGE_TAG $sdoMfgDockerName:1.9   # this is what the SDO docker-compose.yml file knows it by
 docker pull openhorizon/$sdoMariaDbDockerName:$SDO_MFG_IMAGE_TAG
+chk $? "pulling openhorizon/$sdoMariaDbDockerName:$SDO_MFG_IMAGE_TAG"
 docker tag openhorizon/$sdoMariaDbDockerName:$SDO_MFG_IMAGE_TAG $sdoMariaDbDockerName:1.9   # this is what the SDO docker-compose.yml file knows it by
 
 echo "Starting the SDO SCT services (could take about 75 seconds)..."

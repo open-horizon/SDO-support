@@ -4,8 +4,8 @@
 
 The `sample-owner-key*` files are a sample key pair for the device owner/customer to use in dev/test/demos:
 
-- `sample-owner-key.pub` was originally taken from `Services.tar` file `SCT/startup-docker.sh` . This is used by default in `sample-mfg/simulate-mfg.sh` if you don't pass your own owner public key.
-- `sample-owner-keystore.p12` was taken from `iot-platform-sdk-v1.9.0/ocs/config/db/v1/creds/owner-keystore.p12` . (It is the same as the SDO 1.7 SDK binary download, file `SDOIotPlatformSDK/ocs/config/db/v1/creds/owner-keystore.p12`.) This is used by default in `run-sdo-owner-services.sh` if you don't pass your own owner private key. You can find the keystore password and then use it to see what is in the p12 bundle:
+- `sample-owner-key.pub` was obtained from Intel. It is the public key half of `sample-owner-keystore.p12` below. This public key is used by default in `../sample-mfg/simulate-mfg.sh` if you don't pass your own owner public key.
+- `sample-owner-keystore.p12` was taken from `iot-platform-sdk-v1.9.0/ocs/config/db/v1/creds/owner-keystore.p12` . This is used by default in `../docker/run-sdo-owner-services.sh` if you don't pass your own owner private key. You can find the keystore password and then use it to see what is in the p12 bundle:
 
   ```bash
   grep fs.owner.keystore-password ../sdo/iot-platform-sdk-v1.9.0/ocs/config/application.properties
