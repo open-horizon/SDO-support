@@ -164,18 +164,20 @@ These steps only need to be performed by developers of this project.
 
 ### <a name="build-owner-svcs"></a>Build the SDO Owner Services for Open Horizon
 
-1. Download these tar files from [Intel SDO Release 1.9](https://github.com/secure-device-onboard/release/releases/tag/v1.9.0) to directory `sdo/` and unpack them:
+1. Download these tar files from [Intel SDO Release 1.9.0](https://github.com/secure-device-onboard/release/releases/tag/v1.9.0) and [Intel SDO Release 1.9.1](https://github.com/secure-device-onboard/release/releases/tag/v1.9.1) to directory `sdo/` and unpack them:
 
    ```bash
    mkdir -p sdo && cd sdo
-   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.9.0/iot-platform-sdk-v1.9.0.tar.gz
-   tar -zxf iot-platform-sdk-v1.9.0.tar.gz
+   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.9.1/iot-platform-sdk-v1.9.1.tar.gz
+   tar -zxf iot-platform-sdk-v1.9.1.tar.gz
+   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.9.1/pri-v1.9.1.tar.gz
+   tar -zxf pri-v1.9.1.tar.gz
+   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.9.1/NOTICES-v1.9.1.tar.gz
+   tar -zxf NOTICES-v1.9.1.tar.gz
    curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.9.0/rendezvous-service-v1.9.0.tar.gz
    tar -zxf rendezvous-service-v1.9.0.tar.gz
-   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.9.0/pri-v1.9.0.tar.gz
-   tar -zxf pri-v1.9.0.tar.gz
-   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.9.0/NOTICES-v1.9.0.tar.gz
-   tar -zxf NOTICES-v1.9.0.tar.gz
+   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.9.0/supply-chain-tools-v1.9.0.tar.gz
+   tar -zxf supply-chain-tools-v1.9.0.tar.gz
    cd ..
    ```
 
@@ -186,22 +188,22 @@ These steps only need to be performed by developers of this project.
    make sdo-owner-services
    ```
 
-3. After you have personally tested the service, push it to docker hub with the `testing` tag, so others from the development team can test it:
+3. If you need to test `sdo-owner-services` on another host, push it to docker hub with only this specific version tag:
+
+   ```bash
+   make dev-push-sdo-owner-services
+   ```
+
+4. After you have personally tested the service, push it to docker hub with the `testing` tag, so others from the development team can test it:
 
    ```bash
    make push-sdo-owner-services
    ```
 
-4. After the development team has validated the service, publish it to docker hub as the latest patch release with the `latest` tag:
+5. After the development team has validated the service, publish it to docker hub as the latest patch release with the `latest` tag and the version to use for this major/minor release (e.g. `1.9`):
 
    ```bash
    make publish-sdo-owner-services
-   ```
-
-5. On a fully tested release boundary (usually when the 2nd number of the version changes), publish it to docker hub with the tag considered stable:
-
-   ```bash
-   make promote-sdo-owner-services
    ```
 
 ### <a name="build-simulated-mfg"></a>Build the Simulated Device Manufacturer Files

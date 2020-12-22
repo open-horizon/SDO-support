@@ -1,6 +1,6 @@
 SHELL ?= /bin/bash -e
 # Set this before building the ocs-api binary and sdo-owner-services (for now they use the samme version number)
-export VERSION ?= 1.9.1
+export VERSION ?= 1.9.2
 STABLE_VERSION ?= 1.9
 
 export DOCKER_REGISTRY ?= openhorizon
@@ -61,10 +61,6 @@ publish-$(SDO_DOCKER_IMAGE):
 	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
 	docker tag $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION) $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):latest
 	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):latest
-
-# Push the SDO services docker image to the registry and tag as $(STABLE_VERSION)
-promote-$(SDO_DOCKER_IMAGE):
-	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
 	docker tag $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION) $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(STABLE_VERSION)
 	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(STABLE_VERSION)
 

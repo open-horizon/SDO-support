@@ -18,7 +18,7 @@ These steps only need to be performed by developers of this project.
 
 ### Build the Sample SDO Manufacturer Docker Images
 
-1. Download this tar file from [Intel SDO Release 1.9](https://github.com/secure-device-onboard/release/releases/tag/v1.9.0) to directory `../sdo/` and uppack it:
+1. If you have not already done so, download this tar file from [Intel SDO Release 1.9](https://github.com/secure-device-onboard/release/releases/tag/v1.9.0) to directory `../sdo/` and unpack it:
 
   ```bash
   mkdir -p ../sdo && cd ../sdo
