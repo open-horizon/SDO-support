@@ -59,12 +59,12 @@ pull-sdo-mfg-services:
 
 sdo_device_binaries_1.9_linux_x64.tar.gz:
 	mkdir -p sdo_device_binaries_1.9_linux_x64/NOTICES
-	cp -a ../sdo/pri-v1.9.0/device sdo_device_binaries_1.9_linux_x64/
+	cp -a ../sdo/pri-v1.9.1/device sdo_device_binaries_1.9_linux_x64/
 	cp -a ../sdo/supply-chain-tools-v1.9.0/docker_manufacturer/docker-compose.yml sdo_device_binaries_1.9_linux_x64/
 	cp -a ../sdo/supply-chain-tools-v1.9.0/docker_manufacturer/*.env sdo_device_binaries_1.9_linux_x64/
 	cp -a ../sdo/supply-chain-tools-v1.9.0/docker_manufacturer/keys sdo_device_binaries_1.9_linux_x64/
 	cp -a ../keys/sample-owner-key.pub sdo_device_binaries_1.9_linux_x64/keys/
-	cp -a ../sdo/NOTICES-v1.9.0/pri/NOTICE sdo_device_binaries_1.9_linux_x64/NOTICES/
+	cp -a ../sdo/NOTICES-v1.9.1/pri/NOTICE sdo_device_binaries_1.9_linux_x64/NOTICES/
 	tar -zcvf $@ sdo_device_binaries_1.9_linux_x64
 
 clean:
