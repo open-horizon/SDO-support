@@ -176,11 +176,23 @@ function genPublicKey() {
 function combineKeys() {
   #This function will combine all private keys and certificates into one tarball, then will concatenate all public keys into one
   if [[ -f "rsapub-key.pem" && -f "ecdsa256pub-key.pem" && -f "ecdsa384pub-key.pem" ]]; then
-    #Combine all the public keys into one
+    if [[ -f owner-public-key.pem ]]; then
+      rm owner-public-key.pem
+    fi
+    #adding delimiters for SDO 1.9 pub key format
+    echo "," >> rsapub-key.pem && echo "," >> ecdsa256pub-key.pem
     echo "Concatenating Public Key files..."
-    cat ecdsa256pub-key.pem rsapub-key.pem ecdsa384pub-key.pem >owner-public-key.pem
-    chk $? 'Concatenating Public Key files...'
-    rm -- ecdsa*.pem && rm rsapub*
+        #Combine all the public keys into one
+    for i in "rsapub-key.pem" "ecdsa256pub-key.pem" "ecdsa384pub-key.pem"
+      do
+        local keyName=$i
+        local removeWord="pub-key.pem"
+        keyName=${keyName//$removeWord/}
+        #adding delimiters for SDO 1.9 pub key format
+        echo ""$keyName":" >key.txt
+        cat key.txt $i >> owner-public-key.pem
+      done
+    rm -- ecdsa*.pem && rm rsapub* && rm key.txt
     #Tar all keys and certs
     tar -czf owner-keys.tar.gz ecdsa256Key ecdsa384Key rsaKey
     chk $? 'Saving all key pairs in a tarball...'
