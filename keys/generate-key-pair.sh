@@ -179,7 +179,7 @@ function combineKeys() {
     if [[ -f owner-public-key.pem ]]; then
       rm owner-public-key.pem
     fi
-    #adding delimiters for SDO 1.9 pub key format
+    #adding delimiters for SDO 1.10 pub key format
     echo "," >> rsapub-key.pem && echo "," >> ecdsa256pub-key.pem
     echo "Concatenating Public Key files..."
         #Combine all the public keys into one
@@ -188,7 +188,7 @@ function combineKeys() {
         local keyName=$i
         local removeWord="pub-key.pem"
         keyName=${keyName//$removeWord/}
-        #adding delimiters for SDO 1.9 pub key format
+        #adding delimiters for SDO 1.10 pub key format
         echo ""$keyName":" >key.txt
         cat key.txt $i >> owner-public-key.pem
       done
