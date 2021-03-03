@@ -5,12 +5,12 @@
 The `sample-owner-key*` files are a sample key pair for the device owner/customer to use in dev/test/demos:
 
 - `sample-owner-key.pub` was obtained from Intel. It is the public key half of `sample-owner-keystore.p12` below. This public key is used by default in `../sample-mfg/simulate-mfg.sh` if you don't pass your own owner public key.
-- `sample-owner-keystore.p12` was taken from `iot-platform-sdk-v1.9.1/ocs/config/db/v1/creds/owner-keystore.p12` . This is used by default in `../docker/run-sdo-owner-services.sh` if you don't pass your own owner private key. You can find the keystore password and then use it to see what is in the p12 bundle:
+- `sample-owner-keystore.p12` was taken from `iot-platform-sdk-v1.10.0/ocs/config/db/v1/creds/owner-keystore.p12` . This is used by default in `../docker/run-sdo-owner-services.sh` if you don't pass your own owner private key. You can find the keystore password and then use it to see what is in the p12 bundle:
 
   ```bash
-  grep fs.owner.keystore-password ../sdo/iot-platform-sdk-v1.9.1/ocs/config/application.properties
+  grep fs.owner.keystore-password ../sdo/iot-platform-sdk-v1.10.0/ocs/config/application.properties
   # use the password from above cmd in this cmd:
-  keytool -list -v -storetype PKCS12 -keystore ../sdo/iot-platform-sdk-v1.9.1/ocs/config/db/v1/creds/owner-keystore.p12 -storepass '<keystore-password>'
+  keytool -list -v -storetype PKCS12 -keystore ../sdo/iot-platform-sdk-v1.10.0/ocs/config/db/v1/creds/owner-keystore.p12 -storepass '<keystore-password>'
   ```  
   
 # Generating Owner/Customer Keys
@@ -22,7 +22,7 @@ To run this script you must be using Ubuntu.
 1. Go to the directory where you want your generated keys to be saved then download `generate-key-pair.sh`, which is used to create key pairs for Owner Attestation:
 
    ```bash
-   curl -sSLO https://github.com/open-horizon/SDO-support/releases/download/v1.9/generate-key-pair.sh
+   curl -sSLO https://github.com/open-horizon/SDO-support/releases/download/v1.10/generate-key-pair.sh
    chmod +x generate-key-pair.sh
    ```
    
@@ -47,7 +47,7 @@ These steps only need to be performed by developers of this project.
 ### Deciding Which Key Encryption Type To Use  
 
 SCT, Device, and Owner keys must use the same key type. In order to run a successful test suite while passing your own generated key pair, you must first verify the type of encryption used for the device key and SCT key. We do this by inspecting the certificate that corresponds with the key file. 
-The device certificate `device.crt` can be found in `sdo_device_binaries_1.9_linux_x64/device/creds/device.crt`. The SCT key certificate can be found inside `sdo_device_binaries_1.9_linux_x64/keys/manufacturer-keystore.p12`
+The device certificate `device.crt` can be found in `sdo_device_binaries_1.10_linux_x64/device/creds/device.crt`. The SCT key certificate can be found inside `sdo_device_binaries_1.10_linux_x64/keys/manufacturer-keystore.p12`
 
 1. Assuming that there is an existing owner's certificate and private key stored in a keystore as a PrivateKeyEntry under the alias 'Owner', run the following commands to list the contents of a keystore, then extract the owner's certificate into <owner_certificate.pem>:
    ```bash

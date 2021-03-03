@@ -20,10 +20,10 @@ Required Environment Variables:
   SDO_RV_URL: usually the dev RV running in the sdo-owner-services. To use the real Intel RV service, set to http://sdo-sbx.trustedservices.intel.com or http://sdo.trustedservices.intel.com and register your public key with Intel.
 
 Optional Environment Variables:
-  SDO_MFG_IMAGE_TAG - version of the manufacturer and manufacturer-mariadb docker images that should be used. Defaults to '1.9'.
+  SDO_MFG_IMAGE_TAG - version of the manufacturer and manufacturer-mariadb docker images that should be used. Defaults to '1.10'.
   HZN_MGMT_HUB_CERT - the base64 encoded content of the SDO owner services self-signed certificate (if it requires that). This is normally not necessary on the device, because the SDO protocols are secure over HTTP.
   SDO_SAMPLE_MFG_KEEP_SVCS - set to 'true' to skip shutting down the mfg docker containers at the end of this script. This is faster if running this script repeatedly during dev/test.
-  SDO_SUPPORT_REPO - if you need to use a more recent version of SDO files from the repo than the 1.9 released files. This takes precedence over SDO_SUPPORT_RELEASE.
+  SDO_SUPPORT_REPO - if you need to use a more recent version of SDO files from the repo than the 1.10 released files. This takes precedence over SDO_SUPPORT_RELEASE.
   SDO_SUPPORT_RELEASE - if you need to use a specific set of released files.
   SDO_DEVICE_USE_NATIVE_CLIENT - normally detected automatically, but can be overridden explicitly: set to 'true' to use the native SDO device client. (To use this, you need to have the 'sdo' native docker image already loaded on this host.) Set to 'false' to use the reference implementation java device client. 
 
@@ -37,7 +37,7 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
 fi
 : ${SDO_RV_URL:?}
 
-deviceBinaryDir='sdo_device_binaries_1.9_linux_x64'   # the place we will unpack sdo_device_binaries_1.9_linux_x64.tar.gz to
+deviceBinaryDir='sdo_device_binaries_1.10_linux_x64'   # the place we will unpack sdo_device_binaries_1.10_linux_x64.tar.gz to
 ownerPubKeyFile=${1:-$deviceBinaryDir/keys/sample-owner-key.pub}
 rvUrl="$SDO_RV_URL"   # the external rv url that the device should reach it at
 
@@ -51,10 +51,10 @@ if [[ -f "$ownerPubKeyFile" ]]; then
 fi
 
 # These environment variables can be overridden
-SDO_MFG_IMAGE_TAG=${SDO_MFG_IMAGE_TAG:-1.9}
+SDO_MFG_IMAGE_TAG=${SDO_MFG_IMAGE_TAG:-1.10}
 # default SDO_SUPPORT_REPO to blank, so SDO_SUPPORT_RELEASE will be used
 #SDO_SUPPORT_REPO=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/master}
-SDO_SUPPORT_RELEASE=${SDO_SUPPORT_RELEASE:-https://github.com/open-horizon/SDO-support/releases/download/v1.9}
+SDO_SUPPORT_RELEASE=${SDO_SUPPORT_RELEASE:-https://github.com/open-horizon/SDO-support/releases/download/v1.10}
 useNativeClient=$SDO_DEVICE_USE_NATIVE_CLIENT   # if empty (recommended) this script will detect automatically which sdo client to use
 
 workingDir=/var/sdo
@@ -63,7 +63,7 @@ sdoMfgDockerName='manufacturer'   # both docker image and container
 sdoMariaDbDockerName='manufacturer-mariadb'   # both docker image and container
 dbUser='sdo'
 dbPw='sdo'
-sdoNativeDockerImage='sdo:1.9'
+sdoNativeDockerImage='sdo:1.10'
 IP_REGEX='^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$'
 
 #====================== Functions ======================
@@ -353,10 +353,10 @@ fi
 echo "Pulling and tagging the SDO SCT services..."
 docker pull openhorizon/$sdoMfgDockerName:$SDO_MFG_IMAGE_TAG
 chk $? "pulling openhorizon/$sdoMfgDockerName:$SDO_MFG_IMAGE_TAG"
-docker tag openhorizon/$sdoMfgDockerName:$SDO_MFG_IMAGE_TAG $sdoMfgDockerName:1.9   # this is what the SDO docker-compose.yml file knows it by
+docker tag openhorizon/$sdoMfgDockerName:$SDO_MFG_IMAGE_TAG $sdoMfgDockerName:1.10   # this is what the SDO docker-compose.yml file knows it by
 docker pull openhorizon/$sdoMariaDbDockerName:$SDO_MFG_IMAGE_TAG
 chk $? "pulling openhorizon/$sdoMariaDbDockerName:$SDO_MFG_IMAGE_TAG"
-docker tag openhorizon/$sdoMariaDbDockerName:$SDO_MFG_IMAGE_TAG $sdoMariaDbDockerName:1.9   # this is what the SDO docker-compose.yml file knows it by
+docker tag openhorizon/$sdoMariaDbDockerName:$SDO_MFG_IMAGE_TAG $sdoMariaDbDockerName:1.10   # this is what the SDO docker-compose.yml file knows it by
 
 echo "Starting the SDO SCT services (could take about 75 seconds)..."
 # need to explicitly set the project name, because it was built with that project name (see Makefile)

@@ -165,7 +165,7 @@ fi
 
 # Run all of the services
 echo "Starting rendezvous service..."
-(cd rv && ./rendezvous) &   #todo: convert to sdo/rendezvous-service-v1.9.0 (with redis)
+(cd rv && ./rendezvous) &   #todo: convert to sdo/rendezvous-service-v1.10.0 (with redis)
 #todo: remove the env cmds below
 echo "Starting to0scheduler service..."
 #(cd to0scheduler/config && eval export $(sed -e '/^ *#/d' -e '/^$/d' -e "s/=\(.*\)$/='\1'/" ../to0scheduler.env) && echo '===== TO0SCHEDULER =====' && env && ./run-to0scheduler) &
