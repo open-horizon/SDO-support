@@ -1,95 +1,8 @@
-package data
-
-// Data for OCS Config Files -------------------
-// Is there a better way to handle this?
-
-var PsiJson = `[
-  {
-    "module": "sdo_sys",
-    "msg": "maxver",
-    "value": "1"
-  }
-]`
-
-// this one is optional, that's why it is separate
-var SviJson1 = `
-  {
-    "module": "sdo_sys",
-    "msg": "filedesc",
-    "valueLen": -1,
-    "valueId": "agent-install-crt_name",
-    "enc": "base64"
-  },
-  {
-    "module": "sdo_sys",
-    "msg": "write",
-    "valueLen": -1,
-    "valueId": "agent-install.crt",
-    "enc": "base64"
-  },`
-
-var SviJson2 = `
-  {
-    "module": "sdo_sys",
-    "msg": "filedesc",
-    "valueLen": -1,
-    "valueId": "agent-install-cfg_name",
-    "enc": "base64"
-  },
-  {
-    "module": "sdo_sys",
-    "msg": "write",
-    "valueLen": -1,
-    "valueId": "agent-install.cfg",
-    "enc": "base64"
-  },
-  {
-    "module": "sdo_sys",
-    "msg": "filedesc",
-    "valueLen": -1,
-    "valueId": "agent-install-sh_name",
-    "enc": "base64"
-  },
-  {
-    "module": "sdo_sys",
-    "msg": "write",
-    "valueLen": -1,
-    "valueId": "agent-install.sh",
-    "enc": "base64"
-  },
-  {
-    "module": "sdo_sys",
-    "msg": "filedesc",
-    "valueLen": -1,
-    "valueId": "agent-install-wrapper-sh_name",
-    "enc": "base64"
-  },
-  {
-    "module": "sdo_sys",
-    "msg": "write",
-    "valueLen": -1,
-    "valueId": "agent-install-wrapper.sh",
-    "enc": "base64"
-  },
-  {
-    "module": "sdo_sys",
-    "msg": "exec",
-    "valueLen": -1,
-    "valueId": "`
-
-// need to put the uuid between these 2
-
-var SviJson3 = `_exec",
-    "enc": "base64"
-  }
-`
-
-/* now a real file in ocs-api/
-var AgentInstallWrapper = `#!/bin/sh
+#!/bin/sh
 
 # The primary purpose of this wrapper is to be able to invoke agent-install.sh in the SDO context and log all of its stdout/stderr
 
-echo "$0 starting..."
+echo "$0 starting...."
 echo "Will be running: ./agent-install.sh $*"
 
 # Verify the number of args is what we are handling below
@@ -132,5 +45,3 @@ else
     exec ./agent-install.sh "$1" "$2" "$3" "$4" "$5" "$6" "$7" "$8" 2>&1 > $logFile
 fi
 #exit 2   # it only gets here if exec failed
-`
-*/
