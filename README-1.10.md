@@ -163,23 +163,7 @@ Now that SDO has configured your edge device, it is automatically disabled on th
 These steps only need to be performed by developers of this project.
 
 ### <a name="build-owner-svcs"></a>Build the SDO Owner Services for Open Horizon
-
-1. Download these tar files from [Intel SDO Release 1.10.0](https://github.com/secure-device-onboard/release/releases/tag/v1.10.0) to directory `sdo/` and unpack them:
-
-   ```bash
-   mkdir -p sdo && cd sdo
-   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.0/iot-platform-sdk-v1.10.0.tar.gz
-   tar -zxf iot-platform-sdk-v1.10.0.tar.gz
-   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.0/pri-v1.10.0.tar.gz
-   tar -zxf pri-v1.10.0.tar.gz
-   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.0/NOTICES-v1.10.0.tar.gz
-   tar -zxf NOTICES-v1.10.0.tar.gz
-   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.0/rendezvous-service-v1.10.0.tar.gz
-   tar -zxf rendezvous-service-v1.10.0.tar.gz
-   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.0/supply-chain-tools-v1.10.0.tar.gz
-   tar -zxf supply-chain-tools-v1.10.0.tar.gz
-   cd ..
-   ```
+1. Download [Intel SDO Release 1.10.0 dependencies](https://github.com/secure-device-onboard/release/releases/tag/v1.10.0) by running the `getSDO.sh` script.
 
 2. Build the docker container that will run all of the SDO services needed for Open Horizon:
 
