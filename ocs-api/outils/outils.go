@@ -226,18 +226,21 @@ func CopyFile(fromFileName, toFileName string, perm os.FileMode) *HttpError {
 }
 
 // Verify the request credentials with the exchange. Returns true/false or error
-func ExchangeAuthenticate(r *http.Request, currentExchangeUrl, currentOrgId, certificatePath string) (bool, *HttpError) {
+func ExchangeAuthenticate(r *http.Request, currentExchangeUrl, deviceOrgId, certificatePath string) (bool, *HttpError) {
 	orgAndUser, pwOrKey, ok := r.BasicAuth()
 	if !ok {
 		return false, nil
 	}
+
+	// Split the creds
 	parts := strings.Split(orgAndUser, "/")
 	if len(parts) != 2 {
 		return false, nil
 	}
-	orgId := parts[0]
+	credOrgId := parts[0]
 	user := parts[1]
 
+	// Get certificate
 	var certPath string
 	if !PathExists(certificatePath) {
 		certPath = ""
@@ -248,25 +251,26 @@ func ExchangeAuthenticate(r *http.Request, currentExchangeUrl, currentOrgId, cer
 	var url, method string
 	var goodStatusCode int
 	if orgAndUser == "root/root" {
-		// Special case of exchange root user: in this case it is ok for the creds org to be different from the request org
+		// Special case of exchange root user: in this case it is ok for the creds org to be different from the request/device org
 		//To do this do GET /orgs/{orgid}/users
 		method = http.MethodGet
-		url = fmt.Sprintf("%v/orgs/%v/users", currentExchangeUrl, currentOrgId)
+		url = fmt.Sprintf("%v/orgs/%v/users", currentExchangeUrl, deviceOrgId)
 		goodStatusCode = http.StatusOK
 	} else {
-		// Non-root creds: Invoke exchange to confirm the client has user creds in the org of the creds, and that it is the same org this service is configured for.
-		// To do this do POST /orgs/{orgid}/users/{username}/confirm. Note: this is not supported for the exchange root creds.
-		if orgId != currentOrgId {
-			return false, NewHttpError(http.StatusUnauthorized, "the org id of the credentials ("+orgId+") does not match the org id the SDO owner service is configured for ("+currentOrgId+")")
+		// Non-root creds: Invoke exchange to confirm the client has user creds are valid and have the access they need to create create and manage this device.
+		// Note: POST /orgs/{orgid}/users/{username}/confirm only confirms that the creds can read its own user resource. This is sufficient if the creds are in
+		//		the same org as the device, so we need to catch the case when the aren't.
+		if credOrgId != deviceOrgId {
+			return false, NewHttpError(http.StatusUnauthorized, "the org id of the credentials ("+credOrgId+") does not match the org id the SDO owner service is configured for ("+deviceOrgId+")")
 		}
 		method = http.MethodPost
-		url = fmt.Sprintf("%v/orgs/%v/users/%v/confirm", currentExchangeUrl, orgId, user)
+		url = fmt.Sprintf("%v/orgs/%v/users/%v/confirm", currentExchangeUrl, credOrgId, user)
 		goodStatusCode = http.StatusCreated
 	}
 	apiMsg := fmt.Sprintf("%v %v", method, url)
 	Verbose("confirming credentials via %s", apiMsg)
 
-	// Create an outgoing HTTP request for the exchange.
+	// Create an outgoing HTTP request to the exchange.
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
 		return false, NewHttpError(http.StatusInternalServerError, "unable to create HTTP request for %s, error: %v", apiMsg, err)

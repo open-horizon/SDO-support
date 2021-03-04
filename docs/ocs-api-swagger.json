@@ -57,6 +57,12 @@
             "schema": {
               "$ref": "#/definitions/Voucher"
             }
+          },
+          {
+            "in": "query",
+            "name": "orgid",
+            "type": "string",
+            "description": "(optional) The org id that the device should be created in"
           }
         ],
         "responses": {
@@ -86,6 +92,14 @@
         "operationId": "getVouchers",
         "produces": [
           "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "orgid",
+            "type": "string",
+            "description": "(optional) The org id that the device should be created in"
+          }
         ],
         "responses": {
           "200": {
@@ -118,6 +132,12 @@
             "description": "ID of the device you want the voucher for",
             "required": true,
             "type": "string"
+          },
+          {
+            "in": "query",
+            "name": "orgid",
+            "type": "string",
+            "description": "(optional) The org id that the device should be created in"
           }
         ],
         "produces": [

@@ -24,7 +24,7 @@ REST API server to configure the SDO OCS (Owner Companion Service) DB files for 
 // These global vars are necessary because the handler functions are not given any context
 var OcsDbDir string
 var GetVoucherRegex = regexp.MustCompile(`^/api/vouchers/([^/]+)$`)
-var CurrentOrgId string
+var CurrentDefaultOrgId string
 var CurrentExchangeUrl string         // the external url, that the device needs
 var CurrentExchangeInternalUrl string // will default to CurrentExchangeUrl
 var CurrentCssUrl string              // the external url, that the device needs
@@ -34,7 +34,7 @@ type CfgVarsStruct struct {
 	HZN_EXCHANGE_URL      string `json:"HZN_EXCHANGE_URL"`      // the external URL of the exchange (how devices should reach it)
 	EXCHANGE_INTERNAL_URL string `json:"EXCHANGE_INTERNAL_URL"` // optional: how ocs-api should contact the exchange. Will default to HZN_EXCHANGE_URL
 	HZN_FSS_CSSURL        string `json:"HZN_FSS_CSSURL"`
-	HZN_ORG_ID            string `json:"HZN_ORG_ID"`
+	HZN_ORG_ID            string `json:"HZN_ORG_ID"` // the default org the node should be created in, if not overridden in the import API
 }
 type Config struct {
 	CfgVars CfgVarsStruct `json:"cfgVars"`
@@ -61,8 +61,8 @@ func main() {
 	}
 
 	// Create all of the common config files, if we have the necessary env vars to do so
-	if httpErr := createConfigFiles(nil); httpErr != nil {
-		outils.Fatal(3, "creating common config files, HTTP code: %d, error: %s", httpErr.Code, httpErr.Error())
+	if httpErr := createConfigFiles(); httpErr != nil {
+		outils.Fatal(3, "creating common config files: %s", httpErr.Error())
 	}
 
 	//http.HandleFunc("/", rootHandler)
@@ -93,6 +93,8 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		http.Error(w, "Route "+r.URL.Path+" not found", http.StatusNotFound)
 	}
+	// Note: we used to also support a route that would allow an admin to change the config (i.e. run createConfigFiles()) w/o restarting
+	//		the container, but penetration testing deemed it a security exposure, because you can cause this service to do arbitrary DNS lookups.
 }
 
 // Route Handlers --------------------------------------------------------------------------------------------------
@@ -110,52 +112,19 @@ func getVersionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-//============= POST /api/config =============
-//!!!!!!!! Not being used!!! See note in apiHandler()
-// Sets ocs-api configuration that is not specific to any specific device
-func postConfigHandler(w http.ResponseWriter, r *http.Request) {
-	outils.Verbose("POST /api/config ...")
-
-	// Authentication for this REST API is based on the *current* config, not the new config
-	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, CurrentOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
-		http.Error(w, httpErr.Error(), httpErr.Code)
-		return
-	} else if !authenticated {
-		http.Error(w, "invalid exchange credentials provided", http.StatusUnauthorized)
-		return
-	}
-
-	if httpErr := outils.IsValidPostJson(r); httpErr != nil {
-		http.Error(w, httpErr.Error(), httpErr.Code)
-		return
-	}
-
-	// Parse the request body
-	config := Config{}
-	if httpErr := outils.ReadJsonBody(r, &config); httpErr != nil {
-		http.Error(w, httpErr.Error(), httpErr.Code)
-		return
-	}
-	if config.CfgVars.HZN_EXCHANGE_URL == "" || config.CfgVars.HZN_FSS_CSSURL == "" || config.CfgVars.HZN_ORG_ID == "" { // config.Crt and config.CfgVars.EXCHANGE_INTERNAL_URL are allowed to be empty
-		http.Error(w, "Error: one of the required fields is missing in the request body", http.StatusBadRequest)
-		return
-	}
-
-	// Create all of the common config files
-	if httpErr := createConfigFiles(&config); httpErr != nil {
-		http.Error(w, httpErr.Error(), httpErr.Code)
-		return
-	}
-
-	w.WriteHeader(http.StatusOK)
-}
-
 //============= GET /api/vouchers/{device-id} =============
 // Reads/returns an already imported voucher
 func getVoucherHandler(deviceUuid string, w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("GET /api/vouchers/%s ...", deviceUuid)
 
-	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, CurrentOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
+	// Determine the org id to use for the device, based on various inputs
+	deviceOrgId, httpErr := getDeviceOrgId(r)
+	if httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	}
+
+	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
@@ -171,16 +140,35 @@ func getVoucherHandler(deviceUuid string, w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Confirm this voucher/device is in the client's org. Doing this check after getting the voucher, because if the
+	// voucher doesn't exist, we want them get that error, rather than that it not in their org
+	orgidTxtStr, httpErr := getOrgidTxtStr(deviceUuid)
+	if httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	}
+	if orgidTxtStr != deviceOrgId { // this device is in our org
+		http.Error(w, "Device "+deviceUuid+" is not in org "+deviceOrgId, http.StatusBadRequest)
+		return
+	}
+
 	// Send voucher to client
 	outils.WriteResponse(http.StatusOK, w, voucherBytes)
 }
 
 //============= GET /api/vouchers =============
-// Reads/returns an already imported voucher
+// Reads/returns all of the already imported vouchers
 func getVouchersHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("GET /api/vouchers ...")
 
-	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, CurrentOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
+	// Determine the org id to use for the device, based on various inputs
+	deviceOrgId, httpErr := getDeviceOrgId(r)
+	if httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	}
+
+	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
@@ -190,20 +178,28 @@ func getVouchersHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Read the v1/devices/ directory in the db
 	vouchersDirName := OcsDbDir + "/v1/devices"
-	files, err := ioutil.ReadDir(filepath.Clean(vouchersDirName))
+	deviceDirs, err := ioutil.ReadDir(filepath.Clean(vouchersDirName))
 	if err != nil {
 		http.Error(w, "Error reading "+vouchersDirName+" directory: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	vouchers := []string{}
-	for _, file := range files {
-		if file.IsDir() {
-			vouchers = append(vouchers, file.Name())
+	for _, dir := range deviceDirs {
+		if dir.IsDir() {
+			// Look inside the device dir for orgid.txt to see if is part of the org we are listing
+			orgidTxtStr, httpErr := getOrgidTxtStr(dir.Name())
+			if httpErr != nil {
+				http.Error(w, httpErr.Error(), httpErr.Code)
+				return
+			}
+			if orgidTxtStr == deviceOrgId { // this device is in our org
+				vouchers = append(vouchers, dir.Name())
+			}
 		}
 	}
 
-	// Send voucher to client
+	// Send vouchers to client
 	outils.WriteJsonResponse(http.StatusOK, w, vouchers)
 }
 
@@ -211,9 +207,17 @@ func getVouchersHandler(w http.ResponseWriter, r *http.Request) {
 // Imports a voucher (can be called again for an existing voucher and will update/overwrite)
 func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("POST /api/vouchers ...")
-
 	valuesDir := OcsDbDir + "/v1/values"
-	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, CurrentOrgId, valuesDir+"/agent-install.crt"); httpErr != nil {
+
+	// Determine the org id to use for the device, based on various inputs
+	deviceOrgId, httpErr := getDeviceOrgId(r)
+	if httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	}
+
+	// Authenticate this user with the exchange
+	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, valuesDir+"/agent-install.crt"); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
@@ -241,7 +245,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	voucher := Voucher{}
-	bodyBytes, err := ioutil.ReadAll(r.Body) // we need the body in 2 forms, but can only read it once, so get it as bytes
+	bodyBytes, err := ioutil.ReadAll(r.Body) // we need the request body in 2 forms (bytes and the Voucher struct), but can only read it once, so get it as bytes
 	if err != nil {
 		http.Error(w, "Error reading the request body: "+err.Error(), http.StatusBadRequest)
 		return
@@ -291,6 +295,14 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Create orgid.txt file to identify what org this device/voucher is part of
+	fileName = deviceDir + "/orgid.txt"
+	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
+	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(deviceOrgId), 0644); err != nil {
+		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	// Generate a node token
 	nodeToken, httpErr := outils.GenerateNodeToken()
 	if httpErr != nil {
@@ -302,7 +314,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	//aptRepo := "http://pkg.bluehorizon.network/linux/ubuntu"
 	//aptChannel := "testing"
 	//execCmd := outils.MakeExecCmd("/bin/sh agent-install-wrapper.sh -i " + aptRepo + " -t " + aptChannel + " -j apt-repo-public.key -a " + uuid.String() + ":" + nodeToken)
-	execCmd := outils.MakeExecCmd("/bin/sh agent-install-wrapper.sh -i " + CurrentPkgsFrom + " -a " + uuid.String() + ":" + nodeToken)
+	execCmd := outils.MakeExecCmd(fmt.Sprintf("/bin/sh agent-install-wrapper.sh -i %s -a %s:%s -O %s", CurrentPkgsFrom, uuid.String(), nodeToken, deviceOrgId))
 	fileName = OcsDbDir + "/v1/values/" + uuid.String() + "_exec"
 	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
 	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(execCmd), 0644); err != nil {
@@ -319,12 +331,20 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 //============= POST /api/rereadagentinstall =============
+//todo: delete this API once https://github.com/open-horizon/SDO-support/issues/77 is implemented
 // Causes our service to get agent-install.sh again (to pick up any changes to it)
 func postRereadAgentInstallHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("POST /api/rereadagentinstall ...")
 
+	// Determine the org id to use for the device, based on various inputs
+	deviceOrgId, httpErr := getDeviceOrgId(r)
+	if httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	}
+
 	valuesDir := OcsDbDir + "/v1/values"
-	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, CurrentOrgId, valuesDir+"/agent-install.crt"); httpErr != nil {
+	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, valuesDir+"/agent-install.crt"); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
@@ -348,8 +368,15 @@ func postRereadAgentInstallHandler(w http.ResponseWriter, r *http.Request) {
 func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("POST /api/keys ...")
 
+	// Determine the org id to use for the device, based on various inputs
+	deviceOrgId, httpErr := getDeviceOrgId(r)
+	if httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	}
+
 	valuesDir := OcsDbDir + "/v1/values"
-	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, CurrentOrgId, valuesDir+"/agent-install.crt"); httpErr != nil {
+	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, valuesDir+"/agent-install.crt"); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
@@ -405,18 +432,65 @@ func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
 
 //============= Non-Route Functions =============
 
-// Create the common (not device specific) config files. Can be called during startup (config == nil)
-func createConfigFiles(config *Config) *outils.HttpError {
-	// Note: this function is currently only called with a nil config at startup, because the POST /api/config route has been disabled
+// Determine the org id to use for the device, based on various inputs from the client
+func getDeviceOrgId(r *http.Request) (string, *outils.HttpError) {
+	/* Get the orgid this device should be put in. It can come from several places (in precedence order):
+	- they explicitly specify the org in the url param: ?orgid=<org>
+	- if the creds are NOT in the root org, use the cred org
+	- use the default org passed into the sdo-owner-services container
+	*/
+	orgAndUser, _, ok := r.BasicAuth()
+	if !ok {
+		return "", outils.NewHttpError(http.StatusUnauthorized, "invalid exchange credentials provided")
+	}
+	parts := strings.Split(orgAndUser, "/")
+	if len(parts) != 2 {
+		return "", outils.NewHttpError(http.StatusUnauthorized, "invalid exchange credentials provided")
+	}
+	credOrgId := parts[0]
+
+	deviceOrgId := CurrentDefaultOrgId
+	orgidParams, ok := r.URL.Query()["orgid"]
+	if ok && len(orgidParams) > 0 && len(orgidParams[0]) > 0 {
+		deviceOrgId = orgidParams[0]
+	} else if credOrgId != "root" {
+		deviceOrgId = credOrgId
+	}
+	return deviceOrgId, nil
+}
+
+// Return the org of this device based on the orgid.txt file stored with it, or the default org
+func getOrgidTxtStr(deviceId string) (string, *outils.HttpError) {
+	// Look inside the device dir for orgid.txt to what org it belongs to
+	vouchersDirName := OcsDbDir + "/v1/devices"
+	orgidTxtFileName := filepath.Clean(vouchersDirName + "/" + deviceId + "/orgid.txt")
+	orgidTxtStr := CurrentDefaultOrgId // default if we don't find it in the orgid.txt
+	if outils.PathExists(orgidTxtFileName) {
+		var orgidTxtBytes []byte
+		var err error
+		if orgidTxtBytes, err = ioutil.ReadFile(orgidTxtFileName); err != nil {
+			return "", outils.NewHttpError(http.StatusInternalServerError, "Error reading "+orgidTxtFileName+": "+err.Error())
+		} else {
+			orgidTxtStr = string(orgidTxtBytes)
+			orgidTxtStr = strings.TrimSuffix(orgidTxtStr, "\n")
+		}
+	}
+	return orgidTxtStr, nil
+}
+
+// Create the common (not device specific) config files. Called during startup.
+func createConfigFiles() *outils.HttpError {
+	// These env vars are required
+	if !outils.IsEnvVarSet("HZN_EXCHANGE_URL") || !outils.IsEnvVarSet("HZN_FSS_CSSURL") || !outils.IsEnvVarSet("HZN_ORG_ID") {
+		return outils.NewHttpError(http.StatusBadRequest, "these environment variables must be set: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID")
+	}
+
 	valuesDir := OcsDbDir + "/v1/values"
 	var fileName, dataStr string
 
 	// Create agent-install.crt and its name file
 	var crt []byte
-	if config != nil {
-		crt = config.Crt // the (now disabled) POST /api/config route
-	} else if outils.IsEnvVarSet("HZN_MGMT_HUB_CERT") {
-		// during startup
+	if outils.IsEnvVarSet("HZN_MGMT_HUB_CERT") {
 		var err error
 		crt, err = base64.StdEncoding.DecodeString(os.Getenv("HZN_MGMT_HUB_CERT"))
 		if err != nil {
@@ -442,39 +516,27 @@ func createConfigFiles(config *Config) *outils.HttpError {
 	}
 
 	// Create agent-install.cfg and its name file
-	if config != nil {
-		CurrentExchangeUrl = config.CfgVars.HZN_EXCHANGE_URL
-		if config.CfgVars.EXCHANGE_INTERNAL_URL != "" {
-			CurrentExchangeInternalUrl = config.CfgVars.EXCHANGE_INTERNAL_URL
-		} else {
-			CurrentExchangeInternalUrl = CurrentExchangeUrl //default
-		}
-		CurrentCssUrl = config.CfgVars.HZN_FSS_CSSURL
-		CurrentOrgId = config.CfgVars.HZN_ORG_ID
-	} else if outils.IsEnvVarSet("HZN_EXCHANGE_URL") && outils.IsEnvVarSet("HZN_FSS_CSSURL") && outils.IsEnvVarSet("HZN_ORG_ID") {
-		CurrentExchangeUrl = os.Getenv("HZN_EXCHANGE_URL")
-		// CurrentExchangeInternalUrl is not needed for the device config file, only for ocs-api exchange authentication
-		if outils.IsEnvVarSet("EXCHANGE_INTERNAL_URL") {
-			CurrentExchangeInternalUrl = os.Getenv("EXCHANGE_INTERNAL_URL")
-		} else {
-			CurrentExchangeInternalUrl = CurrentExchangeUrl // default
-		}
-		CurrentCssUrl = os.Getenv("HZN_FSS_CSSURL")
-		CurrentOrgId = os.Getenv("HZN_ORG_ID")
+	CurrentExchangeUrl = os.Getenv("HZN_EXCHANGE_URL")
+	// CurrentExchangeInternalUrl is not needed for the device config file, only for ocs-api exchange authentication
+	if outils.IsEnvVarSet("EXCHANGE_INTERNAL_URL") {
+		CurrentExchangeInternalUrl = os.Getenv("EXCHANGE_INTERNAL_URL")
+	} else {
+		CurrentExchangeInternalUrl = CurrentExchangeUrl // default
 	}
-	if CurrentExchangeUrl != "" && CurrentCssUrl != "" && CurrentOrgId != "" {
-		fileName = valuesDir + "/agent-install.cfg"
-		outils.Verbose("Creating %s ...", fileName)
-		dataStr = "HZN_EXCHANGE_URL=" + CurrentExchangeUrl + "\nHZN_FSS_CSSURL=" + CurrentCssUrl + "\nHZN_ORG_ID=" + CurrentOrgId + "\n"
-		if len(crt) > 0 {
-			// only add this if we actually created the agent-install.crt file above
-			dataStr += "HZN_MGMT_HUB_CERT_PATH=agent-install.crt\n"
-		}
-		if err := ioutil.WriteFile(fileName, []byte(dataStr), 0644); err != nil {
-			return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
-		}
-		outils.Verbose("Will be configuring devices to use config:\n%s", dataStr)
+	CurrentCssUrl = os.Getenv("HZN_FSS_CSSURL")
+	CurrentDefaultOrgId = os.Getenv("HZN_ORG_ID")
+	fileName = valuesDir + "/agent-install.cfg"
+	outils.Verbose("Creating %s ...", fileName)
+	// Even tho we now explicitly set the org via the agent-install.sh -O flag, we leave the default in the cfg file for backward compatibility
+	dataStr = "HZN_EXCHANGE_URL=" + CurrentExchangeUrl + "\nHZN_FSS_CSSURL=" + CurrentCssUrl + "\nHZN_ORG_ID=" + CurrentDefaultOrgId + "\n"
+	if len(crt) > 0 {
+		// only add this if we actually created the agent-install.crt file above
+		dataStr += "HZN_MGMT_HUB_CERT_PATH=agent-install.crt\n"
 	}
+	if err := ioutil.WriteFile(fileName, []byte(dataStr), 0644); err != nil {
+		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
+	}
+	outils.Verbose("Will be configuring devices to use config:\n%s", dataStr)
 
 	fileName = valuesDir + "/agent-install-cfg_name"
 	outils.Verbose("Creating %s ...", fileName)
@@ -498,9 +560,11 @@ func createConfigFiles(config *Config) *outils.HttpError {
 
 	// Create agent-install-wrapper.sh and its name file
 	fileName = valuesDir + "/agent-install-wrapper.sh"
-	outils.Verbose("Creating %s ...", fileName)
-	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(data.AgentInstallWrapper), 0750); err != nil {
-		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
+	outils.Verbose("Copying ./agent-install-wrapper.sh to %s ...", fileName)
+	//if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(data.AgentInstallWrapper), 0750); err != nil {
+	// The Dockerfile copied agent-install-wrapper.sh into the container home dir (the same dir we get started in)
+	if err := outils.CopyFile("./agent-install-wrapper.sh", filepath.Clean(fileName), 0750); err != nil {
+		return outils.NewHttpError(http.StatusInternalServerError, "could not copy ./agent-install-wrapper.sh to "+fileName+": "+err.Error())
 	}
 
 	fileName = valuesDir + "/agent-install-wrapper-sh_name"
