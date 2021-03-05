@@ -77,17 +77,17 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("Handling %s ...", r.URL.Path)
 	if r.Method == "GET" && r.URL.Path == "/api/version" {
 		getVersionHandler(w, r)
-		// this route is disabled because penetration testing deemed this a security exposure, because you can cause this service to do arbitrary DNS lookups
-		//} else if r.Method == "POST" && r.URL.Path == "/api/config" {
-		//	postConfigHandler(w, r)
+		/* this route is disabled because penetration testing deemed this a security exposure, because you can cause this service to do arbitrary DNS lookups
+		} else if r.Method == "POST" && r.URL.Path == "/api/config" {
+			postConfigHandler(w, r) */
 	} else if matches := GetVoucherRegex.FindStringSubmatch(r.URL.Path); r.Method == "GET" && len(matches) >= 2 { // GET /api/vouchers/{device-id}
 		getVoucherHandler(matches[1], w, r)
 	} else if r.Method == "GET" && r.URL.Path == "/api/vouchers" {
 		getVouchersHandler(w, r)
 	} else if r.Method == "POST" && (r.URL.Path == "/api/vouchers" || r.URL.Path == "/api/voucher") { //todo: backward compat until we update hzn voucher import
 		postVoucherHandler(w, r)
-	} else if r.Method == "POST" && (r.URL.Path == "/api/rereadagentinstall") {
-		postRereadAgentInstallHandler(w, r)
+		/*} else if r.Method == "POST" && (r.URL.Path == "/api/rereadagentinstall") {
+		postRereadAgentInstallHandler(w, r) */
 	} else if r.Method == "POST" && (r.URL.Path == "/api/keys") {
 		postImportKeysHandler(w, r)
 	} else {
@@ -225,11 +225,11 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If all of the common config files didn't get created at startup, tell them
+	/* If all of the common config files didn't get created at startup, tell them
 	if !outils.PathExists(valuesDir+"/agent-install.cfg") || !outils.PathExists(valuesDir+"/agent-install.sh") { // agent-install.crt is optional
 		http.Error(w, "Error: not all of the common config files were created in the OCS DB at startup. Have your admin restart the service with all of the necessary input.", http.StatusBadRequest)
 		return
-	}
+	} */
 
 	if httpErr := outils.IsValidPostJson(r); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
@@ -314,6 +314,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	//aptRepo := "http://pkg.bluehorizon.network/linux/ubuntu"
 	//aptChannel := "testing"
 	//execCmd := outils.MakeExecCmd("/bin/sh agent-install-wrapper.sh -i " + aptRepo + " -t " + aptChannel + " -j apt-repo-public.key -a " + uuid.String() + ":" + nodeToken)
+	// Note: currently agent-install-wrapper.sh requires that the flags be in this order!!!!
 	execCmd := outils.MakeExecCmd(fmt.Sprintf("/bin/sh agent-install-wrapper.sh -i %s -a %s:%s -O %s", CurrentPkgsFrom, uuid.String(), nodeToken, deviceOrgId))
 	fileName = OcsDbDir + "/v1/values/" + uuid.String() + "_exec"
 	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
@@ -330,6 +331,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	outils.WriteJsonResponse(http.StatusCreated, w, respBody)
 }
 
+/* no longer used
 //============= POST /api/rereadagentinstall =============
 //todo: delete this API once https://github.com/open-horizon/SDO-support/issues/77 is implemented
 // Causes our service to get agent-install.sh again (to pick up any changes to it)
@@ -361,6 +363,7 @@ func postRereadAgentInstallHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 }
+*/
 
 //============= POST /api/keys =============
 // Receives in the body a tar file containing the owner's private keys and certificates. Imports them into our keystore.
@@ -545,18 +548,20 @@ func createConfigFiles() *outils.HttpError {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 	}
 
-	// Get and create agent-install.sh and its name file
-	fileName = valuesDir + "/agent-install.sh"
-	if httpErr := getAgentInstallScript(fileName); httpErr != nil {
-		return httpErr
-	}
+	/*
+		// Get and create agent-install.sh and its name file
+		fileName = valuesDir + "/agent-install.sh"
+		if httpErr := getAgentInstallScript(fileName); httpErr != nil {
+			return httpErr
+		}
 
-	fileName = valuesDir + "/agent-install-sh_name"
-	outils.Verbose("Creating %s ...", fileName)
-	dataStr = "agent-install.sh"
-	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(dataStr), 0644); err != nil {
-		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
-	}
+		fileName = valuesDir + "/agent-install-sh_name"
+		outils.Verbose("Creating %s ...", fileName)
+		dataStr = "agent-install.sh"
+		if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(dataStr), 0644); err != nil {
+			return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
+		}
+	*/
 
 	// Create agent-install-wrapper.sh and its name file
 	fileName = valuesDir + "/agent-install-wrapper.sh"
@@ -605,6 +610,7 @@ func createConfigFiles() *outils.HttpError {
 	return nil
 }
 
+/* no longer used
 // Reads or rereads agent-install.sh from the location they told us to get it from. Used in POST /api/rereadagentinstall
 func getAgentInstallScript(destFileName string) *outils.HttpError {
 	if outils.PathExists("./agent-install.sh") {
@@ -625,3 +631,4 @@ func getAgentInstallScript(destFileName string) *outils.HttpError {
 	}
 	return nil
 }
+*/

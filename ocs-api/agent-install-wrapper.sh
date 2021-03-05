@@ -1,19 +1,60 @@
 #!/bin/sh
 
-# The primary purpose of this wrapper is to be able to invoke agent-install.sh in the SDO context and log all of its stdout/stderr
+# The primary purpose of this wrapper is to be able to invoke agent-install.sh in the SDO context to install and register
+# the horizon agent and log all of its stdout/stderr. SDO is slow at downloading this wrapper script to the device, so keep it as short as possible.
+# This wrapper script is run on the edge device in the SDO directory /var/sdo/sdo_device_binaries_<version>_linux_x64/device. All of the needed files
+# like agent-install.cfg and agent-install.crt are downloaded by SDO to the same directory.
 
 echo "$0 starting...."
 echo "Will be running: ./agent-install.sh $*"
 
 # Verify the number of args is what we are handling below
 maxArgs=8   # the exec statement below is only passing up to this many args to agent-install.sh
-if [ $# -gt $maxArgs ]; then
+if [ $# -gt $maxArgs -o "$1" != '-i' -o "$3" != '-a' -o "$5" != '-O' ]; then
     # it is easy to miss this error msg in the midst of the verbose sdo output
-    echo '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
-    echo "Error: the number of args specified ($#) is more than the maximum that agent-install-wrapper.sh currently supports ($maxArgs)"
-    echo '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
+    echo "~~~~~~~~~~~~~~~~\nError: too many arguments passed to agent-install-wrapper.sh or the arguments are in the wrong order\n~~~~~~~~~~~~~~~~"
     exit 2
 fi
+
+# Download agent-install.sh
+pkgsFrom="$2"   #future: add a very lightweight arg parser so we are not dependent on these being in a specific order
+nodeAuth="$4"
+deviceOrgId="$6"
+
+# Install curl if not present
+if ! command -v curl >/dev/null 2>&1; then
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get install -yqf curl
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -yq curl
+    else
+        echo "~~~~~~~~~~~~~~~~\nError: the curl command is not installed and neither apt-get or dnf is present\n~~~~~~~~~~~~~~~~"
+        exit 2
+    fi
+fi
+
+#if [ `echo "$pkgsFrom" | cut -c 1-4` = 'css:' ]; then
+if [ "${pkgsFrom%%:*}" = 'css' ]; then
+    # Get agent-install.sh from the mgmt hub CSS
+    eval export `cat agent-install.cfg`   # we need the value of HZN_FSS_CSSURL
+    agentInstallRemotePath="${HZN_FSS_CSSURL%/}/api/v1/objects/IBM/agent_files/agent-install.sh/data"
+    echo "Downloading $agentInstallRemotePath ..."
+    httpCode=`curl -sSL -w "%{http_code}" -u "$deviceOrgId/$nodeAuth" --cacert agent-install.crt -o agent-install.sh "$agentInstallRemotePath"`
+    if [ $? -ne 0 -o "$httpCode" != '200' ]; then
+        echo "~~~~~~~~~~~~~~~~\nError downloading $agentInstallRemotePath: httpCode=$httpCode\n~~~~~~~~~~~~~~~~"
+        exit 2
+    fi
+else
+    # It is a URL like https://github.com/open-horizon/anax/releases/latest/download, just add agent-install.sh to the end
+    agentInstallRemotePath="$pkgsFrom/agent-install.sh"
+    echo "Downloading $agentInstallRemotePath ..."
+    httpCode=`curl -sSLO -w "%{http_code}" "$agentInstallRemotePath"`
+    if [ $? -ne 0 -o "$httpCode" != '200' ]; then
+        echo "~~~~~~~~~~~~~~~~\nError downloading $agentInstallRemotePath: httpCode=$httpCode\n~~~~~~~~~~~~~~~~"
+        exit 2
+    fi
+fi
+chmod 755 agent-install.sh
 
 # This script has a 2nd purpose in the native client case: when run inside the docker sdo container, copy the downloaded files to outside the container
 if [ -f /target/boot/inside-sdo-container ]; then
@@ -33,9 +74,6 @@ fi
 mkdir -p /var/sdo
 logFile=/var/sdo/agent-install.log
 echo "Logging all output to $logFile"
-
-# When SDO transfers agent-install.sh to the device, it does not make it executable
-chmod 755 agent-install.sh
 
 # If tee is installed, use it so the output can go to both stdout/stderr and the log file
 if command -v tee >/dev/null 2>&1; then

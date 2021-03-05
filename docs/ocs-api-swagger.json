@@ -162,30 +162,6 @@
         }
       }
     },
-    "/rereadagentinstall": {
-      "post": {
-        "tags": [
-          "OCS-API"
-        ],
-        "summary": "Have the management hub read a more recent version of agent-install.sh",
-        "description": "",
-        "operationId": "rereadAgentInstall",
-        "responses": {
-          "200": {
-            "description": "Reread successful"
-          },
-          "401": {
-            "description": "Invalid credentials"
-          },
-          "403": {
-            "description": "Permission denied"
-          },
-          "500": {
-            "description": "Error getting agent-install.sh"
-          }
-        }
-      }
-    },
     "/keys": {
       "post": {
         "tags": [

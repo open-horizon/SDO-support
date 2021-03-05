@@ -261,13 +261,11 @@ When following the instructions in [Using the SDO Support](#use-sdo), set the fo
 - In [Start the SDO Owner Services](#start-services) set:
 
    ```bash
-   # to use the most recently committed version of agent-install.sh:
-   export AGENT_INSTALL_URL=https://raw.githubusercontent.com/open-horizon/anax/master/agent-install/agent-install.sh
    # if the hostname of this host is not resolvable by the device, provide the IP address to RV instead
    export SDO_OWNER_SVC_HOST="1.2.3.4"
    # use the built-in rendezvous server instead of Intel's global RV
    export SDO_RV_URL=http://<sdo-owner-svc-host>:8040
-   # when running agent-install.sh on the edge device, it should get pkgs from CSS
+   # when running agent-install.sh on the edge device, it should get agent-install.sh and pkgs from CSS
    export SDO_GET_PKGS_FROM=css:
    # set your own password for the master keystore
    export SDO_KEY_PWD=<pw>

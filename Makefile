@@ -1,6 +1,6 @@
 SHELL ?= /bin/bash -e
 # Set this before building the ocs-api binary and sdo-owner-services (for now they use the samme version number)
-export VERSION ?= 1.10.1
+export VERSION ?= 1.10.2
 STABLE_VERSION ?= 1.10
 
 #todo: add BUILD_NUMBER like in anax/Makefile
