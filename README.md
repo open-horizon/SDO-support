@@ -107,6 +107,7 @@ curl -sSLO https://github.com/open-horizon/SDO-support/releases/download/v1.8/si
 chmod +x simulate-mfg.sh
 export SDO_RV_URL=http://sdo-sbx.trustedservices.intel.com:80
 export SDO_SAMPLE_MFG_KEEP_SVCS=true   # makes it faster if you run multiple tests
+export SDO_DEVICE_USE_NATIVE_CLIENT='false'
 ./simulate-mfg.sh
 ```
 
