@@ -1,6 +1,6 @@
 SHELL ?= /bin/bash -e
 # Set this before building the ocs-api binary and sdo-owner-services (for now they use the samme version number)
-export VERSION ?= 1.10.2
+export VERSION ?= 1.10.3
 STABLE_VERSION ?= 1.10
 
 #todo: add BUILD_NUMBER like in anax/Makefile
@@ -42,9 +42,8 @@ $(SDO_DOCKER_IMAGE): ocs-api/linux/ocs-api
 
 # Run the SDO services docker container
 # If you want to run the image w/o rebuilding: make -W sdo-owner-services -W ocs-api/linux/ocs-api run-sdo-owner-services
-#todo: remove HZN_EXCHANGE_USER_AUTH from these rules
 run-$(SDO_DOCKER_IMAGE): $(SDO_DOCKER_IMAGE)
-	: $${HZN_EXCHANGE_URL:?} $${HZN_FSS_CSSURL:?} $${HZN_ORG_ID:?} $${HZN_MGMT_HUB_CERT:?} $${HZN_EXCHANGE_USER_AUTH:?}
+	: $${HZN_EXCHANGE_URL:?} $${HZN_FSS_CSSURL:?} $${HZN_MGMT_HUB_CERT:?}
 	- docker rm -f $(SDO_DOCKER_IMAGE) 2> /dev/null || :
 	docker/run-sdo-owner-services.sh $(VERSION)
 

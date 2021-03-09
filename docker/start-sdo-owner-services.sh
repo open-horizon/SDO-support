@@ -24,7 +24,7 @@ if [[ "$1" == "-h" || "$1" == "--help" || -z "$SDO_OCS_DB_PATH" || -z "$SDO_OCS_
 Usage: ${0##*/} [<ocs-db-path>] [<ocs-api-port>]
 
 Environment variables that can be used instead of CLI args: SDO_OCS_DB_PATH, SDO_OCS_API_PORT
-Required environment variables: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID
+Required environment variables: HZN_EXCHANGE_URL, HZN_FSS_CSSURL
 Recommended environment variables: HZN_MGMT_HUB_CERT (unless the mgmt hub uses http or a CA-trusted certificate), SDO_KEY_PWD (unless using sample key files)
 Additional environment variables: SDO_RV_PORT, SDO_OPS_PORT, SDO_OPS_EXTERNAL_PORT, EXCHANGE_INTERNAL_URL, VERBOSE
 EndOfMessage
@@ -50,8 +50,8 @@ chk() {
 }
 
 # These env vars are needed by ocs-api to set up the common config files for ocs
-if [[ -z "$HZN_EXCHANGE_URL" || -z "$HZN_FSS_CSSURL" || -z "$HZN_ORG_ID" || -z "$SDO_OWNER_SVC_HOST" ]]; then
-    echo "Error: all of these environment variables must be set: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID, SDO_OWNER_SVC_HOST"
+if [[ -z "$HZN_EXCHANGE_URL" || -z "$HZN_FSS_CSSURL" || -z "$SDO_OWNER_SVC_HOST" ]]; then
+    echo "Error: all of these environment variables must be set: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, SDO_OWNER_SVC_HOST"
 fi
 
 echo "Using ports: RV: $rvPort, OPS: $opsPort, OPS external: $opsExternalPort, OCS-API: $ocsApiPort"
@@ -124,7 +124,7 @@ if [[ -s 'ocs/config/owner-keystore.p12' ]]; then
         #sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
         #chk $? 'sed password in ocs/config/application.properties'
         echo "Updating FS_OWNER_KEYSTORE_PASSWORD value in ocs/ocs.env ..."
-        verbose sed -i -e "s|^FS_OWNER_KEYSTORE_PASSWORD=.*|FS_OWNER_KEYSTORE_PASSWORD=${keyPass}|" ocs/ocs.env
+        #verbose sed -i -e "s|^FS_OWNER_KEYSTORE_PASSWORD=.*|FS_OWNER_KEYSTORE_PASSWORD=${keyPass}|" ocs/ocs.env
         sed -i -e "s|^fs.FS_OWNER_KEYSTORE_PASSWORD=.*|FS_OWNER_KEYSTORE_PASSWORD=${keyPass}|" ocs/ocs.env
         chk $? 'sed password in ocs/ocs.env'
     fi
@@ -140,7 +140,7 @@ elif [[ -s "$ocsDbDir/v1/creds/owner-keystore.p12" ]]; then
         #sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
         #chk $? 'sed password in ocs/config/application.properties'
         echo "Updating FS_OWNER_KEYSTORE_PASSWORD value in ocs/ocs.env ..."
-        verbose sed -i -e "s|^FS_OWNER_KEYSTORE_PASSWORD=.*|FS_OWNER_KEYSTORE_PASSWORD=${keyPass}|" ocs/ocs.env
+        #verbose sed -i -e "s|^FS_OWNER_KEYSTORE_PASSWORD=.*|FS_OWNER_KEYSTORE_PASSWORD=${keyPass}|" ocs/ocs.env
         sed -i -e "s|^FS_OWNER_KEYSTORE_PASSWORD=.*|FS_OWNER_KEYSTORE_PASSWORD=${keyPass}|" ocs/ocs.env
         chk $? 'sed password in ocs/ocs.env'
     fi
@@ -156,7 +156,7 @@ else
         #sed -i -e "s|^fs.owner.keystore-password=.*|fs.owner.keystore-password=${keyPass}|" ocs/config/application.properties
         #chk $? 'sed password in ocs/config/application.properties'
         echo "Updating FS_OWNER_KEYSTORE_PASSWORD value in ocs/ocs.env ..."
-        verbose sed -i -e "s|^FS_OWNER_KEYSTORE_PASSWORD=.*|FS_OWNER_KEYSTORE_PASSWORD=${keyPass}|" ocs/ocs.env
+        #verbose sed -i -e "s|^FS_OWNER_KEYSTORE_PASSWORD=.*|FS_OWNER_KEYSTORE_PASSWORD=${keyPass}|" ocs/ocs.env
         sed -i -e "s|^FS_OWNER_KEYSTORE_PASSWORD=.*|FS_OWNER_KEYSTORE_PASSWORD=${keyPass}|" ocs/ocs.env
         chk $? 'sed password in ocs/ocs.env'
     fi

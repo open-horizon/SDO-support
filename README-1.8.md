@@ -1,6 +1,4 @@
-# Open Horizon SDO 1.10
-
-## Under construction, do not use yet!!!!
+# Open Horizon SDO 1.8
 
 ## Overview of the Open Horizon SDO Support
 
@@ -77,11 +75,11 @@ Note: you only have to perform the steps in this section once. The keys create a
 1. Go to the directory where you want your generated keys to be saved then download `generate-key-pair.sh`.
 
    ```bash
-   curl -sSLO https://github.com/open-horizon/SDO-support/releases/download/v1.10/generate-key-pair.sh
+   curl -sSLO https://github.com/open-horizon/SDO-support/releases/download/v1.8/generate-key-pair.sh
    chmod +x generate-key-pair.sh
    ```
    
-2. Run the `generate-key-pair.sh` script. You will be prompted to answer a few questions in order to produce certificates for your private keys. (The prompts can be avoided by setting environment variables. Run `./generate-key-pair.sh -h` for details.) You must be using Ubuntu to run this script.
+2. Run the `generate-key-pair.sh` script. You will be prompted to answer a few questions in order to produce certificates for your private keys. (The prompts can be avoided by setting environment variables. Run `./generate-key-pair.sh -h` for details.) Supports Ubuntu and macOS.
 
    ```bash
    ./generate-key-pair.sh
@@ -105,10 +103,11 @@ The sample script called `simulate-mfg.sh` simulates the steps of an SDO-enabled
 
 ```bash
 mkdir -p $HOME/sdo && cd $HOME/sdo
-curl -sSLO https://github.com/open-horizon/SDO-support/releases/download/v1.10/simulate-mfg.sh
+curl -sSLO https://github.com/open-horizon/SDO-support/releases/download/v1.8/simulate-mfg.sh
 chmod +x simulate-mfg.sh
 export SDO_RV_URL=http://sdo-sbx.trustedservices.intel.com:80
 export SDO_SAMPLE_MFG_KEEP_SVCS=true   # makes it faster if you run multiple tests
+export SDO_DEVICE_USE_NATIVE_CLIENT='false'
 ./simulate-mfg.sh
 ```
 
@@ -163,7 +162,21 @@ Now that SDO has configured your edge device, it is automatically disabled on th
 These steps only need to be performed by developers of this project.
 
 ### <a name="build-owner-svcs"></a>Build the SDO Owner Services for Open Horizon
-1. Download [Intel SDO Release 1.10.0 dependencies](https://github.com/secure-device-onboard/release/releases/tag/v1.10.0) by running the `getSDO.sh` script.
+
+1. Download these tar files from [Intel SDO Release 1.8](https://github.com/secure-device-onboard/release/releases/tag/v1.8.0) to directory `sdo/` and uppack them:
+
+   ```bash
+   mkdir -p sdo && cd sdo
+   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.8.0/iot-platform-sdk-v1.8.0.tar.gz
+   tar -zxf iot-platform-sdk-v1.8.0.tar.gz
+   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.8.0/rendezvous-service-v1.8.0.tar.gz
+   tar -zxf rendezvous-service-v1.8.0.tar.gz
+   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.8.0/pri-v1.8.0.tar.gz
+   tar -zxf pri-v1.8.0.tar.gz
+   curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.8.0/NOTICES.tar.gz
+   tar -zxf NOTICES.tar.gz
+   cd ..
+   ```
 
 2. Build the docker container that will run all of the SDO services needed for Open Horizon:
 
@@ -172,22 +185,22 @@ These steps only need to be performed by developers of this project.
    make sdo-owner-services
    ```
 
-3. If you need to test `sdo-owner-services` on another host, push it to docker hub with only this specific version tag:
-
-   ```bash
-   make dev-push-sdo-owner-services
-   ```
-
-4. After you have personally tested the service, push it to docker hub with the `testing` tag, so others from the development team can test it:
+3. After you have personally tested the service, push it to docker hub with the `testing` tag, so others from the development team can test it:
 
    ```bash
    make push-sdo-owner-services
    ```
 
-5. After the development team has validated the service, publish it to docker hub as the latest patch release with the `latest` tag and the version to use for this major/minor release (e.g. `1.10`):
+4. After the development team has validated the service, publish it to docker hub as the latest patch release with the `latest` tag:
 
    ```bash
    make publish-sdo-owner-services
+   ```
+
+5. On a fully tested release boundary (usually when the 2nd number of the version changes), publish it to docker hub with the tag considered stable:
+
+   ```bash
+   make promote-sdo-owner-services
    ```
 
 ### <a name="build-simulated-mfg"></a>Build the Simulated Device Manufacturer Files
@@ -209,7 +222,7 @@ The SDO owner services are packaged as a single docker container that can be run
 
    ```bash
    mkdir $HOME/sdo; cd $HOME/sdo
-   curl -sSLO https://raw.githubusercontent.com/open-horizon/SDO-support/master/docker/run-sdo-owner-services.sh
+   curl -sSLO https://raw.githubusercontent.com/open-horizon/SDO-support/v1.8/docker/run-sdo-owner-services.sh
    chmod +x run-sdo-owner-services.sh
    ```
 
@@ -218,6 +231,7 @@ The SDO owner services are packaged as a single docker container that can be run
    ```bash
    export HZN_EXCHANGE_URL=https://<cluster-url>/edge-exchange/v1
    export HZN_FSS_CSSURL=https://<cluster-url>/edge-css
+   export HZN_ORG_ID=<exchange-org>
    export HZN_EXCHANGE_USER_AUTH=iamapikey:<api-key>
    ```
 
@@ -260,15 +274,17 @@ When following the instructions in [Using the SDO Support](#use-sdo), set the fo
 - In [Start the SDO Owner Services](#start-services) set:
 
    ```bash
+   # to use the most recently committed version of agent-install.sh:
+   export AGENT_INSTALL_URL=https://raw.githubusercontent.com/open-horizon/anax/master/agent-install/agent-install.sh
    # if the hostname of this host is not resolvable by the device, provide the IP address to RV instead
    export SDO_OWNER_SVC_HOST="1.2.3.4"
    # use the built-in rendezvous server instead of Intel's global RV
    export SDO_RV_URL=http://<sdo-owner-svc-host>:8040
-   # when running agent-install.sh on the edge device, it should get agent-install.sh and pkgs from CSS
+   # when running agent-install.sh on the edge device, it should get pkgs from CSS
    export SDO_GET_PKGS_FROM=css:
    # set your own password for the master keystore
    export SDO_KEY_PWD=<pw>
-   # when curling run-sdo-owner-services.sh use the master branch instead of the 1.10 tag
+   # when curling run-sdo-owner-services.sh use the master branch instead of the 1.8 tag
    ```
 
 - In [Initialize a Device with SDO](#init-device) set:
@@ -284,7 +300,7 @@ When following the instructions in [Using the SDO Support](#use-sdo), set the fo
    export SDO_MFG_IMAGE_TAG=1.2.3   # using the docker image you are still working on
    # this will speed repetitive testing, because it will leave the mfg containers running if they haven't changed
    export SDO_SAMPLE_MFG_KEEP_SVCS=true
-   # when curling simulate-mfg.sh use the master branch instead of the 1.10 tag
+   # when curling simulate-mfg.sh use the master branch instead of the 1.8 tag
    ```
 
 - In [Import the Ownership Voucher](#import-voucher) set: (nothing special so far)

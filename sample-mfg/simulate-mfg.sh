@@ -25,7 +25,7 @@ Optional Environment Variables:
   SDO_SAMPLE_MFG_KEEP_SVCS - set to 'true' to skip shutting down the mfg docker containers at the end of this script. This is faster if running this script repeatedly during dev/test.
   SDO_SUPPORT_REPO - if you need to use a more recent version of SDO files from the repo than the 1.10 released files. This takes precedence over SDO_SUPPORT_RELEASE.
   SDO_SUPPORT_RELEASE - if you need to use a specific set of released files.
-  SDO_DEVICE_USE_NATIVE_CLIENT - normally detected automatically, but can be overridden explicitly: set to 'true' to use the native SDO device client. (To use this, you need to have the 'sdo' native docker image already loaded on this host.) Set to 'false' to use the reference implementation java device client. 
+  SDO_DEVICE_USE_NATIVE_CLIENT - Set to 'true' to use the native SDO device client. (To use this, you need to request the 'sdo' native docker image from Intel Developer Zone and load it on this host before running this script.) Otherwise, the reference implementation java device client will be used. 
 
 ${0##*/} must be run in a directory where it has access to create a few files and directories.
 EndOfMessage
@@ -55,7 +55,7 @@ SDO_MFG_IMAGE_TAG=${SDO_MFG_IMAGE_TAG:-1.10}
 # default SDO_SUPPORT_REPO to blank, so SDO_SUPPORT_RELEASE will be used
 #SDO_SUPPORT_REPO=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/master}
 SDO_SUPPORT_RELEASE=${SDO_SUPPORT_RELEASE:-https://github.com/open-horizon/SDO-support/releases/download/v1.10}
-useNativeClient=$SDO_DEVICE_USE_NATIVE_CLIENT   # if empty (recommended) this script will detect automatically which sdo client to use
+useNativeClient=$(SDO_DEVICE_USE_NATIVE_CLIENT:-false}   # if empty (recommended) this script will detect automatically which sdo client to use
 
 workingDir=/var/sdo
 privateKeyFile=$deviceBinaryDir/keys/manufacturer-keystore.p12
@@ -177,7 +177,8 @@ ensureWeAreRoot
 mkdir -p $workingDir && cd $workingDir
 chk $? "creating and switching to $workingDir"
 
-# Determine whether to use native sdo client, or java client
+# Determine whether to use native sdo client, or java client.
+# Note: Now that we default useNativeClient, this automatic determination is never used, because you have to request the native docker image before you can use it here.
 if [[ -z "$useNativeClient" ]]; then
     if [[ "$(systemd-detect-virt 2>/dev/null)" == 'none' ]]; then
         useNativeClient='true'   # A physical server
@@ -249,7 +250,8 @@ fi
 if [[ ! -d $deviceBinaryDir ]]; then
     deviceBinaryTar="$deviceBinaryDir.tar.gz"
     deviceBinaryUrl="$SDO_SUPPORT_RELEASE/$deviceBinaryTar"
-    echo "Getting and unpacking $deviceBinaryDir ..."
+    echo "Removing old device binary tar files, and getting and unpacking $deviceBinaryDir ..."
+    rm -rf $workingDir/sdo_device_binaries_*_linux_x64*   # it is important to only have 1 device binary dir, because the device script does a find to locate device.jar
     httpCode=$(curl -w "%{http_code}" --progress-bar -L -O $deviceBinaryUrl)
     chkHttp $? $httpCode "getting $deviceBinaryTar"
     tar -zxf $deviceBinaryTar
