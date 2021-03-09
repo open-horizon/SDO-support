@@ -118,7 +118,8 @@ deviceBinaryDir='sdo_device_binaries_1.10_linux_x64'
 if [[ ! -d $deviceBinaryDir ]]; then
     deviceBinaryTar="$deviceBinaryDir.tar.gz"
     deviceBinaryUrl="https://github.com/open-horizon/SDO-support/releases/download/v1.10/$deviceBinaryTar"
-    echo "Getting and unpacking $deviceBinaryDir ..."
+    echo "Removing old device binary tar files, and getting and unpacking $deviceBinaryDir ..."
+    rm -rf $workingDir/sdo_device_binaries_*_linux_x64*   # it is important to only have 1 device binary dir, because the device script does a find to locate device.jar
     httpCode=$(curl -w "%{http_code}" --progress-bar -L -O $deviceBinaryUrl)
     chkHttp $? $httpCode "getting $deviceBinaryTar"
     tar -zxvf $deviceBinaryTar

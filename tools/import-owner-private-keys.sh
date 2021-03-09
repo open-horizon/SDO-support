@@ -3,30 +3,31 @@
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     cat << EndOfMessage
-Usage: ${0##*/} [<owner-keys-tar-file>]
+Usage: ${0##*/} <owner-keys-tar-file> <org-id>
 
 Arguments:
-  <owner-keys-tar-file>  A tar file containing the 3 private keys and associated 3 certs
-
-Required environment variables:
-  HZN_ORG_ID - The custom org the user chooses. Necessary information to import keystore into our master keystore.
+  <owner-keys-tar-file>  A tar file containing the 3 private keys and associated 3 certs.
+  <org-id>  The org the keys should be imported into.
 
 EndOfMessage
     exit 0
 fi
 
-if [[ -n "$1" && -f "$1" ]]; then
-  TARFILE="$1"
+if [[ -z "$1" || ! -f "$1" ]]; then
+    echo "Error: Owner keys tarfile not specified or does not exist: $1"
+    exit 1
 fi
+TARFILE="$1"
+
+if [[ -z "$2" ]]; then
+    echo "Error: org id argument not specified"
+    exit 1
+fi
+HZN_ORG_ID="$2"
 
 # Grab the owner keystore password from ocs/ocs.env inside the container, to use for import
 keypwd="$(grep -E '^ *FS_OWNER_KEYSTORE_PASSWORD=' ocs/ocs.env)"
 SDO_KEY_PWD=${keypwd#*FS_OWNER_KEYSTORE_PASSWORD=}
-
-if [[ ! -f $TARFILE ]]; then
-    echo "Error: No owner keys tarfile '$TARFILE' found."
-    exit 2
-fi
 
 #============================FUNCTIONS=================================
 

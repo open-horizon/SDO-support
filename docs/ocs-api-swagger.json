@@ -62,7 +62,7 @@
             "in": "query",
             "name": "orgid",
             "type": "string",
-            "description": "(optional) The org id that the device should be created in"
+            "description": "(optional) The org id that the device should be created in. (Defaults to the org of the credentials.)"
           }
         ],
         "responses": {
@@ -98,7 +98,7 @@
             "in": "query",
             "name": "orgid",
             "type": "string",
-            "description": "(optional) The org id that the device should be created in"
+            "description": "(optional) Return devices that are in this org. (Defaults to the org of the credentials.)"
           }
         ],
         "responses": {
@@ -137,7 +137,7 @@
             "in": "query",
             "name": "orgid",
             "type": "string",
-            "description": "(optional) The org id that the device should be created in"
+            "description": "(optional) Return the device that is in this org. (Defaults to the org of the credentials.)"
           }
         ],
         "produces": [

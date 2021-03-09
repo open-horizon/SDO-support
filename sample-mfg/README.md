@@ -16,14 +16,14 @@ These steps only need to be performed by developers of this project.
 
 2. Create a new release in https://github.com/open-horizon/SDO-support/releases with the title `SDO 1.10` and tag `v1.10`. Upload the tar file you just made to that release. The download URL should be https://github.com/open-horizon/SDO-support/releases/download/v1.10/sdo_device_binaries_1.10_linux_x64.tar.gz
 
-### Build the Sample SDO Manufacturer Docker Images
+### <a name="bld-mfg-images"></a>Build the Sample SDO Manufacturer Docker Images
 
-1. If you have not already done so, download this tar file from [Intel SDO Release 1.10](https://github.com/secure-device-onboard/release/releases/tag/v1.10.0) to directory `../sdo/` and unpack it:
+1. If you have not already done so, download this tar file from [Intel SDO Release 1.10.1](https://github.com/secure-device-onboard/release/releases/tag/v1.10.1) to directory `../sdo/` and unpack it:
 
   ```bash
   mkdir -p ../sdo && cd ../sdo
-  curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.0/supply-chain-tools-v1.10.0.tar.gz
-  tar -zxf supply-chain-tools-v1.10.0.tar.gz
+  curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.1/supply-chain-tools-v1.10.1.tar.gz
+  tar -zxf supply-chain-tools-v1.10.1.tar.gz
   cd ../sample-mfg
   ```
 

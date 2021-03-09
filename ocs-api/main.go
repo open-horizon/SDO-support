@@ -24,12 +24,12 @@ REST API server to configure the SDO OCS (Owner Companion Service) DB files for 
 // These global vars are necessary because the handler functions are not given any context
 var OcsDbDir string
 var GetVoucherRegex = regexp.MustCompile(`^/api/vouchers/([^/]+)$`)
-var CurrentDefaultOrgId string
 var CurrentExchangeUrl string         // the external url, that the device needs
 var CurrentExchangeInternalUrl string // will default to CurrentExchangeUrl
 var CurrentCssUrl string              // the external url, that the device needs
 var CurrentPkgsFrom string            // the argument to the agent-install.sh -i flag
 
+/* not used anymore
 type CfgVarsStruct struct {
 	HZN_EXCHANGE_URL      string `json:"HZN_EXCHANGE_URL"`      // the external URL of the exchange (how devices should reach it)
 	EXCHANGE_INTERNAL_URL string `json:"EXCHANGE_INTERNAL_URL"` // optional: how ocs-api should contact the exchange. Will default to HZN_EXCHANGE_URL
@@ -39,7 +39,7 @@ type CfgVarsStruct struct {
 type Config struct {
 	CfgVars CfgVarsStruct `json:"cfgVars"`
 	Crt     []byte        `json:"crt"` // making it type []byte will automatically base64 decode the json value
-}
+} */
 
 func main() {
 	if len(os.Args) < 3 {
@@ -141,7 +141,7 @@ func getVoucherHandler(deviceUuid string, w http.ResponseWriter, r *http.Request
 	}
 
 	// Confirm this voucher/device is in the client's org. Doing this check after getting the voucher, because if the
-	// voucher doesn't exist, we want them get that error, rather than that it not in their org
+	// voucher doesn't exist, we want them get that error, rather than that it is not in their org
 	orgidTxtStr, httpErr := getOrgidTxtStr(deviceUuid)
 	if httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
@@ -418,8 +418,8 @@ func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
 	f.Close()
 
 	// Run the script that will import the tar file keys
-	outils.Verbose("Running command: ./import-owner-private-keys.sh %s", tarFilePath)
-	stdOut, stdErr, err := outils.RunCmd("./import-owner-private-keys.sh", tarFilePath)
+	outils.Verbose("Running command: ./import-owner-private-keys.sh %s %s", tarFilePath, deviceOrgId)
+	stdOut, stdErr, err := outils.RunCmd("./import-owner-private-keys.sh", tarFilePath, deviceOrgId)
 	if err != nil {
 		http.Error(w, "error running import-owner-private-keys.sh: "+err.Error(), http.StatusBadRequest) // this includes stdErr
 		return
@@ -440,7 +440,6 @@ func getDeviceOrgId(r *http.Request) (string, *outils.HttpError) {
 	/* Get the orgid this device should be put in. It can come from several places (in precedence order):
 	- they explicitly specify the org in the url param: ?orgid=<org>
 	- if the creds are NOT in the root org, use the cred org
-	- use the default org passed into the sdo-owner-services container
 	*/
 	orgAndUser, _, ok := r.BasicAuth()
 	if !ok {
@@ -452,22 +451,26 @@ func getDeviceOrgId(r *http.Request) (string, *outils.HttpError) {
 	}
 	credOrgId := parts[0]
 
-	deviceOrgId := CurrentDefaultOrgId
+	deviceOrgId := ""
 	orgidParams, ok := r.URL.Query()["orgid"]
 	if ok && len(orgidParams) > 0 && len(orgidParams[0]) > 0 {
 		deviceOrgId = orgidParams[0]
 	} else if credOrgId != "root" {
 		deviceOrgId = credOrgId
 	}
+
+	if deviceOrgId == "" {
+		return "", outils.NewHttpError(http.StatusBadRequest, "if using the exchange root user, you must explicitly specify the org id via the ?orgid=<org-id> URL query parameter")
+	}
 	return deviceOrgId, nil
 }
 
-// Return the org of this device based on the orgid.txt file stored with it, or the default org
+// Return the org of this device based on the orgid.txt file stored with it, or return ""
 func getOrgidTxtStr(deviceId string) (string, *outils.HttpError) {
 	// Look inside the device dir for orgid.txt to what org it belongs to
 	vouchersDirName := OcsDbDir + "/v1/devices"
 	orgidTxtFileName := filepath.Clean(vouchersDirName + "/" + deviceId + "/orgid.txt")
-	orgidTxtStr := CurrentDefaultOrgId // default if we don't find it in the orgid.txt
+	orgidTxtStr := "" // default if we don't find it in the orgid.txt
 	if outils.PathExists(orgidTxtFileName) {
 		var orgidTxtBytes []byte
 		var err error
@@ -484,8 +487,8 @@ func getOrgidTxtStr(deviceId string) (string, *outils.HttpError) {
 // Create the common (not device specific) config files. Called during startup.
 func createConfigFiles() *outils.HttpError {
 	// These env vars are required
-	if !outils.IsEnvVarSet("HZN_EXCHANGE_URL") || !outils.IsEnvVarSet("HZN_FSS_CSSURL") || !outils.IsEnvVarSet("HZN_ORG_ID") {
-		return outils.NewHttpError(http.StatusBadRequest, "these environment variables must be set: HZN_EXCHANGE_URL, HZN_FSS_CSSURL, HZN_ORG_ID")
+	if !outils.IsEnvVarSet("HZN_EXCHANGE_URL") || !outils.IsEnvVarSet("HZN_FSS_CSSURL") {
+		return outils.NewHttpError(http.StatusBadRequest, "these environment variables must be set: HZN_EXCHANGE_URL, HZN_FSS_CSSURL")
 	}
 
 	valuesDir := OcsDbDir + "/v1/values"
@@ -527,11 +530,10 @@ func createConfigFiles() *outils.HttpError {
 		CurrentExchangeInternalUrl = CurrentExchangeUrl // default
 	}
 	CurrentCssUrl = os.Getenv("HZN_FSS_CSSURL")
-	CurrentDefaultOrgId = os.Getenv("HZN_ORG_ID")
 	fileName = valuesDir + "/agent-install.cfg"
 	outils.Verbose("Creating %s ...", fileName)
 	// Even tho we now explicitly set the org via the agent-install.sh -O flag, we leave the default in the cfg file for backward compatibility
-	dataStr = "HZN_EXCHANGE_URL=" + CurrentExchangeUrl + "\nHZN_FSS_CSSURL=" + CurrentCssUrl + "\nHZN_ORG_ID=" + CurrentDefaultOrgId + "\n"
+	dataStr = "HZN_EXCHANGE_URL=" + CurrentExchangeUrl + "\nHZN_FSS_CSSURL=" + CurrentCssUrl + "\n"
 	if len(crt) > 0 {
 		// only add this if we actually created the agent-install.crt file above
 		dataStr += "HZN_MGMT_HUB_CERT_PATH=agent-install.crt\n"
