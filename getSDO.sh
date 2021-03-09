@@ -1,23 +1,52 @@
 #!/bin/bash
+
+# This script only needs to be run by developers of this project when needing to move up to a new version of SDO.
+# Before running, update the versions of the tar files as necessary.
+
 SCRIPT_LOCATION=$(dirname "$0")
 
-echo "This script only needs to be run by developers when needing to move up to a new version of SDO."
-echo "Retrieving Intel SDO Release 1.10.0 dependencies..."
-mkdir ${SCRIPT_LOCATION}/sdo && cd ${SCRIPT_LOCATION}/sdo
+# Check the exit code passed in and exit if non-zero
+chk() {
+    local exitCode=$1
+    local task=$2
+    if [[ $exitCode == 0 ]]; then return; fi
+    echo "Error: exit code $exitCode from: $task"
+    exit $exitCode
+}
+
+echo "Retrieving Intel SDO Release 1.10.1 dependencies..."
+mkdir -p ${SCRIPT_LOCATION}/sdo && cd ${SCRIPT_LOCATION}/sdo
+chk $? 'making sdo dir'
+
 echo "Getting iot-platform-sdk"
-curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.0/iot-platform-sdk-v1.10.0.tar.gz
-tar -zxf iot-platform-sdk-v1.10.0.tar.gz
+curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.1/iot-platform-sdk-v1.10.1.tar.gz
+chk $? 'downloading iot-platform-sdk'
+tar -zxf iot-platform-sdk-v1.10.1.tar.gz
+chk $? 'unpacking iot-platform-sdk'
+
 echo "Getting Protocol Reference Implementation"
-curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.0/pri-v1.10.0.tar.gz
-tar -zxf pri-v1.10.0.tar.gz
+curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.1/pri-v1.10.1.tar.gz
+chk $? 'downloading pri'
+tar -zxf pri-v1.10.1.tar.gz
+chk $? 'unpacking pri'
+
 echo "Getting NOTICES"
-curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.0/NOTICES-v1.10.0.tar.gz
-tar -zxf NOTICES-v1.10.0.tar.gz
-echo "Getting Rendezvous Service demo"
-curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.0/rendezvous-service-v1.10.0.tar.gz
-tar -zxf rendezvous-service-v1.10.0.tar.gz
-echo "Getting Supply Chain Tools demo"
-curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.0/supply-chain-tools-v1.10.0.tar.gz
-tar -zxf supply-chain-tools-v1.10.0.tar.gz
+curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.1/NOTICES-v1.10.1.tar.gz
+chk $? 'downloading NOTICES'
+tar -zxf NOTICES-v1.10.1.tar.gz
+chk $? 'unpacking NOTICES'
+
+echo "Getting Rendezvous Service"
+curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.1/rendezvous-service-v1.10.1.tar.gz
+chk $? 'downloading RV'
+tar -zxf rendezvous-service-v1.10.1.tar.gz
+chk $? 'unpacking RV'
+
+echo "Getting Supply Chain Tools"
+curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.1/supply-chain-tools-v1.10.1.tar.gz
+chk $? 'downloading SCT'
+tar -zxf supply-chain-tools-v1.10.1.tar.gz
+chk $? 'unpacking SCT'
+
 cd ${SCRIPT_LOCATION}
 echo "Complete."

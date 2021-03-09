@@ -55,7 +55,7 @@ SDO_MFG_IMAGE_TAG=${SDO_MFG_IMAGE_TAG:-1.10}
 # default SDO_SUPPORT_REPO to blank, so SDO_SUPPORT_RELEASE will be used
 #SDO_SUPPORT_REPO=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/master}
 SDO_SUPPORT_RELEASE=${SDO_SUPPORT_RELEASE:-https://github.com/open-horizon/SDO-support/releases/download/v1.10}
-useNativeClient=$(SDO_DEVICE_USE_NATIVE_CLIENT:-false}   # if empty (recommended) this script will detect automatically which sdo client to use
+useNativeClient=${SDO_DEVICE_USE_NATIVE_CLIENT:-false}   # if empty (recommended) this script will detect automatically which sdo client to use
 
 workingDir=/var/sdo
 privateKeyFile=$deviceBinaryDir/keys/manufacturer-keystore.p12
@@ -355,10 +355,10 @@ fi
 echo "Pulling and tagging the SDO SCT services..."
 docker pull openhorizon/$sdoMfgDockerName:$SDO_MFG_IMAGE_TAG
 chk $? "pulling openhorizon/$sdoMfgDockerName:$SDO_MFG_IMAGE_TAG"
-docker tag openhorizon/$sdoMfgDockerName:$SDO_MFG_IMAGE_TAG $sdoMfgDockerName:1.10   # this is what the SDO docker-compose.yml file knows it by
+docker tag openhorizon/$sdoMfgDockerName:$SDO_MFG_IMAGE_TAG $sdoMfgDockerName:1.10.1   # this is what the SDO docker-compose.yml file knows it by
 docker pull openhorizon/$sdoMariaDbDockerName:$SDO_MFG_IMAGE_TAG
 chk $? "pulling openhorizon/$sdoMariaDbDockerName:$SDO_MFG_IMAGE_TAG"
-docker tag openhorizon/$sdoMariaDbDockerName:$SDO_MFG_IMAGE_TAG $sdoMariaDbDockerName:1.10   # this is what the SDO docker-compose.yml file knows it by
+docker tag openhorizon/$sdoMariaDbDockerName:$SDO_MFG_IMAGE_TAG $sdoMariaDbDockerName:1.10.1   # this is what the SDO docker-compose.yml file knows it by
 
 echo "Starting the SDO SCT services (could take about 75 seconds)..."
 # need to explicitly set the project name, because it was built with that project name (see Makefile)

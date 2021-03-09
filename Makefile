@@ -1,6 +1,8 @@
 SHELL ?= /bin/bash -e
 # Set this before building the ocs-api binary and sdo-owner-services (for now they use the samme version number)
 export VERSION ?= 1.10.3
+# used by sample-mfg/Makefile. Needs to match what is in sdo/supply-chain-tools-v<version>/docker_manufacturer/docker-compose.yml
+SDO_VERSION ?= 1.10.1
 STABLE_VERSION ?= 1.10
 
 #todo: add BUILD_NUMBER like in anax/Makefile
@@ -15,7 +17,7 @@ SDO_IMAGE_LABELS ?= --label "vendor=IBM" --label "name=$(SDO_DOCKER_IMAGE)" --la
 DOCKER_OPTS ?=
 
 # Used to set the version in the ocs-api executable
-# if VERSION is like 1.10.0-105.202011140410.c6b4a80 it will strip the last 2 fields and end up with 1.10.0-105
+# if VERSION is like 1.10.1-105.202011140410.c6b4a80 it will strip the last 2 fields and end up with 1.10.1-105
 TRIMMED_VERSION := $(shell echo '$(VERSION)' | sed -e 's/\(-[0-9]*\)\..*/\1/')
 #GO_BUILD_LDFLAGS ?= -ldflags="-X 'github.com/open-horizon/SDO-support/main.OCS_API_VERSION=$(VERSION)'"
 GO_BUILD_LDFLAGS ?= -ldflags="-X 'main.OCS_API_VERSION=$(VERSION)'"

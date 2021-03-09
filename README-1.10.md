@@ -158,12 +158,12 @@ Now that SDO has configured your edge device, it is automatically disabled on th
    hzn deploycheck all -b policy-ibm.helloworld_1.0.0 -o <exchange-org> -u iamapikey:<api-key>
    ```
 
-## <a name="developers-only"></a>Developers Only
+## <a name="developers-only"></a>For Developers Only
 
 These steps only need to be performed by developers of this project.
 
 ### <a name="build-owner-svcs"></a>Build the SDO Owner Services for Open Horizon
-1. Download [Intel SDO Release 1.10.0 dependencies](https://github.com/secure-device-onboard/release/releases/tag/v1.10.0) by running the `getSDO.sh` script.
+1. Download [Intel SDO Release 1.10.1 dependencies](https://github.com/secure-device-onboard/release/releases/tag/v1.10.1) by running the `getSDO.sh` script.
 
 2. Build the docker container that will run all of the SDO services needed for Open Horizon:
 
@@ -289,3 +289,33 @@ When following the instructions in [Using the SDO Support](#use-sdo), set the fo
 
 - In [Import the Ownership Voucher](#import-voucher) set: (nothing special so far)
 - In [Boot the Device to Have it Configured](#boot-device) set: (nothing special so far)
+
+### <a name="new-sdo-version"></a>Checklist For Moving Up to a New SDO Version
+
+What to modify in our SDO support code when Intel releases a new version of SDO:
+
+- Update `.gitignore` and `.dockerignore`
+- `mv sdo sdo-<prev-version>`
+- `mkdir sdo`
+- Update `getSDO.sh` to download/unpack new version
+- If new major or minor version, make copy of README. If a fix pack, just update the version numbers within the README.
+- Update versions in `Makefile` accordingly
+- Search for previous version number in rest of repo. Should find hits to change in:
+  - `docker/Dockerfile`
+  - `start-sdo-owner-services.sh`
+  - `keys/README.md`
+  - `sample-mfg/Makefile`
+  - `sample-mfg/README.md`
+  - `sample-mfg/keys/README.md`
+  - `simulate-mfg.sh`
+- `make sdo-owner-services && make dev-push-sdo-owner-services`
+- `cd sample-mfg`
+- `make --always-make  sdo_device_binaries_<new-version>_linux_x64.tar.gz)`
+- If new major or minor version:
+   - update `.gitignore`
+   - create a new release in https://github.com/open-horizon/SDO-support/releases/ , and upload all device-related files/scripts.
+- If a fix pack:
+   - Update the device binary tar file and `simulate-mfg.sh` in the current release in https://github.com/open-horizon/SDO-support/releases/
+   - Update the title and description to indicate the new fix pack version
+- Build the SDO Manufacturer docker images by following [sample-mfg/README.md](sample-mfg/README.md#bld-mfg-images)
+- When testing, copy new versions of scripts to the test machines
