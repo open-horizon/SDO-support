@@ -163,6 +163,7 @@ else
     ./device
     chk $? 'booting with java device'
     cd ../..
+    systemctl disable sdo_to.service    # so it does not run on every boot
 fi
 
 # If they didn't specify a serviceUrl agreement to watch for, then we are done
