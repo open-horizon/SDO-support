@@ -166,15 +166,22 @@ fi
 # Run all of the services
 echo "Starting rendezvous service..."
 (cd rv && ./rendezvous) &   #todo: convert to sdo/rendezvous-service-v1.10.1 (with redis)
-#todo: remove the env cmds below
+
 echo "Starting to0scheduler service..."
 #(cd to0scheduler/config && eval export $(sed -e '/^ *#/d' -e '/^$/d' -e "s/=\(.*\)$/='\1'/" ../to0scheduler.env) && echo '===== TO0SCHEDULER =====' && env && ./run-to0scheduler) &
 (cd to0scheduler/config && eval export $(sed -e '/^ *#/d' -e '/^$/d' -e "s/=\(.*\)$/='\1'/" ../to0scheduler.env) && ./run-to0scheduler) &
+
+sleepTime=5
+echo "Sleeping $sleepTime seconds to let the rendezvous and to0scheduler services complete initialization..."
+sleep $sleepTime
+
 echo "Starting ocs service..."
 #(cd ocs/config && eval export $(sed -e '/^ *#/d' -e '/^$/d' -e "s/=\(.*\)$/='\1'/" ../ocs.env) && echo '===== OCS =====' && env && ./run-ocs) &
 (cd ocs/config && eval export $(sed -e '/^ *#/d' -e '/^$/d' -e "s/=\(.*\)$/='\1'/" ../ocs.env) && ./run-ocs) &
+
 echo "Starting ops service..."
 #(cd ops/config && eval export $(sed -e '/^ *#/d' -e '/^$/d' -e "s/=\(.*\)$/='\1'/" ../ops.env) && echo '===== OPS =====' && env && ./run-ops) &
 (cd ops/config && eval export $(sed -e '/^ *#/d' -e '/^$/d' -e "s/=\(.*\)$/='\1'/" ../ops.env) && ./run-ops) &
+
 echo "Starting ocs-api service..."
 ${0%/*}/ocs-api $ocsApiPort $ocsDbDir  # run this in the foreground so the start cmd doesn't end

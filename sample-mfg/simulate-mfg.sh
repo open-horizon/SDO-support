@@ -476,15 +476,7 @@ fi
 # Note: originally to-docker.sh would at this point put the voucher in the ocs db, but our 'hzn voucher import' does that later
 
 if [[ $useNativeClient == 'true' ]]; then
-    # Install systemd service that will run at boot time to complete the SDO process
-    #Future: consider supporting sdo_to.service for the java client/VM case
-    cp /usr/sdo/sdo_to.service /lib/systemd/system
-    chk $? 'copying sdo_to.service to systemd'
-    systemctl enable sdo_to.service
-    chk $? 'enabling sdo_to.service'
-    echo "Systemd service sdo_to.service has been enabled"
-    # After importing the voucher to sdo-owner-services, if you want to you can initiate the sdo boot process by running: systemctl start sdo_to.service
-    # And you can view the output with: journalctl -f --no-tail -u sdo_to.service
+    :  # nothing special to do here for the native client, because below we will enable the sdo systemd service in both cases
 else
     # Java client. Switch the device into owner mode
     cd $deviceBinaryDir/device
@@ -495,6 +487,15 @@ else
     chk $? 'switching device to owner mode'
     cd ../..
 fi
+
+# Install systemd service that will run at boot time to complete the SDO process
+cp /usr/sdo/sdo_to.service /lib/systemd/system
+chk $? 'copying sdo_to.service to systemd'
+systemctl enable sdo_to.service
+chk $? 'enabling sdo_to.service'
+echo "Systemd service sdo_to.service has been enabled"
+# After importing the voucher to sdo-owner-services, if you want to you can initiate the sdo boot process by running: systemctl start sdo_to.service &
+# And you can view the output with: journalctl -f --no-tail -u sdo_to.service
 
 # Shutdown mfg services
 if [[ "$SDO_SAMPLE_MFG_KEEP_SVCS" == '1' || "$SDO_SAMPLE_MFG_KEEP_SVCS" == 'true' ]]; then
@@ -510,5 +511,8 @@ echo '-------------------------------------------------'
 echo "Device UUID: $voucherDevUuid"
 echo '-------------------------------------------------'
 
-echo "The extended ownership voucher is in file: ${workingDir}/voucher.json"
 echo "Device manufacturing initialization complete."
+echo "The extended ownership voucher is in file: ${workingDir}/voucher.json"
+echo "Copy this voucher to your admin host and import it into the management hub using: hzn voucher import voucher.json ..."
+echo "Then run '/usr/sdo/bin/owner-boot-device ...' here to have SDO initiate the Horizon agent installation/registration."
+echo "OR you can reboot this host to initiate the SDO process and follow the output with: journalctl -f --no-tail -u sdo_to.service"

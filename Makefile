@@ -1,6 +1,6 @@
 SHELL ?= /bin/bash -e
 # Set this before building the ocs-api binary and sdo-owner-services (for now they use the samme version number)
-export VERSION ?= 1.10.3
+export VERSION ?= 1.10.4
 # used by sample-mfg/Makefile. Needs to match what is in sdo/supply-chain-tools-v<version>/docker_manufacturer/docker-compose.yml
 SDO_VERSION ?= 1.10.1
 STABLE_VERSION ?= 1.10

@@ -50,7 +50,7 @@ RUN curl -sS -o epel-release-latest-8.noarch.rpm https://dl.fedoraproject.org/pu
 # Install openjdk-11-jre. The tar.gz file is 43 MB, unpacked is 124 MB
 # Note: with SDO 1.7, it is necessary to use java 11.0.4 or earlier, because there is an issue with the SDO bouncycastle version and 11.0.5 and above
 #RUN curl -sS -o openjre-11_linux-x64_bin.tar.gz https://cdn.azul.com/zulu/bin/zulu11.33.15-ca-jre11.0.4-linux_x64.tar.gz && \
-RUN curl -sS -o openjre-11_linux-x64_bin.tar.gz https://cdn.azul.com/zulu/bin/zulu11.43.55-ca-jdk11.0.9.1-linux_x64.tar.gz && \
+RUN curl -sS -o openjre-11_linux-x64_bin.tar.gz https://cdn.azul.com/zulu/bin/zulu11.43.55-ca-jre11.0.9.1-linux_x64.tar.gz && \
     sha256sum openjre-11_linux-x64_bin.tar.gz && \
     tar xzvf openjre-11_linux-x64_bin.tar.gz && \
     rm openjre-11_linux-x64_bin.tar.gz && \
