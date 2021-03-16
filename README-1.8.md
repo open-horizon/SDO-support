@@ -118,7 +118,10 @@ This creates an ownership voucher in the file `/var/sdo/voucher.json`.
 The ownership voucher created for the device in the previous step needs to be imported to the SDO owner services. **On the Horizon admin host**:
 
 1. When you purchase a physical SDO-enabled device, you receive an ownership voucher from the manufacturer. In the case of the VM device you have configured to simulate an SDO-enabled device, the analogous step is to copy the file `/var/sdo/voucher.json` from your VM device to here.
-2. Import the ownership voucher, specifying that this device should be initialized with policy to run the helloworld example edge service:
+2. Import the ownership voucher. In this step you can also control what edge services should be run on the device, once it is booted and configured. You can do this using one of three flags:
+   - Specify a deployment pattern using `--pattern=<pattern-name>` . You must separately create this deployment pattern in the Exchange. 
+   - Specify a node policy json file using `--policy=<node-policy-file>` . You must separately create a corresponding deployment policy in the Exchange.
+   - Use the shorthand flag `--example=<example-name>`, which will automatically generate and set a node policy with the constraint `openhorizon.example == <example-name>`. When the Horizon management hub was installed, deployment policies were created that deploy some of the example edge services to edge devices with a node policy like this. Once such example name is `helloworld`, which is what we are using in this command:
 
    ```bash
    hzn voucher import voucher.json -e helloworld
