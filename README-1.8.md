@@ -166,7 +166,7 @@ These steps only need to be performed by developers of this project.
 
 ### <a name="build-owner-svcs"></a>Build the SDO Owner Services for Open Horizon
 
-1. Download these tar files from [Intel SDO Release 1.8](https://github.com/secure-device-onboard/release/releases/tag/v1.8.0) to directory `sdo/` and uppack them:
+1. Download these tar files from [Intel SDO Release 1.8](https://github.com/secure-device-onboard/release/releases/tag/v1.8.0) to directory `sdo/` and unpack them:
 
    ```bash
    mkdir -p sdo && cd sdo

@@ -128,6 +128,8 @@ The ownership voucher created for the device in the previous step needs to be im
    hzn voucher import voucher.json --example=helloworld
    ```
 
+**Note:** The voucher will be imported to the organization specified by `HZN_ORG_ID`, and when the device it booted, it will be registered in that organization. If at some point you change your mind and want the device to be in a different organization, simply export `HZN_ORG_ID` with the new organization value, import the voucher again, and boot the device.
+
 ### <a name="boot-device"></a>Boot the Device to Have it Configured
 
 When an SDO-enabled device boots, it starts the SDO process. The first thing it does is contact the rendezvous server, which redirects it to the SDO owner services in your Horizon instance. To simulate this process in your VM device, perform these steps:
