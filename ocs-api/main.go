@@ -263,13 +263,23 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	outils.Verbose("POST /api/vouchers: device UUID: %s", uuid.String())
 
-	// Put the voucher in the OCS DB
+	// Create the device directory in the OCS DB
 	deviceDir := OcsDbDir + "/v1/devices/" + uuid.String()
 	if err := os.MkdirAll(deviceDir, 0750); err != nil {
 		http.Error(w, "could not create directory "+deviceDir+": "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	fileName := deviceDir + "/voucher.json"
+
+	// Remove the state.json file, in case this voucher was previously imported. This allows to0 to be run again (register it with RV)
+	fileName := deviceDir + "/state.json"
+	outils.Verbose("POST /api/vouchers: removing %s (if exists) ...", fileName)
+	if err := os.RemoveAll(filepath.Clean(fileName)); err != nil { // RemoveAll does NOT return an error if fileName doesn't exist
+		http.Error(w, "could not remove "+fileName+": "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Put the voucher in the OCS DB
+	fileName = deviceDir + "/voucher.json"
 	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
 	if err := ioutil.WriteFile(filepath.Clean(fileName), bodyBytes, 0644); err != nil {
 		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
@@ -297,7 +307,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Create orgid.txt file to identify what org this device/voucher is part of
 	fileName = deviceDir + "/orgid.txt"
-	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
+	outils.Verbose("POST /api/vouchers: creating %s with value: %s ...", fileName, deviceOrgId)
 	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(deviceOrgId), 0644); err != nil {
 		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
 		return
