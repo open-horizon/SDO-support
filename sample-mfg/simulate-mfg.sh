@@ -55,7 +55,7 @@ SDO_MFG_IMAGE_TAG=${SDO_MFG_IMAGE_TAG:-1.10}
 # default SDO_SUPPORT_REPO to blank, so SDO_SUPPORT_RELEASE will be used
 #SDO_SUPPORT_REPO=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/master}
 SDO_SUPPORT_RELEASE=${SDO_SUPPORT_RELEASE:-https://github.com/open-horizon/SDO-support/releases/download/v1.10}
-useNativeClient=${SDO_DEVICE_USE_NATIVE_CLIENT:-false}   # if empty (recommended) this script will detect automatically which sdo client to use
+useNativeClient=${SDO_DEVICE_USE_NATIVE_CLIENT:-false}   # possible values: false (java client), host (TO native on host), docker (TO native in container)
 
 workingDir=/var/sdo
 privateKeyFile=$deviceBinaryDir/keys/manufacturer-keystore.p12
@@ -181,7 +181,7 @@ chk $? "creating and switching to $workingDir"
 # Note: Now that we default useNativeClient, this automatic determination is never used, because you have to request the native docker image before you can use it here.
 if [[ -z "$useNativeClient" ]]; then
     if [[ "$(systemd-detect-virt 2>/dev/null)" == 'none' ]]; then
-        useNativeClient='true'   # A physical server
+        useNativeClient='host'   # A physical server
     else
         useNativeClient='false'   # A VM
     fi
@@ -194,7 +194,7 @@ fi
 # Make sure the host has the necessary software: java 11, docker-ce, docker-compose >= 1.21.0
 confirmcmds grep curl ping   # these should be in the minimal ubuntu
 
-if [[ $useNativeClient == 'true' ]]; then
+if [[ $useNativeClient != 'false' ]]; then   # for both host and docker we run DI via the docker container
     if [[ -z $(docker images -q $sdoNativeDockerImage) ]]; then
         echo "Error: docker image $sdoNativeDockerImage does not exist on this host."
         exit 2
@@ -386,7 +386,7 @@ chk $? 'adding owner public key to SDO SCT services'
 # all of the tables can be listed with: docker exec -t $sdoMariaDbDockerName mysql -u$dbUser -p$dbPw -D sdo -e "show tables"
 
 # Device initialization (and create the ownership voucher)
-if [[ $useNativeClient == 'true' ]]; then
+if [[ $useNativeClient != 'false' ]]; then
     echo "Running device initialization using native client..."
     savePwd="$PWD"
     BOOTFS="$workingDir/sdo-native"
@@ -399,11 +399,26 @@ if [[ $useNativeClient == 'true' ]]; then
     if [[ -z "$Serial_Number_String" || "$Serial_Number_String" == 'Not' ]]; then
         Serial_Number_String='1234567'
     fi
-    docker run -i --rm --privileged --name sdo-di --network manufacturer_network -v /dev:/dev -v /sys/:/sys/ -v $BOOTFS:/target/boot $sdoNativeDockerImage run_dal_sdo.sh ${SCT_IP_ADDRESS} ${SCT_PORT} ${Serial_Number_String}
+    if systemctl is-active --quiet jhi; then
+        systemctl stop jhi
+        chk $? 'stopping jhi service'
+    fi
+    docker run -i --rm --privileged --name sdo-di --network manufacturer_network -v /dev:/dev -v /sys/:/sys/ -v $BOOTFS:/target/boot $sdoNativeDockerImage /usr/bin/run_sdo_di.sh ${SCT_IP_ADDRESS} ${SCT_PORT} ${Serial_Number_String}
     chk $? 'running native DI'
-    # one of these echoes would say failed, and the above cmd outputs the status anyway
-    #echo "DAL_DI_Status=$(cat $BOOTFS/DAL_DI_STATUS)"
-	#echo "CSDK_DI_STATUS=$(cat $BOOTFS/CSDK_DI_STATUS)"
+    if [[ $useNativeClient == 'host' ]]; then
+        # We will run TO on the host, so copy the necessary executables and libraries from the docker container to this host
+        echo "Copying TO icls libraries from the $sdoNativeDockerImage docker container..."
+        mkdir -p /usr/sdo/lib
+        docker run -d -t --privileged --name sdo-dal $sdoNativeDockerImage sh
+        chk $? 'starting sdo-dal container'
+        docker cp sdo-dal:/opt/Intel/iclsClient/lib /usr/sdo/
+        chk $? 'copying /opt/Intel/iclsClient/lib from container'
+        docker rm -f sdo-dal
+        chk $? 'stopping sdo-dal container'
+        touch /var/sdo/sdo-native/run-host-to   # tells owner-boot-device to run native sdo TO on the host
+    else
+        rm -f /var/sdo/sdo-native/run-host-to
+    fi
     cd $savePwd
 else
     echo "Running device initialization using java client..."
@@ -475,7 +490,7 @@ fi
 
 # Note: originally to-docker.sh would at this point put the voucher in the ocs db, but our 'hzn voucher import' does that later
 
-if [[ $useNativeClient == 'true' ]]; then
+if [[ $useNativeClient != 'false' ]]; then
     :  # nothing special to do here for the native client, because below we will enable the sdo systemd service in both cases
 else
     # Java client. Switch the device into owner mode

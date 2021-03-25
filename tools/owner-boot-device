@@ -99,7 +99,8 @@ chk $? "creating and switching to $workingDir"
 
 confirmcmds jq
 
-if [[ -d "$workingDir/sdo-native" ]]; then
+if [[ -d "$workingDir/sdo-native" && ! -d "$workingDir/sdo-native/bin" ]]; then
+    # We are doing TO via the docker container, verifying we have it
     if [[ -z $(docker images -q $sdoNativeDockerImage) ]]; then
         echo "Error: docker image $sdoNativeDockerImage does not exist on this host."
         exit 2
@@ -125,7 +126,7 @@ if [[ ! -d $deviceBinaryDir ]]; then
     tar -zxvf $deviceBinaryTar
 fi
 
-# "Boot" device to have SDO get it registered with the management hub
+# "Boot" device to have SDO install the agent and register it with the management hub
 if [[ -d "$workingDir/sdo-native" ]]; then
     # simulate-mfg.sh created the above dir in the native client case
     echo "Booting with native client..."
@@ -135,26 +136,51 @@ if [[ -d "$workingDir/sdo-native" ]]; then
         exit 5
     fi
     echo "Device serial number: $(cat $BOOTFS/SerialNo.txt)"
-    touch $BOOTFS/inside-sdo-container   # this is how agent-install-wrapper.sh knows it is executing inside the sdo native client container
+    savePwd="$PWD"
+    cd $BOOTFS
 
-    # Determine whether device initialization was done using DAL (for Intel devices) or CSDK (other device types), and run the sdo boot process accordingly
-    if [[ -e $BOOTFS/DAL_DI_STATUS && "$(cat $BOOTFS/DAL_DI_STATUS)" == "**DAL_DI_SUCCESSFUL**" ]]; then
-        docker run -i --rm --privileged --name sdo-dal-to -v /dev:/dev -v /sys/:/sys/ -v $BOOTFS:/target/boot $sdoNativeDockerImage sh -c 'jhid -d 2&>1 > /dev/null && sleep 2 && sdo_to -df /var/lib/intel/dal/applet_repository/sdo_all.dalp && sync '
-    elif [[ -e $BOOTFS/CSDK_DI_STATUS && "$(cat $BOOTFS/CSDK_DI_STATUS)" == "**CSDK_DI_SUCCESSFUL**" ]]; then
-        docker run -i --privileged -v $BOOTFS:/target/boot $sdoNativeDockerImage /bin/bash -c 'cd /target/boot && /sdoout/linux-client'
+    if [[ -f /var/sdo/sdo-native/run-host-to ]]; then
+        echo "Running TO on the host..."
+        if ! systemctl is-active --quiet jhi; then
+            systemctl start jhi
+            chk $? 'starting jhi service'
+        fi
+        mkdir -p /opt/Intel/iclsClient/log   # icls seems to need this
+        export LD_LIBRARY_PATH=/usr/sdo/lib
+        /usr/sdo/bin/sdo_to -df /usr/sdo/bin/sdo_all.dalp
+        chk $? 'running sdo_to'
+        unset LD_LIBRARY_PATH
+        systemctl stop jhi
+        chk $? 'stopping jhi service'
+        rm -f /var/sdo/sdo-native/run-host-to
     else
-        echo "Error: neither DAL DI or CSDK DI completed successfully on this device at the manufacturer."
-        exit 5
+        echo "Running TO in the $sdoNativeDockerImage docker container..."
+        touch $BOOTFS/inside-sdo-container   # this is how agent-install-wrapper.sh knows it is executing inside the sdo native client container
+
+        # Determine whether device initialization was done using DAL (for Intel devices) or CSDK (other device types), and run the sdo boot process accordingly
+        if [[ -e $BOOTFS/CLIENT_INTEL_DI_STATUS && "$(cat $BOOTFS/CLIENT_INTEL_DI_STATUS)" == "**CLIENT_INTEL_DI_SUCCESSFUL**" ]]; then
+            echo "Starting TO for CLIENT-INTEL..."
+            docker run -i --rm --privileged --name sdo-dal-to -v /dev:/dev -v /sys/:/sys/ -v $BOOTFS:/target/boot $sdoNativeDockerImage sh -c 'jhid -d 2&>1 > /dev/null && export LD_LIBRARY_PATH=/opt/Intel/iclsClient/lib && sdo_to -df /var/lib/intel/dal/applet_repository/sdo_all.dalp && sync '
+        elif [[ -e $BOOTFS/CLIENT_SDK_TPM_DI_STATUS && "$(cat $BOOTFS/CLIENT_SDK_TPM_DI_STATUS)" == "**CLIENT_SDK_TPM_DI_SUCCESSFUL**" ]]; then
+            echo "Starting TO for Client-SDK TPM..."
+            docker run -i --privileged -v $BOOTFS:/target/boot $sdoNativeDockerImage /bin/bash -c 'cd /target/boot && /tpm-sdoout/linux-client'
+        elif [[ -e $BOOTFS/CLIENT_SDK_DI_STATUS && "$(cat $BOOTFS/CLIENT_SDK_DI_STATUS)" == "**CLIENT_SDK_DI_SUCCESSFUL**" ]]; then
+            echo "Starting TO for Client-SDK..."
+            docker run -i --privileged -v $BOOTFS:/target/boot $sdoNativeDockerImage /bin/bash -c 'cd /target/boot && /sdoout/linux-client'
+        else
+            echo "Error: neither DAL DI or CSDK DI completed successfully on this device at the manufacturer."
+            exit 5
+        fi
+
+        # We are back from the container, with our files copied into $BOOTFS. Now run the device_exec file that agent-install-wrapper.sh created when it ran inside the sdo container
+        rm -f $BOOTFS/inside-sdo-container
+        echo "TO1 and TO2 completed and downloaded these files to ${BOOTFS}: $(ls $BOOTFS | tr "\n" " ")"
+        echo "$BOOTFS/device_exec: $(cat $BOOTFS/device_exec)"
+        echo "Running $BOOTFS/device_exec ..."
+        ./device_exec   # this actually runs agent-install-wrapper.sh again (but it will detect that it is not inside the container and behave differently)
+        chk $? 'running device_exec'
     fi
 
-    # We are back from the container, with our files copied into $BOOTFS. Now run the device_exec file that agent-install-wrapper.sh created when it ran inside the sdo container
-    echo "TO1 and TO2 completed and downloaded these files to ${BOOTFS}: $(ls $BOOTFS | tr "\n" " ")"
-    savePwd="$PWD"
-    echo "$BOOTFS/device_exec: $(cat $BOOTFS/device_exec)"
-    echo "Running $BOOTFS/device_exec ..."
-    cd $BOOTFS
-    ./device_exec   # this actually runs agent-install-wrapper.sh again (but it will detect that it is not inside the container and behave differently)
-    chk $? 'running device_exec'
     cd $savePwd
     systemctl disable sdo_to.service    # so it does not run on every boot
 else
