@@ -8,7 +8,7 @@ The software in this git repository provides integration between SDO and Open Ho
 
 1. A consolidated docker image of all of the SDO "owner" services (those that run on the Horizon management hub).
 1. An SDO rendezvous server (RV) that is the first service that booting SDO-enabled devices contact. The rendezvous server redirects the device to the correct Horizon instance for configuration.
-1. A script called `generate-key-pair.sh` to automate the process of creating private keys, certificates, and public keys so each tenant is able to import and use their own key pairs so that they can securely use SDO.
+1. A script called `import-owner-private-key.sh` to automate the process of creating private keys and certificates, and importing those into the master keystore in sdo owner services. Also returns concatenated public keys so each tenant is able to use their own key pairs so that they can securely use SDO.
 1. An `hzn voucher` sub-command to import one or more ownership vouchers into a horizon instance. (An ownership voucher is a file that the device manufacturer gives to the purchaser (owner) along with the physical device.)
 1. A sample script called `simulate-mfg.sh` to run the SDO-enabling steps on a VM "device" that a device manufacturer would run on a physical device. This enables you to try out the SDO process with your Horizon instance before purchasing SDO-enabled devices.
 1. A script called `owner-boot-device` that performs the second half of using a simulated VM "device" by initiating the same SDO booting process on the VM that runs on a physical SDO-enabled device when it boots.
@@ -40,6 +40,7 @@ Before continuing with the rest of the SDO process, it is good to verify that yo
    export HZN_EXCHANGE_USER_AUTH=<user>:<password>
    export HZN_SDO_SVC_URL=<protocol>://<sdo-owner-svc-host>:<ocs-api-port>/<ocs-api-path>
    export SDO_RV_URL=http://sdo-sbx.trustedservices.intel.com:80
+   export HZN_MGMT_HUB_CERT_PATH=<mgmt-hub-cert-file>   # if it requires a certificate
    ```
 
    **Note:**
@@ -48,14 +49,14 @@ Before continuing with the rest of the SDO process, it is good to verify that yo
 2. Query the OCS API version:
 
    ```bash
-   curl -sS $HZN_SDO_SVC_URL/version && echo
+   curl -k -sS $HZN_SDO_SVC_URL/version && echo
    ```
 
 3. Query the ownership vouchers that have already been imported (initially it will be an empty list):
 
    ```bash
    # either use curl directly
-   curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" $HZN_SDO_SVC_URL/vouchers | jq
+   curl -k -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" $HZN_SDO_SVC_URL/vouchers | jq
    # or use the hzn command, if you have the horizon-cli package installed
    hzn voucher list
    ```
@@ -63,7 +64,7 @@ Before continuing with the rest of the SDO process, it is good to verify that yo
 4. "Ping" the rendezvous server:
 
    ```bash
-   curl -sS -w "%{http_code}" -H Content-Type:application/json -X POST $SDO_RV_URL/mp/113/msg/20 | jq
+   curl -k -sS -w "%{http_code}" -H Content-Type:application/json -X POST $SDO_RV_URL/mp/113/msg/20 | jq
    ```
    
 ### <a name="gen-keypair"></a>Generate Owner Key Pairs
@@ -72,28 +73,16 @@ For production use of SDO, you need to create 3 key pairs and import them into t
 
 Note: you only have to perform the steps in this section once. The keys create and import can be used with all of your devices.
 
-1. Go to the directory where you want your generated keys to be saved then download `generate-key-pair.sh`.
+1. Go to the directory where you want your owner public keys to be saved. Now **on your admin host** run `import-owner-private-keys2.sh` to generate and import key pairs into the SDO owner services.
 
    ```bash
-   curl -sSLO https://github.com/open-horizon/SDO-support/releases/download/v1.10/generate-key-pair.sh
-   chmod +x generate-key-pair.sh
-   ```
-   
-2. Run the `generate-key-pair.sh` script. You will be prompted to answer a few questions in order to produce certificates for your private keys. (The prompts can be avoided by setting environment variables. Run `./generate-key-pair.sh -h` for details.) You must be using Ubuntu to run this script.
-
-   ```bash
-   ./generate-key-pair.sh
-   ```
-
-3. Two files are created by `generate-key-pair.sh`:
-   - `owner-keys.tar.gz`: A tar file containing the 3 private keys and associated certificates. This file will be imported into the owner services container in the next step.
-   - `owner-public-key.pem`: The corresponding customer/owner public keys (all in a single file). This is used by the device manufacturer to securely extend the vouchers to the owner. Pass this file as an argument whenever running simulate-mfg.sh, and give this public key to each device manufacturer producing SDO-enabled devices for you.
-    
-4. **On your admin host** import `owner-keys.tar.gz` into the SDO owner services: 
-    
-   ```bash
+   <insert api call here>
    curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -X POST -H Content-Type:application/octet-stream --data-binary @owner-keys.tar.gz $HZN_SDO_SVC_URL/keys && echo
-   ```
+   ```  
+
+2. One file is created by `import-owner-private-keys2.sh`:
+   - `owner-public-key.pem`: The customer/owner public keys  (all in a single file) corresponding to the private key pairs that were imported into SDO owner services. This is used by the device manufacturer to securely extend the vouchers to the owner. Pass this file as an argument whenever running simulate-mfg.sh, and give this public key to each device manufacturer producing SDO-enabled devices for you.
+    
 
 ### <a name="init-device"></a>Initialize a Test VM Device with SDO
 
