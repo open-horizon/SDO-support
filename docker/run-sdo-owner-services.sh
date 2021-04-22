@@ -23,7 +23,10 @@ Additional environment variables (that do not usually need to be set):
   SDO_RV_PORT - port number RV should listen on *inside* the container. Default is 8040.
   SDO_OPS_PORT - port number OPS should listen on *inside* the container. Default is 8042.
   SDO_OPS_EXTERNAL_PORT - external port number that RV should tell the device to reach OPS at. Defaults to the internal OPS port number.
-  SDO_OCS_API_PORT - port number OCS-API should listen on *inside* the container. Default is 9008.
+  SDO_OCS_API_PORT - port number OCS-API should listen on for HTTP. Default is 9008.
+  SDO_OCS_API_TLS_PORT - port number OCS-API should listen on for TLS. Default is the value of SDO_OCS_API_PORT. (OCS API does not support TLS and non-TLS simultaneously.) Note: you can not set this to 9009, because OCS listens on that port internally.
+  SDO_API_CERT_HOST_PATH - path on this host of the directory holding the certificate and key files named sdoapi.crt and sdoapi.key, respectively. Default is for the OCS-API to not support TLS.
+  SDO_API_CERT_PATH - path that the directory holding the certificate and key files is mounted to within the container. Default is /home/sdouser/ocs-api-dir/keys .
   EXCHANGE_INTERNAL_URL - how OCS-API should contact the exchange for authentication. Will default to HZN_EXCHANGE_URL.
   SDO_GET_PKGS_FROM - where to have the edge devices get the horizon packages from. If set to css:, it will be expanded to css:/api/v1/objects/IBM/agent_files. Or it can be set to something like https://github.com/open-horizon/anax/releases/latest/download (which is the default).
   SDO_RV_VOUCHER_TTL - tell the rendezvous server to persist vouchers for this number of seconds (default 7200).
@@ -56,6 +59,8 @@ containerHome=/home/sdouser
 SDO_OCS_DB_CONTAINER_DIR=${SDO_OCS_DB_CONTAINER_DIR:-$containerHome/ocs/config/db}
 
 export SDO_OCS_API_PORT=${SDO_OCS_API_PORT:-9008}
+export SDO_OCS_API_TLS_PORT=${SDO_OCS_API_TLS_PORT:-$SDO_OCS_API_PORT}
+export SDO_API_CERT_PATH=${SDO_API_CERT_PATH:-/home/sdouser/ocs-api-dir/keys}   # this is the path *within* the container. Export SDO_API_CERT_HOST_PATH to use a cert/key.
 export SDO_RV_PORT=${SDO_RV_PORT:-8040}   # the port RV should listen on *inside* the container
 export SDO_OPS_PORT=${SDO_OPS_PORT:-8042}   # the port OPS should listen on *inside* the container
 export SDO_OPS_EXTERNAL_PORT=${SDO_OPS_EXTERNAL_PORT:-$SDO_OPS_PORT}   # the external port the device should use to contact OPS
@@ -114,14 +119,17 @@ fi
 
 # else inside the container start-sdo-owner-services.sh will use the default key file that Dockerfile set up
 
-#if [[ ${AGENT_INSTALL_URL:0:8} == 'file:///' ]]; then
-#    agentInstallFlag="-v ${AGENT_INSTALL_URL#file:///}:$containerHome/agent-install.sh:ro"
-#if [[ ${AGENT_INSTALL_URL:0:4} == 'http' ]]; then
-#    agentInstallFlag="-e AGENT_INSTALL_URL=$AGENT_INSTALL_URL"
-#else
-#    echo "Error: invalid AGENT_INSTALL_URL value: $AGENT_INSTALL_URL"
-#    exit 1
-#fi
+# Set the ocs-api port appropriately (the TLS port takes precedence, if set)
+portNum=${SDO_OCS_API_TLS_PORT:-$SDO_OCS_API_PORT}
+
+# Set the mount of the cert/key files, if specified
+if [[ -n $SDO_API_CERT_HOST_PATH ]]; then
+    fullHostPath=$SDO_API_CERT_HOST_PATH
+    if [[ ${fullHostPath:0:1} != '/' ]]; then
+        fullHostPath="$PWD/$fullHostPath"
+    fi
+    certKeyMount="-v $fullHostPath:$SDO_API_CERT_PATH"
+fi
 
 #For testing purposes
 if [[ "$DOCKER_DONTPULL" == '1' || "$DOCKER_DONTPULL" == 'true' ]]; then
@@ -132,4 +140,4 @@ else
     chk $? 'Pulling from Docker Hub...'
 fi
 # Run the service container
-docker run --name $SDO_DOCKER_IMAGE -dt --mount "type=volume,src=sdo-ocs-db,dst=$SDO_OCS_DB_CONTAINER_DIR" $privateKeyMount -p $SDO_OCS_API_PORT:$SDO_OCS_API_PORT -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_KEY_PWD=$SDO_KEY_PWD" -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "SDO_OCS_API_PORT=$SDO_OCS_API_PORT" -e "SDO_RV_PORT=$SDO_RV_PORT" -e "SDO_OPS_PORT=$SDO_OPS_PORT" -e "SDO_OPS_EXTERNAL_PORT=$SDO_OPS_EXTERNAL_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "EXCHANGE_INTERNAL_URL=$EXCHANGE_INTERNAL_URL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" -e "SDO_GET_PKGS_FROM=$SDO_GET_PKGS_FROM" -e "SDO_RV_VOUCHER_TTL=$SDO_RV_VOUCHER_TTL" -e "VERBOSE=$VERBOSE" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
+docker run --name $SDO_DOCKER_IMAGE -dt --mount "type=volume,src=sdo-ocs-db,dst=$SDO_OCS_DB_CONTAINER_DIR" $privateKeyMount $certKeyMount -p $portNum:$portNum -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_KEY_PWD=$SDO_KEY_PWD" -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "SDO_OCS_API_PORT=$SDO_OCS_API_PORT" -e "SDO_OCS_API_TLS_PORT=$SDO_OCS_API_TLS_PORT" -e "SDO_API_CERT_PATH=$SDO_API_CERT_PATH" -e "SDO_RV_PORT=$SDO_RV_PORT" -e "SDO_OPS_PORT=$SDO_OPS_PORT" -e "SDO_OPS_EXTERNAL_PORT=$SDO_OPS_EXTERNAL_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "EXCHANGE_INTERNAL_URL=$EXCHANGE_INTERNAL_URL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" -e "SDO_GET_PKGS_FROM=$SDO_GET_PKGS_FROM" -e "SDO_RV_VOUCHER_TTL=$SDO_RV_VOUCHER_TTL" -e "VERBOSE=$VERBOSE" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION

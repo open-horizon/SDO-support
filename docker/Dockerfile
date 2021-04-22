@@ -30,6 +30,7 @@ ENV SDO_OCS_DB_PATH=$WORKDIR/ocs/config/db
 # These env vars are only used at runtime (by start-sdo-owner-services.sh), so can be overridden by docker run
 ENV SDO_RV_PORT=8040   SDO_OPS_PORT=8042   SDO_OCS_API_PORT=9008   VERBOSE=true
 ENV SDO_OPS_EXTERNAL_PORT=$SDO_OPS_PORT
+ENV SDO_OCS_API_TLS_PORT=$SDO_OCS_API_PORT
 
 # Working during during the installations
 WORKDIR /root
@@ -85,7 +86,7 @@ COPY --chown=1000:1000 keys/sample-owner-keystore.p12 $WORKDIR/ocs/config/sample
 #This command gives `USER sdouser` the correct permissions for mounting this key inside the container
 RUN touch ocs/config/owner-keystore.p12 && chown sdouser:sdouser ocs/config/owner-keystore.p12
 # SDO_OCS_DB_PATH is where the named volume will get mounted to. Create the subdirs, and make sure we own everything
-RUN mkdir -p $SDO_OCS_DB_PATH/v1/{creds,devices,values} && chown -R 1000:1000 $SDO_OCS_DB_PATH
+RUN mkdir -p $SDO_OCS_DB_PATH/v1/{creds,devices,values} ocs-api-dir/keys && chown -R 1000:1000 $SDO_OCS_DB_PATH ocs-api-dir
 
 # Get OPS files
 COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.10.1/ops $WORKDIR/ops/

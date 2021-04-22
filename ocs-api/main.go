@@ -68,8 +68,15 @@ func main() {
 	//http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/api/", apiHandler)
 
-	outils.Verbose("Listening on port %s and using ocs db %s", port, OcsDbDir)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	// Listen on the specified port and protocol
+	keysDir := outils.GetEnvVarWithDefault("SDO_API_CERT_PATH", "/home/sdouser/ocs-api-dir/keys")
+	if outils.PathExists(keysDir+"/sdoapi.crt") && outils.PathExists(keysDir+"/sdoapi.key") {
+		outils.Verbose("Listening on HTTPS port %s and using ocs db %s", port, OcsDbDir)
+		log.Fatal(http.ListenAndServeTLS(":"+port, keysDir+"/sdoapi.crt", keysDir+"/sdoapi.key", nil))
+	} else {
+		outils.Verbose("Listening on HTTP port %s and using ocs db %s", port, OcsDbDir)
+		log.Fatal(http.ListenAndServe(":"+port, nil))
+	}
 } // end of main
 
 // API route dispatcher
