@@ -61,7 +61,8 @@ confirmcmds() {
 
 ensureWeAreRoot() {
     if [[ $(whoami) != 'root' ]]; then
-        fatal 2 "must be root to run ${0##*/}. Run 'sudo -i' and then run ${0##*/}"
+        echo "Error: must be root to run ${0##*/}. Run 'sudo -i' and then run ${0##*/}"
+        exit 2
     fi
 }
 
@@ -140,7 +141,12 @@ if [[ -d "$workingDir/sdo-native" ]]; then
     cd $BOOTFS
 
     if [[ -f /var/sdo/sdo-native/run-host-to ]]; then
+        #todo: native client directly on the host is still experimental!! (there is still a proxy problem running our agent-install scripts in this environment)
         echo "Running TO on the host..."
+        if [[ ! -f /usr/sdo/lib/libiclsclient.so || ! -f /usr/sdo/bin/sdo_all.dalp || ! -e /usr/sdo/bin/sdo_to ]]; then
+            echo "Error: the necessary native host executables and libraries for SDO TO have not be installed on this host"
+            exit 6
+        fi
         if ! systemctl is-active --quiet jhi; then
             systemctl start jhi
             chk $? 'starting jhi service'

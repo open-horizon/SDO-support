@@ -406,7 +406,9 @@ if [[ $useNativeClient != 'false' ]]; then
     docker run -i --rm --privileged --name sdo-di --network manufacturer_network -v /dev:/dev -v /sys/:/sys/ -v $BOOTFS:/target/boot $sdoNativeDockerImage /usr/bin/run_sdo_di.sh ${SCT_IP_ADDRESS} ${SCT_PORT} ${Serial_Number_String}
     chk $? 'running native DI'
     if [[ $useNativeClient == 'host' ]]; then
-        # We will run TO on the host, so copy the necessary executables and libraries from the docker container to this host
+        #todo: native client directly on the host is still experimental!!
+        # We will run TO on the host, so copy some of the necessary executables and libraries from the docker container to this host
+        # (The rest of the executables/libraries need to be built on the host. They will be checked for in owner-boot-device.)
         echo "Copying TO icls libraries from the $sdoNativeDockerImage docker container..."
         mkdir -p /usr/sdo/lib
         docker run -d -t --privileged --name sdo-dal $sdoNativeDockerImage sh
