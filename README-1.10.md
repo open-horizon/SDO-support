@@ -107,7 +107,7 @@ curl -sSLO https://github.com/open-horizon/SDO-support/releases/download/v1.10/s
 chmod +x simulate-mfg.sh
 export SDO_RV_URL=http://sdo-sbx.trustedservices.intel.com:80
 export SDO_SAMPLE_MFG_KEEP_SVCS=true   # makes it faster if you run multiple tests
-./simulate-mfg.sh
+sudo -E ./simulate-mfg.sh
 ```
 
 This creates an ownership voucher in the file `/var/sdo/voucher.json`.
@@ -119,7 +119,7 @@ The ownership voucher created for the device in the previous step needs to be im
 1. When you purchase a physical SDO-enabled device, you receive an ownership voucher from the manufacturer. In the case of the VM device you have configured to simulate an SDO-enabled device, the analogous step is to copy the file `/var/sdo/voucher.json` from your VM device to here.
 2. Import the ownership voucher. In this step you can also control what edge services should be run on the device, once it is booted and configured. You can do this using one of three flags:
    - Specify a deployment pattern using `--pattern=<pattern-name>` . You must separately create this deployment pattern in the Exchange. 
-   - Specify a node policy json file using `--policy=<node-policy-file>` . You must separately create a corresponding deployment policy in the Exchange.
+   - Specify a node policy json file using `--policy=<node-policy-file>` . You must separately create a corresponding **deployment** policy in the Exchange.
    - Use the shorthand flag `--example=<example-name>`, which will automatically generate and set a node policy with the constraint `openhorizon.example == <example-name>`. When the Horizon management hub was installed, deployment policies were created that deploy some of the example edge services to edge devices with a node policy like this. Once such example name is `helloworld`, which is what we are using in this command:
 
    ```bash
@@ -130,12 +130,12 @@ The ownership voucher created for the device in the previous step needs to be im
 
 ### <a name="boot-device"></a>Boot the Device to Have it Configured
 
-When an SDO-enabled device boots, it starts the SDO process. The first thing it does is contact the rendezvous server, which redirects it to the SDO owner services in your Horizon instance. To simulate this process in your VM device, perform these steps:
+When an SDO-enabled device (like your VM) boots, it starts the SDO process. The first thing the SDO process does is contact the rendezvous server, which redirects it to the SDO owner services in your Horizon instance, which downloads, installs, and registers the Horizon agent. All of this happens in the background. If you **prefer to watch the process**, perform these steps on your VM device:
 
-1. **Back on your VM device** run the `owner-boot-device` script:
+1. **Back on your VM device** run the `owner-boot-device` script as root, optionally specifying the edge service name you expect to be started and want the script to wait for:
 
    ```bash
-   /usr/sdo/bin/owner-boot-device ibm.helloworld
+   sudo -E /usr/sdo/bin/owner-boot-device ibm.helloworld
    ```
 
 2. Your VM device is now configured as a Horizon edge node and registered with your Horizon management hub to run the helloworld example edge service. View the log of the edge service:
