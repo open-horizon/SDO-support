@@ -11,7 +11,7 @@ rvVoucherTtlDefault='7200'
 
 # These can be passed in via CLI args or env vars
 ocsDbDir="${1:-$SDO_OCS_DB_PATH}"
-ocsApiPort="${2:-${SDO_OCS_API_PORT:-$ocsApiPortDefault}}"
+ocsApiPort="${2:-${SDO_OCS_API_TLS_PORT:-${SDO_OCS_API_PORT:-$ocsApiPortDefault}}}"  # precedence: arg, or tls port, or non-tls port, or default
 
 keyPass="${SDO_KEY_PWD:-$keyPassDefault}"
 opsPort=${SDO_OPS_PORT:-$opsPortDefault}

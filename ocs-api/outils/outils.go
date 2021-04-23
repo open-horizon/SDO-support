@@ -38,7 +38,7 @@ type HttpError struct {
 }
 
 func NewHttpError(code int, errStr string, args ...interface{}) *HttpError {
-	return &HttpError{Code: code, Err: errors.New(fmt.Sprintf(errStr, args...))}
+	return &HttpError{Code: code, Err: fmt.Errorf(errStr, args...)}
 }
 
 func (e *HttpError) Error() string {
@@ -356,7 +356,7 @@ func TrustIcpCert(transport *http.Transport, certPath string) *HttpError {
 	// Case 3:
 	icpCert, err := ioutil.ReadFile(filepath.Clean(certPath))
 	if err != nil {
-		NewHttpError(http.StatusInternalServerError, "Encountered error reading ICP cert file %v: %v", certPath, err)
+		return NewHttpError(http.StatusInternalServerError, "Encountered error reading ICP cert file %v: %v", certPath, err)
 	}
 	caCertPool := x509.NewCertPool()
 	caCertPool.AppendCertsFromPEM(icpCert)
