@@ -190,7 +190,7 @@ function combineKeys() {
         keyName=${keyName//$removeWord/}
         #adding delimiters for SDO 1.10 pub key format
         echo ""$keyName":" >key.txt
-        cat key.txt $i >> ${YOUR_NAME}_${ORG_NAME}_public-key.pem
+        cat key.txt $i >> ${ORG_NAME}_${YOUR_NAME}_public-key.pem
       done
     rm -- ecdsa*.pem && rm rsapub* && rm key.txt
     #Tar all keys and certs
