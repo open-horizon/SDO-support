@@ -104,7 +104,8 @@ fi
 
 # Need to move this file into the ocs db *after* the docker run mount is done
 # If the user specified their own owner private key, run-sdo-owner-services.sh will mount it at ocs/config/owner-keystore.p12, otherwise use the default
-mkdir -p $ocsDbDir/v1/creds
+mkdir -p $ocsDbDir/v1/creds/publicKeys
+
 # first check pw for length and disallowed chars (that cause the sed cmds below to fail)
 # Note: keyPass is always set, because it is set to the default pw if SDO_KEY_PWD not set
 if [[ ${#keyPass} -lt 6 || $keyPass == *$'\n'* || $keyPass == *'|'* ]]; then

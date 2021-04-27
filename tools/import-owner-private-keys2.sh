@@ -3,7 +3,7 @@
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     cat << EndOfMessage
-Usage: ${0##*/} [<encryption-keyType>]
+Usage: ${0##*/} <org-id>[<key-name>][<common-name>][<email-name>][<company-name>][<country-name>]
 
 Arguments:
   <owner-keys-tar-file>  A tar file containing the 3 private keys and associated 3 certs
@@ -12,27 +12,50 @@ Arguments:
 Optional Environment Variables:
   COUNTRY_NAME - The country the user resides in. Necessary information for keyCertificate generation.
   STATE_NAME - The state the user resides in. Necessary information for keyCertificate generation.
-  CITY_NAME - The city the user resides in. Necessary information for keyCertificate generation.
-  ORG_NAME - The organization the user works for. Necessary information for keyCertificate generation.
+  LOCALE_NAME - The city the user resides in. Necessary information for keyCertificate generation.
+  ORG_UNIT - The organizational unit or Horizon Org ID the user is in. Necessary information for keyCertificate generation.
   COMPANY_NAME - The company the user works for. Necessary information for keyCertificate generation.
-  YOUR_NAME - The name of the user. Necessary information for keyCertificate generation.
+  COMMON_NAME - The name of the user. Necessary information for keyCertificate generation.
   EMAIL_NAME - The user's email. Necessary information for keyCertificate generation.
 
 Required environment variables:
-  HZN_ORG_ID - The custom org the user chooses. Necessary information to import keystore into our master keystore.
+  KEY_NAME - The custom key pair name the user chooses. Necessary information to keep track of imported keystores into our master keystore.
 
 EndOfMessage
     exit 0
 fi
 
+#if [[ -z "$1" ]]; then
+#  echo "Error: Certificate arguments not specified"
+#    exit 1
+#fi
+
+#Make all positional arguments required. Try to check number of arguments passed? $# -lt 7
+if [[ -z "$1" ]] || [[ -z "$2" ]] || [[ -z "$3" ]] || [[ -z "$4" ]] || [[ -z "$5" ]] || [[ -z "$6" ]]; then
+    echo "Error: Certificate arguments not specified"
+    exit 1
+fi
+
 
 #Grabbing password from the ocs/config/application.properties inside the container to use for import
 keypwd="$(grep -E '^ *FS_OWNER_KEYSTORE_PASSWORD=' ocs/ocs.env)"
-echo keypwd
 SDO_KEY_PWD=${keypwd#FS_OWNER_KEYSTORE_PASSWORD=}
-keyType="${1:-all}"
+keyType="all"
 gencmd=""
 str="$(openssl version)"
+
+#Positional Arguments for ocs api
+HZN_ORG_ID="$1"
+ORG_UNIT=$HZN_ORG_ID
+KEY_NAME="${2:-Default}"
+KEY_NAME=$(echo "$KEY_NAME" | tr '[:upper:]' '[:lower:]')
+COMMON_NAME="${3:-Default}"
+EMAIL_NAME="${4:-default@gmail.com}"
+COMPANY_NAME="${5:-Default}"
+COUNTRY_NAME="${6:-US}"
+
+export STATE_NAME=North Carolina
+export LOCALE_NAME=Raleigh
 
 if [[ -n $keyType ]] && [[ $keyType != "ecdsa256" ]] && [[ $keyType != "ecdsa384" ]] && [[ $keyType != "rsa" ]] && [[ $keyType != "all" ]]; then
   echo "Error: specified encryption keyType '$keyType' is not supported."
@@ -72,6 +95,20 @@ ensureWeAreUser() {
         exit 2
     fi
 }
+
+
+function getKeyPair() {
+  #Check for existance of a specific key . If it isn't found good, if it is found exit 2
+  echo "Checking for private keys and concatenated public key using key name: "${HZN_ORG_ID}_${KEY_NAME}
+  if [[ $(/usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore ocs/config/db/v1/creds/owner-keystore.p12 -storepass "${SDO_KEY_PWD}" | grep -E "^Alias name: *${HZN_ORG_ID}_${KEY_NAME}_rsa$") > 0 ]]; then
+    >&2 echo "Key Name Already Used"
+    /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore ocs/config/db/v1/creds/owner-keystore.p12 -storepass "${SDO_KEY_PWD}" | grep -E "^Alias name: *${HZN_ORG_ID}_${KEY_NAME}_rsa$" >&2
+    >&2 cat ocs/config/db/v1/creds/publicKeys/${ORG_UNIT}/${ORG_UNIT}_${KEY_NAME}_public-key.pem
+    exit 2
+  else
+    echo "Key Name Not Found"
+  fi
+  }
 
 function allKeys() {
   for i in "rsa" "ecdsa256" "ecdsa384"; do
@@ -128,10 +165,10 @@ function keyCertGenerator() {
       (
       echo "$COUNTRY_NAME"
       echo "$STATE_NAME"
-      echo "$CITY_NAME"
+      echo "$LOCALE_NAME"
       echo "$COMPANY_NAME"
-      echo "$ORG_NAME"
-      echo "$YOUR_NAME"
+      echo "$ORG_UNIT"
+      echo "$COMMON_NAME"
       echo "$EMAIL_NAME"
     ) | openssl req -x509 -nodes -days 3650 -newkey ec:<(openssl genpkey -genparam -algorithm ec -pkeyopt ec_paramgen_curve:P-"${var2}") -keyout "$privateKey" -out "$keyCert" >/dev/null 2>&1
       chk $? 'generating ec certificate'
@@ -147,10 +184,10 @@ function keyCertGenerator() {
     (
       echo "$COUNTRY_NAME"
       echo "$STATE_NAME"
-      echo "$CITY_NAME"
+      echo "$LOCALE_NAME"
       echo "$COMPANY_NAME"
-      echo "$ORG_NAME"
-      echo "$YOUR_NAME"
+      echo "$ORG_UNIT"
+      echo "$COMMON_NAME"
       echo "$EMAIL_NAME"
     ) | $gencmd >/dev/null 2>&1
     chk $? 'generating rsa certificate'
@@ -186,7 +223,7 @@ function genPublicKey() {
 }
 
 function combineKeys() {
-  #This function will combine all private keys and certificates into one tarball, then will concatenate all public keys into one
+  #This function will concatenate all public keys into one
   if [[ -f "rsapub-key.pem" && -f "ecdsa256pub-key.pem" && -f "ecdsa384pub-key.pem" ]]; then
     #Combine all the public keys into one
     if [[ -f owner-public-key.pem ]]; then
@@ -202,45 +239,21 @@ function combineKeys() {
         keyName=${keyName//$removeWord/}
         #adding delimiters for SDO 1.9 pub key format
         echo ""$keyName":" >key.txt
-        cat key.txt $i >> owner-public-key.pem
+        #make sure key name is lowercase for file name
+        cat key.txt $i >> ${ORG_UNIT}_${KEY_NAME}_public-key.pem
       done
     chk $? 'Concatenating Public Key files...'
     rm -- ecdsa*.pem && rm rsapub* && rm key.txt
   fi
-}
-
-function infoKeyCert() {
-  #If varaibles are not set, prompt this openssl certificate paragraph
-  if [[ -z $COUNTRY_NAME ]] || [[ -z $STATE_NAME ]] || [[ -z $CITY_NAME ]] || [[ -z $ORG_NAME ]] || [[ -z $COMPANY_NAME ]] || [[ -z $YOUR_NAME ]] || [[ -z $EMAIL_NAME ]]; then
-    printf "You have to enter information in order to generate a custom self signed certificate as a part of your key pair for SDO Owner Attestation. What you are about to enter is what is called a Distinguished Name or a DN. There are quite a few fields but you can leave some blank. For some fields there will be a default value, If you enter '.', the field will be left blank." && echo
+  mv ${ORG_UNIT}_${KEY_NAME}_public-key.pem ocs/config/db/v1/creds/publicKeys
+  cd ocs/config/db/v1/creds/publicKeys
+  if [ ! -d "${ORG_UNIT}" ]; then
+    mkdir ${ORG_UNIT} && mv ${ORG_UNIT}_${KEY_NAME}_public-key.pem ${ORG_UNIT}/
+  else 
+    mv ${ORG_UNIT}_${KEY_NAME}_public-key.pem ${ORG_UNIT}/
   fi
-  #while variables are not set, prompt for whichever variable is not set
-  while [[ -z $COUNTRY_NAME ]] || [[ -z $STATE_NAME ]] || [[ -z $CITY_NAME ]] || [[ -z $ORG_NAME ]] || [[ -z $COMPANY_NAME ]] || [[ -z $YOUR_NAME ]] || [[ -z $EMAIL_NAME ]]; do
-    if [[ -z $COUNTRY_NAME ]]; then
-      echo "Country Name (2 letter code) [AU]:"
-      read COUNTRY_NAME && echo
-    elif [[ -z $STATE_NAME ]]; then
-      echo "State or Province Name (full name) [Some-State]:"
-      read STATE_NAME && echo
-    elif [[ -z $CITY_NAME ]]; then
-      echo "Locality Name (eg, city) []:"
-      read CITY_NAME && echo
-    elif [[ -z $COMPANY_NAME ]]; then
-      echo "Organization Name (eg, company) [Internet Widgits Pty Ltd]:"
-      read COMPANY_NAME && echo
-    elif [[ -z $ORG_NAME ]]; then
-      echo "Organizational Unit Name (eg, section) []:"
-      read ORG_NAME && echo
-    elif [[ -z $YOUR_NAME ]]; then
-      echo "Common Name (e.g. server FQDN or YOUR name) []:"
-      read YOUR_NAME && echo
-    elif [[ -z $EMAIL_NAME ]]; then
-      echo "Email Address []:"
-      read EMAIL_NAME && echo
-    fi
-  done
+  cd
 }
-
 
 #This function will take the private key and certificate that has been passed in, and use them to generate a keystore pkcs12 file containing both files.
 function genKeyStore(){
@@ -248,21 +261,21 @@ function genKeyStore(){
   for i in "rsa" "ecdsa256" "ecdsa384"
       do
         # Convert the keyCertificate and private key into ‘PKCS12’ keystore format:
-        cd "$i"Key/ && openssl pkcs12 -export -in "$i"Cert.crt -inkey "$i"private-key.pem -name "${HZN_ORG_ID}"_"$i" -out "${HZN_ORG_ID}_$i.p12" -password pass:"$SDO_KEY_PWD"
+        cd "$i"Key/ && openssl pkcs12 -export -in "$i"Cert.crt -inkey "$i"private-key.pem -name "${ORG_UNIT}_${KEY_NAME}_$i" -out "${KEY_NAME}_$i.p12" -password pass:"$SDO_KEY_PWD"
         chk $? 'Converting private key and cert into keystore'
-        cp "${HZN_ORG_ID}_$i.p12" .. && rm -- *
+        cp "${KEY_NAME}_$i.p12" .. && rm -- *
         cd .. && rmdir "$i"Key
       done
 }
 
 function insertKeys(){
   #This function will insert all private keystores into the master keystore
-  if [[ -f "${HZN_ORG_ID}_$i.p12" ]]; then
+  if [[ -f "${KEY_NAME}_$i.p12" ]]; then
     for i in "rsa" "ecdsa256" "ecdsa384"
       do
         #Import custom keystores into the master keystore. /usr/lib/jvm/openjre-11-manual-installation/bin/
-        echo "yes" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -importkeystore -destkeystore ocs/config/db/v1/creds/owner-keystore.p12 -deststorepass "$SDO_KEY_PWD" -srckeystore "${HZN_ORG_ID}_$i.p12" -srcstorepass "$SDO_KEY_PWD" -srcstoretype PKCS12 -alias "${HZN_ORG_ID}"_"$i"
-        chk $? "Inserting "${HZN_ORG_ID}_$i.p12" keystore into ocs/config/db/v1/creds/owner-keystore.p12"
+        echo "yes" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -importkeystore -destkeystore ocs/config/db/v1/creds/owner-keystore.p12 -deststorepass "$SDO_KEY_PWD" -srckeystore "${KEY_NAME}_$i.p12" -srcstorepass "$SDO_KEY_PWD" -srcstoretype PKCS12 -alias "${ORG_UNIT}_${KEY_NAME}_$i"
+        chk $? "Inserting "${KEY_NAME}_$i.p12" keystore into ocs/config/db/v1/creds/owner-keystore.p12"
       done
     rm -- *.p12
   else
@@ -275,14 +288,15 @@ fi
 #============================MAIN CODE=================================
 
 ensureWeAreUser
-infoKeyCert
+getKeyPair
+
 if [[ -n "$keyType" ]] && [[ "$keyType" == "all" ]]; then
   allKeys
   combineKeys
 else
   genKey
 fi
-echo "Owner Private Key Tarfile and Owner Public Key have been created"
+echo "Owner Private Keys and Owner Public Key have been created"
 
 genKeyStore
 insertKeys
