@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"encoding/base64"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -450,21 +448,25 @@ func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
 	pubKeyDirName := OcsDbDir + "/v1/creds/publicKeys/" + deviceOrgId
 	fileName := deviceOrgId + "_" + keyTypeName + "_public-key.pem"
 
-	f, err := os.Open(pubKeyDirName + "/" + fileName)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer func() {
-		if err = f.Close(); err != nil {
-			log.Fatal(err)
-		}
-	}()
-	fileReader := bufio.NewReader(f)
+	// f, err := os.Open(pubKeyDirName + "/" + fileName)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// defer func() {
+	// 	if err = f.Close(); err != nil {
+	// 		log.Fatal(err)
+	// 	}
+	// }()
+	// fileReader := bufio.NewReader(f)
 
-	if _, err := io.Copy(w, fileReader); err != nil {
-		http.Error(w, "error returning public keys: "+err.Error(), http.StatusBadRequest)
-	}
 	w.WriteHeader(http.StatusCreated)
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", "attachment; filename=owner-public-key.pem")
+	http.ServeFile(w, r, pubKeyDirName+"/"+fileName)
+
+	// if _, err := io.Copy(w, fileReader); err != nil {
+	// 	http.Error(w, "error returning public keys: "+err.Error(), http.StatusBadRequest)
+	// }
 }
 
 //============= Non-Route Functions =============
