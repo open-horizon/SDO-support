@@ -78,8 +78,7 @@ Note: you only have to perform the steps in this section once. The keys create a
 1. Go to the directory where you want your owner public keys to be saved. Now **on your admin host** run `import-owner-private-keys2.sh` to generate and import key pairs into the SDO owner services.
 
    ```bash
-   <insert api call here>
-   curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -X POST -H Content-Type:application/octet-stream --data-binary @owner-keys.tar.gz $HZN_SDO_SVC_URL/keys && echo
+   curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -X POST -H Content-Type:application/json -d @ren.json $HZN_SDO_SVC_URL/keys && echo
    ```  
 
 2. One file is created by `import-owner-private-keys2.sh`:
