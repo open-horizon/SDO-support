@@ -414,6 +414,8 @@ func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
 		Email_name   string `json:"email_name"`
 		Company_name string `json:"company_name"`
 		Country_name string `json:"country_name"`
+		State_name   string `json:"state_name"`
+		Locale_name  string `json:"locale_name"`
 	}
 
 	info := Information{}
@@ -424,8 +426,8 @@ func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Run the script that will create and import the key pairs
-	outils.Verbose("Running command: ./import-owner-private-keys2.sh %s %s %s %s %s %s", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name) // "%s %s", pemFilePath, deviceOrgId)
-	stdOut, stdErr, err := outils.RunCmd("./import-owner-private-keys2.sh", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name)              // , pemFilePath, deviceOrgId)
+	outils.Verbose("Running command: ./import-owner-private-keys2.sh %s %s %s %s %s %s %s %s", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name) // "%s %s", pemFilePath, deviceOrgId)
+	stdOut, stdErr, err := outils.RunCmd("./import-owner-private-keys2.sh", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name)                    // , pemFilePath, deviceOrgId)
 	if err != nil {
 		http.Error(w, "error running import-owner-private-keys2.sh: "+err.Error(), http.StatusBadRequest) // this includes stdErr
 		return
