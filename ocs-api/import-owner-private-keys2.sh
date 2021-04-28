@@ -3,23 +3,17 @@
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     cat << EndOfMessage
-Usage: ${0##*/} <org-id>[<key-name>][<common-name>][<email-name>][<company-name>][<country-name>]
+Usage: ${0##*/} <org-id> <key-name> <common-name> <email-name> <company-name> <country-name> <state-name> <locale-name>
 
 Arguments:
-  <owner-keys-tar-file>  A tar file containing the 3 private keys and associated 3 certs
-  <encryption-keyType>  The type of encryption to use when generating owner key pair (ecdsa256, ecdsa384, rsa, or all). Will default to all.
-
-Optional Environment Variables:
-  COUNTRY_NAME - The country the user resides in. Necessary information for keyCertificate generation.
-  STATE_NAME - The state the user resides in. Necessary information for keyCertificate generation.
-  LOCALE_NAME - The city the user resides in. Necessary information for keyCertificate generation.
-  ORG_UNIT - The organizational unit or Horizon Org ID the user is in. Necessary information for keyCertificate generation.
-  COMPANY_NAME - The company the user works for. Necessary information for keyCertificate generation.
-  COMMON_NAME - The name of the user. Necessary information for keyCertificate generation.
-  EMAIL_NAME - The user's email. Necessary information for keyCertificate generation.
-
-Required environment variables:
-  KEY_NAME - The custom key pair name the user chooses. Necessary information to keep track of imported keystores into our master keystore.
+  <org-id> - The organizational unit or Horizon Org ID the user is in. Necessary information for keyCertificate generation.
+  <key_name> - The custom key pair name the user chooses. Necessary information to keep track of imported keystores into our master keystore.
+  <common-name> - The name of the user. Necessary information for keyCertificate generation.
+  <email-name> - The user's email. Necessary information for keyCertificate generation.
+  <company-name> - The company the user works for. Necessary information for keyCertificate generation.
+  <country-name> - The country the user resides in. Necessary information for keyCertificate generation.
+  <state-name> - The state the user resides in. Necessary information for keyCertificate generation.
+  <locale-name> - The city the user resides in. Necessary information for keyCertificate generation.
 
 EndOfMessage
     exit 0
@@ -31,8 +25,8 @@ fi
 #fi
 
 #Make all positional arguments required. Try to check number of arguments passed? $# -lt 7
-if [[ -z "$1" ]] || [[ -z "$2" ]] || [[ -z "$3" ]] || [[ -z "$4" ]] || [[ -z "$5" ]] || [[ -z "$6" ]]; then
-    echo "Error: Certificate arguments not specified"
+if [[ -z "$1" ]] || [[ -z "$2" ]] || [[ -z "$3" ]] || [[ -z "$4" ]] || [[ -z "$5" ]] || [[ -z "$6" ]] || [[ -z "$7" ]] || [[ -z "$8" ]]; then
+    echo "Error: All json values were not specified" >&2
     exit 1
 fi
 
@@ -53,9 +47,9 @@ COMMON_NAME="${3:-Default}"
 EMAIL_NAME="${4:-default@gmail.com}"
 COMPANY_NAME="${5:-Default}"
 COUNTRY_NAME="${6:-US}"
+STATE_NAME="${7:-North Carolina}"
+LOCALE_NAME="${8:-Raleigh}"
 
-export STATE_NAME=North Carolina
-export LOCALE_NAME=Raleigh
 
 if [[ -n $keyType ]] && [[ $keyType != "ecdsa256" ]] && [[ $keyType != "ecdsa384" ]] && [[ $keyType != "rsa" ]] && [[ $keyType != "all" ]]; then
   echo "Error: specified encryption keyType '$keyType' is not supported."
