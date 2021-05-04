@@ -410,7 +410,7 @@ func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if httpErr := outils.IsValidPostJson(r); httpErr != nil {
-		http.Error(w, "Im hoping anything works", httpErr.Code)
+		http.Error(w, "Error: This API only supports json.", httpErr.Code)
 		return
 	}
 
@@ -432,6 +432,13 @@ func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Key name must not contain any characters that cant be stored in a file name
+	var isStringAlphabetic = regexp.MustCompile(`^[a-zA-Z0-9_]*$`).MatchString
+	if !isStringAlphabetic(info.Key_name) {
+		http.Error(w, "Key Name contains special characters that are not allowed.", http.StatusBadRequest)
+		return
+	}
+
 	// Run the script that will create and import the key pairs
 	outils.Verbose("Running command: ./import-owner-private-keys2.sh %s %s %s %s %s %s %s %s", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name) // "%s %s", pemFilePath, deviceOrgId)
 	stdOut, stdErr, err := outils.RunCmd("./import-owner-private-keys2.sh", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name)                    // , pemFilePath, deviceOrgId)
@@ -450,25 +457,11 @@ func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
 	pubKeyDirName := OcsDbDir + "/v1/creds/publicKeys/" + deviceOrgId
 	fileName := deviceOrgId + "_" + keyTypeName + "_public-key.pem"
 
-	// f, err := os.Open(pubKeyDirName + "/" + fileName)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// defer func() {
-	// 	if err = f.Close(); err != nil {
-	// 		log.Fatal(err)
-	// 	}
-	// }()
-	// fileReader := bufio.NewReader(f)
-
 	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", "attachment; filename=owner-public-key.pem")
 	http.ServeFile(w, r, pubKeyDirName+"/"+fileName)
 
-	// if _, err := io.Copy(w, fileReader); err != nil {
-	// 	http.Error(w, "error returning public keys: "+err.Error(), http.StatusBadRequest)
-	// }
 }
 
 //============= Non-Route Functions =============

@@ -8,7 +8,7 @@ The software in this git repository provides integration between SDO and Open Ho
 
 1. A consolidated docker image of all of the SDO "owner" services (those that run on the Horizon management hub).
 1. An SDO rendezvous server (RV) that is the first service that booting SDO-enabled devices contact. The rendezvous server redirects the device to the correct Horizon instance for configuration.
-1. A script called `import-owner-private-key.sh` to automate the process of creating private keys and certificates, and importing those into the master keystore in sdo owner services. Also returns concatenated public keys so each tenant is able to use their own key pairs so that they can securely use SDO.
+1. A command and API to automate the process of creating private keys and certificates, and importing those into the master keystore in sdo owner services. Also returns concatenated public keys so each tenant is able to use their own key pairs so that they can securely use SDO.
 1. An `hzn voucher` sub-command to import one or more ownership vouchers into a horizon instance. (An ownership voucher is a file that the device manufacturer gives to the purchaser (owner) along with the physical device.)
 1. A sample script called `simulate-mfg.sh` to run the SDO-enabling steps on a VM "device" that a device manufacturer would run on a physical device. This enables you to try out the SDO process with your Horizon instance before purchasing SDO-enabled devices.
 1. A script called `owner-boot-device` that performs the second half of using a simulated VM "device" by initiating the same SDO booting process on the VM that runs on a physical SDO-enabled device when it boots.
@@ -73,14 +73,14 @@ For production use of SDO, you need to create 3 key pairs and import them into t
 
 Note: you only have to perform the steps in this section once. The keys create and import can be used with all of your devices.
 
-1. Go to the directory where you want your owner public keys to be saved. Now **on your admin host** run `import-owner-private-keys2.sh` to generate and import key pairs into the SDO owner services.
+1. Now **on your admin host** go to the directory where you want your owner public keys to be saved. Run the API call below to import your user information json in order to generate and import key pairs into the SDO owner services.
 
    ```bash
-   curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -X POST -H Content-Type:application/json -d @ren.json $HZN_SDO_SVC_URL/keys && echo
+   curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -X POST -H Content-Type:application/json -d @ren.json -o "$HZN_ORG_ID"_"$KEY_NAME"_"public-key.pem" $HZN_SDO_SVC_URL/keys && echo
    ```  
 
-2. One file is created by `import-owner-private-keys2.sh`:
-   - `owner-public-key.pem`: The customer/owner public keys  (all in a single file) corresponding to the private key pairs that were imported into SDO owner services. This is used by the device manufacturer to securely extend the vouchers to the owner. Pass this file as an argument whenever running simulate-mfg.sh, and give this public key to each device manufacturer producing SDO-enabled devices for you.
+2. One file is returned as a result of this API call:
+   - `owner-public-key.pem`: The customer/owner public keys (all in a single file) corresponding to the private key pairs that were imported into SDO owner services. This is used by the device manufacturer to securely extend the vouchers to the owner. Pass this file as an argument whenever running simulate-mfg.sh, and give this public key to each device manufacturer producing SDO-enabled devices for you.
     
 
 ### <a name="init-device"></a>Initialize a Test VM Device with SDO

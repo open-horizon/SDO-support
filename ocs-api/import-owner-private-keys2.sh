@@ -1,5 +1,5 @@
 #!/bin/bash
-# This script will extract a tarfile containing all private keys and certs necessary to add the Key-Pairs to our master keystore inside the container for Owner Attestation.
+# This script will automate the process of creating private keys and certificates, and importing those into the master keystore in sdo owner services. Also returns concatenated public keys so each tenant is able to use their own key pairs so that they can securely use SDO.
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     cat << EndOfMessage
@@ -19,11 +19,6 @@ EndOfMessage
     exit 0
 fi
 
-#if [[ -z "$1" ]]; then
-#  echo "Error: Certificate arguments not specified"
-#    exit 1
-#fi
-
 #Make all positional arguments required. Try to check number of arguments passed? $# -lt 7
 if [[ -z "$1" ]] || [[ -z "$2" ]] || [[ -z "$3" ]] || [[ -z "$4" ]] || [[ -z "$5" ]] || [[ -z "$6" ]] || [[ -z "$7" ]] || [[ -z "$8" ]]; then
     echo "Error: All json values were not specified" >&2
@@ -36,39 +31,19 @@ keypwd="$(grep -E '^ *FS_OWNER_KEYSTORE_PASSWORD=' ocs/ocs.env)"
 SDO_KEY_PWD=${keypwd#FS_OWNER_KEYSTORE_PASSWORD=}
 keyType="all"
 gencmd=""
-str="$(openssl version)"
+TMP_DIR=$(mktemp -d)
 
 #Positional Arguments for ocs api
 HZN_ORG_ID="$1"
 ORG_UNIT=$HZN_ORG_ID
-KEY_NAME="${2:-Default}"
+KEY_NAME="$2"
 KEY_NAME=$(echo "$KEY_NAME" | tr '[:upper:]' '[:lower:]')
-COMMON_NAME="${3:-Default}"
-EMAIL_NAME="${4:-default@gmail.com}"
-COMPANY_NAME="${5:-Default}"
-COUNTRY_NAME="${6:-US}"
-STATE_NAME="${7:-North Carolina}"
-LOCALE_NAME="${8:-Raleigh}"
-
-
-if [[ -n $keyType ]] && [[ $keyType != "ecdsa256" ]] && [[ $keyType != "ecdsa384" ]] && [[ $keyType != "rsa" ]] && [[ $keyType != "all" ]]; then
-  echo "Error: specified encryption keyType '$keyType' is not supported."
-  exit 2
-fi
-if [[ $OSTYPE == darwin* ]]; then
-  if [[ ${str} =~ OpenSSL ]]; then
-    echo "Found Homebrew Openssl"
-  else
-	  echo "You are not using the Homebrew version of OpenSSL. In order to run this script you must be using the Homebrew version of OpenSSL.
-	  Go to this website and follow the instructions to set up your OpenSSL environment:
-	  https://medium.com/@maxim.mahovik/upgrade-openssl-for-macos-e7a9ed82a76b "
-	exit
-  fi
-fi
-
-
-wait
-
+COMMON_NAME="$3"
+EMAIL_NAME="$4"
+COMPANY_NAME="$5"
+COUNTRY_NAME="$6"
+STATE_NAME="$7"
+LOCALE_NAME="$8"
 
 #============================FUNCTIONS=================================
 
@@ -93,14 +68,14 @@ ensureWeAreUser() {
 
 function getKeyPair() {
   #Check for existance of a specific key . If it isn't found good, if it is found exit 2
-  echo "Checking for private keys and concatenated public key using key name: "${HZN_ORG_ID}_${KEY_NAME}
+  echo "Checking for private keys and concatenated public key using key name: "${HZN_ORG_ID}_${KEY_NAME} >&2
   if [[ $(/usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore ocs/config/db/v1/creds/owner-keystore.p12 -storepass "${SDO_KEY_PWD}" | grep -E "^Alias name: *${HZN_ORG_ID}_${KEY_NAME}_rsa$") > 0 ]]; then
-    >&2 echo "Key Name Already Used"
+    echo "Key Name Already Used" >&2 
     /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore ocs/config/db/v1/creds/owner-keystore.p12 -storepass "${SDO_KEY_PWD}" | grep -E "^Alias name: *${HZN_ORG_ID}_${KEY_NAME}_rsa$" >&2
     #>&2 cat ocs/config/db/v1/creds/publicKeys/${ORG_UNIT}/${ORG_UNIT}_${KEY_NAME}_public-key.pem
     exit 2
   else
-    echo "Key Name Not Found"
+    echo "Key Name "${HZN_ORG_ID}_${KEY_NAME}" Not Found"
   fi
   }
 
@@ -119,61 +94,29 @@ function genKey() {
   mkdir -p "${keyType}"Key && pushd "${keyType}"Key >/dev/null || return
   #Generate a private RSA key.
   if [[ $keyType == "rsa" ]]; then
-    if [ "$(uname)" == "Darwin" ]; then
-      echo "Using macOS, will generate private key and certificate simultaneously."
-      gencmd="openssl req -x509 -nodes -days 3650 -newkey rsa:2048 -keyout "$privateKey" -out "$keyCert""
-    else
-      echo -e "Generating an "${keyType}" private key."
-      openssl genrsa -out "${keyType}"private-key.pem 2048 >/dev/null 2>&1
-      chk $? 'Generating a rsa private key.'
-    fi
+    echo -e "Generating an "${keyType}" private key."
+    openssl genrsa -out "${keyType}"private-key.pem 2048 >/dev/null
+    chk $? 'Generating a rsa private key.'
     keyCertGenerator
   #Generate a private ecdsa (256 or 384) key.
   elif [[ $keyType == "ecdsa256" ]] || [[ $keyType == "ecdsa384" ]]; then
     echo -e "Generating an "${keyType}" private key."
     local var2=$(echo $keyType | cut -f2 -da)
-    if [ "$(uname)" == "Darwin" ]; then
-      echo "Using macOS, will generate private key and certificate simultaneously."
-    else
-      openssl ecparam -genkey -name secp"${var2}"r1 -out "${keyType}"private-key.pem >/dev/null 2>&1
-      chk $? 'Generating an ecdsa private key.'
-    fi
+    openssl ecparam -genkey -name secp"${var2}"r1 -out "${keyType}"private-key.pem >/dev/null
+    chk $? 'Generating an ecdsa private key.'
     keyCertGenerator
   fi
 }
 
 function keyCertGenerator() {
   if [[ -f "${keyType}"private-key.pem ]]; then
-    if [ "$(uname)" == "Darwin" ]; then
-      rm "${keyType}"private-key.pem
-    else
-      echo -e ""${keyType}" private key creation: Successful"
-      gencmd="openssl req -x509 -key "$privateKey" -days 3650 -out "$keyCert""
-    fi
+    echo -e ""${keyType}" private key creation: Successful"
+    gencmd="openssl req -x509 -key "$privateKey" -days 3650 -out "$keyCert""
   fi
   #Generate a private key and self-signed certificate.
   #You should have these environment variables set. If they aren't you will be prompted to enter values.
   #!/usr/bin/env bash
-  if [ "$(uname)" == "Darwin" ]; then
-    if [[ $keyType == "ecdsa256" ]] || [[ $keyType == "ecdsa384" ]]; then
-      (
-      echo "$COUNTRY_NAME"
-      echo "$STATE_NAME"
-      echo "$LOCALE_NAME"
-      echo "$COMPANY_NAME"
-      echo "$ORG_UNIT"
-      echo "$COMMON_NAME"
-      echo "$EMAIL_NAME"
-    ) | openssl req -x509 -nodes -days 3650 -newkey ec:<(openssl genpkey -genparam -algorithm ec -pkeyopt ec_paramgen_curve:P-"${var2}") -keyout "$privateKey" -out "$keyCert" >/dev/null 2>&1
-      chk $? 'generating ec certificate'
-      if [[ -f "$privateKey" ]]; then
-        openssl ec -in ecdsa"${var2}"private-key.pem -out ecdsa"${var2}"private-key.pem >/dev/null 2>&1
-        chk $? 'decrypting ec private key for macOS'
-      else
-        echo "No EC private key found"
-      fi
-    fi
-  fi
+
   if [[ $keyType == "rsa" ]] || [ "$(uname)" != "Darwin" ]; then
     (
       echo "$COUNTRY_NAME"
@@ -185,10 +128,6 @@ function keyCertGenerator() {
       echo "$EMAIL_NAME"
     ) | $gencmd >/dev/null 2>&1
     chk $? 'generating rsa certificate'
-    if [ "$(uname)" == "Darwin" ] && [[ $keyType == "rsa" ]] && [[ -f "$privateKey" ]]; then
-        openssl rsa -in "$privateKey" -out "$privateKey" >/dev/null 2>&1
-        chk $? 'decrypting rsa private key for macOS'
-    fi
   fi
 
   if [[ -f $keyCert ]] && [[ -f "$privateKey" ]]; then
@@ -204,25 +143,16 @@ function keyCertGenerator() {
 function genPublicKey() {
   # This function is ran after the private key and owner certificate has been created. This function will create a public key to correspond with
   # the owner private key/certificate. Generate a public key from the certificate file
+  echo "Generating "${keyType}" public key..."
   openssl x509 -pubkey -noout -in $keyCert >"${keyType}"pub-key.pem
   chk $? 'Creating public key...'
-  echo "Generating "${keyType}" public key..."
-  if [[ -f "${keyType}"pub-key.pem ]]; then
-    echo -e ""${keyType}" public key creation: Successful"
-    mv "${keyType}"pub-key.pem ..
-  else
-    echo -e ""${keyType}" public key creation: Unsuccessful"
-    exit 2
-  fi
+  mv "${keyType}"pub-key.pem ..
 }
 
 function combineKeys() {
   #This function will concatenate all public keys into one
   if [[ -f "rsapub-key.pem" && -f "ecdsa256pub-key.pem" && -f "ecdsa384pub-key.pem" ]]; then
     #Combine all the public keys into one
-    if [[ -f owner-public-key.pem ]]; then
-      rm owner-public-key.pem
-    fi
     #adding delimiters for SDO 1.9 pub key format
     echo "," >> rsapub-key.pem && echo "," >> ecdsa256pub-key.pem
     echo "Concatenating Public Key files..."
@@ -237,16 +167,11 @@ function combineKeys() {
         cat key.txt $i >> ${ORG_UNIT}_${KEY_NAME}_public-key.pem
       done
     chk $? 'Concatenating Public Key files...'
-    rm -- ecdsa*.pem && rm rsapub* && rm key.txt
+    rm -- ecdsa*.pem rsapub* key.txt
   fi
-  mv ${ORG_UNIT}_${KEY_NAME}_public-key.pem ocs/config/db/v1/creds/publicKeys
-  cd ocs/config/db/v1/creds/publicKeys
-  if [ ! -d "${ORG_UNIT}" ]; then
-    mkdir ${ORG_UNIT} && mv ${ORG_UNIT}_${KEY_NAME}_public-key.pem ${ORG_UNIT}/
-  else 
-    mv ${ORG_UNIT}_${KEY_NAME}_public-key.pem ${ORG_UNIT}/
-  fi
-  cd
+
+  mkdir -p ocs/config/db/v1/creds/publicKeys/${ORG_UNIT} && mv ${ORG_UNIT}_${KEY_NAME}_public-key.pem ocs/config/db/v1/creds/publicKeys/${ORG_UNIT}/
+
 }
 
 #This function will take the private key and certificate that has been passed in, and use them to generate a keystore pkcs12 file containing both files.
