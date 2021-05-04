@@ -36,6 +36,9 @@ pkgsFrom="$2"   #future: add a very lightweight arg parser so we are not depende
 nodeAuth="$4"
 deviceOrgId="$6"
 
+#future: When Intel's host native client stops setting these, remove this section
+unset http_proxy https_proxy
+
 # Install curl if not present
 if ! command -v curl >/dev/null 2>&1; then
     if command -v apt-get >/dev/null 2>&1; then
