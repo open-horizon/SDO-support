@@ -68,12 +68,12 @@ ensureWeAreUser() {
 
 function getKeyPair() {
   #Check for existance of a specific key . If it isn't found good, if it is found exit 2
-  echo "Checking for private keys and concatenated public key using key name: "${HZN_ORG_ID}_${KEY_NAME} >&2
+  echo "Checking for private keys and concatenated public key using key name: "${HZN_ORG_ID}_${KEY_NAME}
   if [[ $(/usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore ocs/config/db/v1/creds/owner-keystore.p12 -storepass "${SDO_KEY_PWD}" | grep -E "^Alias name: *${HZN_ORG_ID}_${KEY_NAME}_rsa$") > 0 ]]; then
-    echo "Key Name Already Used" >&2 
+    echo "Key Name Already Used" 
     /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore ocs/config/db/v1/creds/owner-keystore.p12 -storepass "${SDO_KEY_PWD}" | grep -E "^Alias name: *${HZN_ORG_ID}_${KEY_NAME}_rsa$" >&2
     #>&2 cat ocs/config/db/v1/creds/publicKeys/${ORG_UNIT}/${ORG_UNIT}_${KEY_NAME}_public-key.pem
-    exit 2
+    exit 3
   else
     echo "Key Name "${HZN_ORG_ID}_${KEY_NAME}" Not Found"
   fi
@@ -91,7 +91,7 @@ function genKey() {
   local privateKey=""${keyType}"private-key.pem"
   local keyCert=""${keyType}"Cert.crt"
   #Check if the folder is already created for the keyType (In case of multiple runs)
-  mkdir -p "${keyType}"Key && pushd "${keyType}"Key >/dev/null || return
+  mkdir -p $TMP_DIR/"${keyType}"Key && cd $TMP_DIR/"${keyType}"Key >/dev/null || return
   #Generate a private RSA key.
   if [[ $keyType == "rsa" ]]; then
     echo -e "Generating an "${keyType}" private key."
@@ -109,7 +109,7 @@ function genKey() {
 }
 
 function keyCertGenerator() {
-  if [[ -f "${keyType}"private-key.pem ]]; then
+  if [[ -f $privateKey ]]; then
     echo -e ""${keyType}" private key creation: Successful"
     gencmd="openssl req -x509 -key "$privateKey" -days 3650 -out "$keyCert""
   fi
@@ -133,7 +133,7 @@ function keyCertGenerator() {
   if [[ -f $keyCert ]] && [[ -f "$privateKey" ]]; then
     echo -e ""${keyType}" Private Key and "${keyType}"Key Certificate creation: Successful"
     genPublicKey
-    popd >/dev/null
+    cd ..
   else
     echo ""${keyType}" Private Key and "${keyType}"Key Certificate not found"
     exit 2
@@ -144,9 +144,9 @@ function genPublicKey() {
   # This function is ran after the private key and owner certificate has been created. This function will create a public key to correspond with
   # the owner private key/certificate. Generate a public key from the certificate file
   echo "Generating "${keyType}" public key..."
-  openssl x509 -pubkey -noout -in $keyCert >"${keyType}"pub-key.pem
+  openssl x509 -pubkey -noout -in $keyCert >../"${keyType}"pub-key.pem
   chk $? 'Creating public key...'
-  mv "${keyType}"pub-key.pem ..
+  #mv "${keyType}"pub-key.pem ..
 }
 
 function combineKeys() {
@@ -170,7 +170,7 @@ function combineKeys() {
     rm -- ecdsa*.pem rsapub* key.txt
   fi
 
-  mkdir -p ocs/config/db/v1/creds/publicKeys/${ORG_UNIT} && mv ${ORG_UNIT}_${KEY_NAME}_public-key.pem ocs/config/db/v1/creds/publicKeys/${ORG_UNIT}/
+  mkdir -p /home/sdouser/ocs/config/db/v1/creds/publicKeys/${ORG_UNIT} && mv ${ORG_UNIT}_${KEY_NAME}_public-key.pem /home/sdouser/ocs/config/db/v1/creds/publicKeys/${ORG_UNIT}/
 
 }
 
@@ -180,10 +180,10 @@ function genKeyStore(){
   for i in "rsa" "ecdsa256" "ecdsa384"
       do
         # Convert the keyCertificate and private key into ‘PKCS12’ keystore format:
-        cd "$i"Key/ && openssl pkcs12 -export -in "$i"Cert.crt -inkey "$i"private-key.pem -name "${ORG_UNIT}_${KEY_NAME}_$i" -out "${KEY_NAME}_$i.p12" -password pass:"$SDO_KEY_PWD"
+        cd $TMP_DIR/"$i"Key/ && openssl pkcs12 -export -in "$i"Cert.crt -inkey "$i"private-key.pem -name "${ORG_UNIT}_${KEY_NAME}_$i" -out "${KEY_NAME}_$i.p12" -password pass:"$SDO_KEY_PWD"
         chk $? 'Converting private key and cert into keystore'
         cp "${KEY_NAME}_$i.p12" .. && rm -- *
-        cd .. && rmdir "$i"Key
+        cd .. && rmdir $TMP_DIR/"$i"Key
       done
 }
 
@@ -193,7 +193,7 @@ function insertKeys(){
     for i in "rsa" "ecdsa256" "ecdsa384"
       do
         #Import custom keystores into the master keystore. /usr/lib/jvm/openjre-11-manual-installation/bin/
-        echo "yes" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -importkeystore -destkeystore ocs/config/db/v1/creds/owner-keystore.p12 -deststorepass "$SDO_KEY_PWD" -srckeystore "${KEY_NAME}_$i.p12" -srcstorepass "$SDO_KEY_PWD" -srcstoretype PKCS12 -alias "${ORG_UNIT}_${KEY_NAME}_$i"
+        echo "yes" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -importkeystore -destkeystore /home/sdouser/ocs/config/db/v1/creds/owner-keystore.p12 -deststorepass "$SDO_KEY_PWD" -srckeystore "${KEY_NAME}_$i.p12" -srcstorepass "$SDO_KEY_PWD" -srcstoretype PKCS12 -alias "${ORG_UNIT}_${KEY_NAME}_$i"
         chk $? "Inserting "${KEY_NAME}_$i.p12" keystore into ocs/config/db/v1/creds/owner-keystore.p12"
       done
     rm -- *.p12
@@ -209,12 +209,8 @@ fi
 ensureWeAreUser
 getKeyPair
 
-if [[ -n "$keyType" ]] && [[ "$keyType" == "all" ]]; then
-  allKeys
-  combineKeys
-else
-  genKey
-fi
+allKeys
+combineKeys
 echo "Owner Private Keys and Owner Public Key have been created"
 
 genKeyStore

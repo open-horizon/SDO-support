@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -416,8 +417,17 @@ func RunCmd(commandString string, args ...string) ([]byte, []byte, error) {
 	// Now block waiting for the command to complete
 	err = cmd.Wait()
 	if err != nil {
-		return stdoutBytes, stderrBytes, errors.New("command " + commandString + " returned error: " + err.Error() + ". Stderr: " + string(stderrBytes))
-	}
+		if exitError, ok := err.(*exec.ExitError); ok {
+			codeOfExit := exitError.ExitCode()
+			s2 := strconv.Itoa(codeOfExit)
 
+			if s2 == "3" {
+				return stdoutBytes, stderrBytes, errors.New("Duplicate Key Error, " + string(stderrBytes))
+			} else {
+				return stdoutBytes, stderrBytes, errors.New("command " + commandString + " returned exit code: " + err.Error() + ". Stderr: " + string(stderrBytes))
+			}
+		}
+		// return stdoutBytes, stderrBytes, codeOfExit, errors.New("command " + commandString + " returned exit code: " + codeOfExit + ". Stderr: " + string(stderrBytes))
+	}
 	return stdoutBytes, stderrBytes, error(nil)
 }
