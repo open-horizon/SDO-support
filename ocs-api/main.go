@@ -426,9 +426,9 @@ func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Key name must not contain any characters that cant be stored in a file name
-	var isStringAlphabetic = regexp.MustCompile(`^[a-zA-Z0-9_]*$`).MatchString
+	var isStringAlphabetic = regexp.MustCompile(`^[a-z0-9_\-]*$`).MatchString
 	if !isStringAlphabetic(info.Key_name) {
-		http.Error(w, "Key Name contains special characters that are not allowed.", http.StatusBadRequest)
+		http.Error(w, "Key Name can only contain lowercase characters, numbers, underscores or hyphens.", http.StatusBadRequest)
 		return
 	}
 
