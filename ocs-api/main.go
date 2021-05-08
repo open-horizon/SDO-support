@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/open-horizon/SDO-support/ocs-api/data"
@@ -27,6 +28,7 @@ var CurrentExchangeUrl string         // the external url, that the device needs
 var CurrentExchangeInternalUrl string // will default to CurrentExchangeUrl
 var CurrentCssUrl string              // the external url, that the device needs
 var CurrentPkgsFrom string            // the argument to the agent-install.sh -i flag
+var KeyImportLock sync.Mutex
 
 /* not used anymore
 type CfgVarsStruct struct {
@@ -441,7 +443,10 @@ func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Run the script that will create and import the key pairs
 	outils.Verbose("Running command: ./import-owner-private-keys2.sh %s %s %s %s %s %s %s %s", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name) // "%s %s", pemFilePath, deviceOrgId)
-	stdOut, stdErr, err := outils.RunCmd("./import-owner-private-keys2.sh", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name)                    // , pemFilePath, deviceOrgId)
+	// Using mutex for java keystore import within the following script
+	KeyImportLock.Lock()                                                                                                                                                                                            // If locked > unlock it
+	stdOut, stdErr, err := outils.RunCmd("./import-owner-private-keys2.sh", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name) //
+	KeyImportLock.Unlock()
 	if err != nil {
 		http.Error(w, "error running import-owner-private-keys2.sh: "+err.Error(), http.StatusBadRequest) // this includes stdErr
 		return
