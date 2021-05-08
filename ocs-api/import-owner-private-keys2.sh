@@ -26,11 +26,7 @@ if [[ -z "$1" ]] || [[ -z "$2" ]] || [[ -z "$3" ]] || [[ -z "$4" ]] || [[ -z "$5
 fi
 
 
-<<<<<<< HEAD
 #Grabbing keystore password from the ocs/ocs.env inside the container to use for import
-=======
-#Grabbing password from the ocs/config/application.properties inside the container to use for import
->>>>>>> 0cf43a60a1b5d21cffd5965a52f99e0855d8d602
 keypwd="$(grep -E '^ *FS_OWNER_KEYSTORE_PASSWORD=' ocs/ocs.env)"
 SDO_KEY_PWD=${keypwd#FS_OWNER_KEYSTORE_PASSWORD=}
 keyType="all"
@@ -71,11 +67,7 @@ ensureWeAreUser() {
 
 
 function getKeyPair() {
-<<<<<<< HEAD
   #Check for existance of a specific key . If it isn't found good, if it is found exit 3
-=======
-  #Check for existance of a specific key . If it isn't found good, if it is found exit 2
->>>>>>> 0cf43a60a1b5d21cffd5965a52f99e0855d8d602
   echo "Checking for private keys and concatenated public key using key name: "${HZN_ORG_ID}_${KEY_NAME}
   if [[ $(/usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore ocs/config/db/v1/creds/owner-keystore.p12 -storepass "${SDO_KEY_PWD}" | grep -E "^Alias name: *${HZN_ORG_ID}_${KEY_NAME}_rsa$") > 0 ]]; then
     echo "Key Name Already Used" 
@@ -121,13 +113,8 @@ function keyCertGenerator() {
     echo -e ""${keyType}" private key creation: Successful"
     gencmd="openssl req -x509 -key "$privateKey" -days 3650 -out "$keyCert""
   fi
-<<<<<<< HEAD
   #Generate self-signed certificate.
   #You should have these environment variables set as positional arguments.
-=======
-  #Generate a private key and self-signed certificate.
-  #You should have these environment variables set. If they aren't you will be prompted to enter values.
->>>>>>> 0cf43a60a1b5d21cffd5965a52f99e0855d8d602
   #!/usr/bin/env bash
 
   if [[ $keyType == "rsa" ]] || [ "$(uname)" != "Darwin" ]; then
@@ -159,10 +146,6 @@ function genPublicKey() {
   echo "Generating "${keyType}" public key..."
   openssl x509 -pubkey -noout -in $keyCert >../"${keyType}"pub-key.pem
   chk $? 'Creating public key...'
-<<<<<<< HEAD
-=======
-  #mv "${keyType}"pub-key.pem ..
->>>>>>> 0cf43a60a1b5d21cffd5965a52f99e0855d8d602
 }
 
 function combineKeys() {
