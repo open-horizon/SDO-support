@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/base64"
 	"fmt"
 	"io/ioutil"
@@ -11,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/open-horizon/SDO-support/ocs-api/data"
@@ -28,6 +28,7 @@ var CurrentExchangeUrl string         // the external url, that the device needs
 var CurrentExchangeInternalUrl string // will default to CurrentExchangeUrl
 var CurrentCssUrl string              // the external url, that the device needs
 var CurrentPkgsFrom string            // the argument to the agent-install.sh -i flag
+var KeyImportLock sync.Mutex
 
 /* not used anymore
 type CfgVarsStruct struct {
@@ -383,7 +384,7 @@ func postRereadAgentInstallHandler(w http.ResponseWriter, r *http.Request) {
 */
 
 //============= POST /api/keys =============
-// Receives in the body a tar file containing the owner's private keys and certificates. Imports them into our keystore.
+// Receives in the body json containing the arguments required to run import-owner-key-pairs.sh script. Then it creates and import key pair into master keystore. Imports them into our keystore.
 // This allows sdo-owner-services to read vouchers intended for them, and to securely communicate with their devices booting up.
 func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("POST /api/keys ...")
@@ -405,49 +406,67 @@ func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify content type
-	if httpErr := outils.IsValidPostBinary(r); httpErr != nil {
+	if httpErr := outils.IsValidPostBinary(r); httpErr == nil {
+		http.Error(w, "Error: Passing a key pair tar file into this API is no longer supported.", http.StatusBadRequest)
+		return
+	}
+
+	if httpErr := outils.IsValidPostJson(r); httpErr != nil {
+		http.Error(w, "Error: This API only supports json.", httpErr.Code)
+		return
+	}
+
+	// Struct for json form containing key pair information
+	type Information struct {
+		Key_name     string `json:"key_name"`
+		Common_name  string `json:"common_name"`
+		Email_name   string `json:"email_name"`
+		Company_name string `json:"company_name"`
+		Country_name string `json:"country_name"`
+		State_name   string `json:"state_name"`
+		Locale_name  string `json:"locale_name"`
+	}
+
+	info := Information{}
+	// Parse the request body
+	if httpErr := outils.ReadJsonBody(r, &info); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	}
 
-	// Create directory we are putting the file in
-	tarFileDir := "tmp" // in the current dir (home dir)
-	if err := os.MkdirAll(tarFileDir, 0750); err != nil {
-		http.Error(w, "could not create directory "+tarFileDir+": "+err.Error(), http.StatusInternalServerError)
+	// Key name must not contain any characters that cant be stored in a file name
+	var isStringAlphabetic = regexp.MustCompile(`^[a-z0-9_\-]*$`).MatchString
+	if !isStringAlphabetic(info.Key_name) {
+		http.Error(w, "Key Name can only contain lowercase characters, numbers, underscores or hyphens.", http.StatusBadRequest)
 		return
 	}
 
-	// Create a writer that will write the request body to the tar file
-	tarFilePath := tarFileDir + "/owner-keys.tar.gz"
-	f, err := os.Create(tarFilePath)
+	// Run the script that will create and import the key pairs
+	outils.Verbose("Running command: ./import-owner-private-keys2.sh %s %s %s %s %s %s %s %s", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name) // "%s %s", pemFilePath, deviceOrgId)
+	// Using mutex for java keystore import within the following script
+	KeyImportLock.Lock()                                                                                                                                                                                            // If locked > unlock it
+	stdOut, stdErr, err := outils.RunCmd("./import-owner-private-keys2.sh", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name) //
+	KeyImportLock.Unlock()
 	if err != nil {
-		http.Error(w, "could not create file "+tarFilePath+": "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	fileWriter := bufio.NewWriter(f)
-	_, err = fileWriter.ReadFrom(r.Body)
-	if err != nil {
-		http.Error(w, "could not read request body: "+err.Error(), http.StatusInternalServerError)
-		f.Close()
-		return
-	}
-	fileWriter.Flush()
-	f.Close()
-
-	// Run the script that will import the tar file keys
-	outils.Verbose("Running command: ./import-owner-private-keys.sh %s %s", tarFilePath, deviceOrgId)
-	stdOut, stdErr, err := outils.RunCmd("./import-owner-private-keys.sh", tarFilePath, deviceOrgId)
-	if err != nil {
-		http.Error(w, "error running import-owner-private-keys.sh: "+err.Error(), http.StatusBadRequest) // this includes stdErr
+		http.Error(w, "error running import-owner-private-keys2.sh: "+err.Error(), http.StatusBadRequest) // this includes stdErr
 		return
 	} else {
 		if len(stdErr) > 0 { // with shell scripts there can be error msgs in stderr even though the exit code was 0
-			outils.Verbose("stderr from import-owner-private-keys.sh: %s", string(stdErr))
+			outils.Verbose("stderr from import-owner-private-keys2.sh: %s", string(stdErr))
 		}
 		outils.Verbose(string(stdOut))
 	}
 
+	// I need to make all variables lowercase
+	keyTypeName := strings.ToLower(info.Key_name)
+	pubKeyDirName := OcsDbDir + "/v1/creds/publicKeys/" + deviceOrgId
+	fileName := deviceOrgId + "_" + keyTypeName + "_public-key.pem"
+
 	w.WriteHeader(http.StatusCreated)
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", "attachment; filename=owner-public-key.pem")
+	http.ServeFile(w, r, pubKeyDirName+"/"+fileName)
+
 }
 
 //============= Non-Route Functions =============

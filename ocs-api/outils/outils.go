@@ -55,7 +55,7 @@ func IsValidPostJson(r *http.Request) *HttpError {
 	return nil
 }
 
-// Verify that the request content type is json
+// Verify that the request content type is a file
 func IsValidPostBinary(r *http.Request) *HttpError {
 	val, ok := r.Header["Content-Type"]
 
@@ -76,10 +76,16 @@ func ParseJsonString(jsonBytes []byte, bodyStruct interface{}) *HttpError {
 
 // Parse the request json body into the given struct
 func ReadJsonBody(r *http.Request, bodyStruct interface{}) *HttpError {
+	var unmarshalErr *json.UnmarshalTypeError
 	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
 	err := decoder.Decode(bodyStruct)
 	if err != nil {
-		return NewHttpError(http.StatusBadRequest, "Error parsing request body: "+err.Error())
+		if errors.As(err, &unmarshalErr) {
+			return NewHttpError(http.StatusBadRequest, "Bad Request. Wrong Type provided for field "+unmarshalErr.Field)
+		} else {
+			return NewHttpError(http.StatusBadRequest, "Bad Request "+err.Error())
+		}
 	}
 	return nil
 }
@@ -410,8 +416,14 @@ func RunCmd(commandString string, args ...string) ([]byte, []byte, error) {
 	// Now block waiting for the command to complete
 	err = cmd.Wait()
 	if err != nil {
-		return stdoutBytes, stderrBytes, errors.New("command " + commandString + " returned error: " + err.Error() + ". Stderr: " + string(stderrBytes))
+		if exitError, ok := err.(*exec.ExitError); ok {
+			codeOfExit := exitError.ExitCode()
+			if codeOfExit == 3 {
+				return stdoutBytes, stderrBytes, errors.New("Duplicate Key Error, " + string(stderrBytes))
+			} else {
+				return stdoutBytes, stderrBytes, errors.New("command " + commandString + " returned exit code: " + err.Error() + ". Stderr: " + string(stderrBytes))
+			}
+		}
 	}
-
 	return stdoutBytes, stderrBytes, error(nil)
 }
