@@ -70,7 +70,7 @@ function getKeyPair() {
   #Check for existance of a specific key . If it isn't found good, if it is found exit 3
   echo "Checking for private keys and concatenated public key using key name: "${HZN_ORG_ID}_${KEY_NAME}
   if [[ $(/usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore ocs/config/db/v1/creds/owner-keystore.p12 -storepass "${SDO_KEY_PWD}" | grep -E "^Alias name: *${HZN_ORG_ID}_${KEY_NAME}_rsa$") > 0 ]]; then
-    echo "Key Name Already Used" 
+    echo "Key Name "${HZN_ORG_ID}_${KEY_NAME}" Already Used" 
     /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore ocs/config/db/v1/creds/owner-keystore.p12 -storepass "${SDO_KEY_PWD}" | grep -E "^Alias name: *${HZN_ORG_ID}_${KEY_NAME}_rsa$" >&2
     #>&2 cat ocs/config/db/v1/creds/publicKeys/${ORG_UNIT}/${ORG_UNIT}_${KEY_NAME}_public-key.pem
     exit 3
