@@ -117,6 +117,91 @@
         }
       }
     },
+    "/orgs/{org-id}/vouchers": {
+      "post": {
+        "tags": [
+          "OCS-API"
+        ],
+        "summary": "Import a voucher into the management hub",
+        "description": "",
+        "operationId": "importVoucher",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "org-id",
+            "in": "path",
+            "description": "org ID of the voucher you are importing",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "description": "Voucher to be imported",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/Voucher"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Voucher imported"
+          },
+          "400": {
+            "description": "Invalid input"
+          },
+          "401": {
+            "description": "Invalid credentials"
+          },
+          "403": {
+            "description": "Permission denied"
+          },
+          "500": {
+            "description": "Error importing voucher"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "OCS-API"
+        ],
+        "summary": "Get list of imported voucher IDs",
+        "description": "",
+        "operationId": "getVouchers",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "org-id",
+            "in": "path",
+            "description": "org ID of the vouchers you want",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "schema": {
+              "$ref": "#/definitions/VoucherIdList"
+            }
+          },
+          "401": {
+            "description": "Invalid credentials"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      }
+    },
     "/vouchers/{device-id}": {
       "get": {
         "tags": [
@@ -162,31 +247,90 @@
         }
       }
     },
-    "/keys": {
+    "/orgs/{org-id}/vouchers/{device-id}": {
+      "get": {
+        "tags": [
+          "OCS-API"
+        ],
+        "summary": "Get one imported voucher",
+        "description": "",
+        "operationId": "getVoucher",
+        "parameters": [
+          {
+            "name": "org-id",
+            "in": "path",
+            "description": "org ID of the device you want the voucher for",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "device-id",
+            "in": "path",
+            "description": "ID of the device you want the voucher for",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "schema": {
+              "$ref": "#/definitions/Voucher"
+            }
+          },
+          "400": {
+            "description": "Invalid voucher id"
+          },
+          "401": {
+            "description": "Invalid credentials"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      }
+    },
+    "/orgs/{org-id/keys": {
       "post": {
         "tags": [
           "OCS-API"
         ],
-        "summary": "Import owner private keys into the management hub",
+        "summary": "Create an owner key pair in the management hub and return the public keys",
         "description": "",
         "operationId": "importKeys",
         "consumes": [
+          "application/json"
+        ],
+        "produces": [
           "application/octet-stream"
         ],
         "parameters": [
           {
+            "name": "org-id",
+            "in": "path",
+            "description": "org ID of the vouchers you want",
+            "required": true,
+            "type": "string"
+          },
+          {
             "in": "body",
             "name": "body",
-            "description": "Private keys tar file to be imported",
+            "description": "Certificate input values. See https://www.globalsign.com/en/blog/what-is-a-certificate-signing-request-csr",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/KeysTarFile"
+              "$ref": "#/definitions/KeysCertInput"
             }
           }
         ],
         "responses": {
           "201": {
-            "description": "Keys imported"
+            "description": "Keys created",
+            "schema": {
+              "$ref": "#/definitions/PublicKeyFile"
+            }
           },
           "400": {
             "description": "Invalid input"
@@ -200,6 +344,124 @@
           "500": {
             "description": "Error importing keys"
           }
+        }
+      },
+      "get": {
+        "tags": [
+          "OCS-API"
+        ],
+        "summary": "Get list of owner public keys",
+        "description": "",
+        "operationId": "getKeys",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "org-id",
+            "in": "path",
+            "description": "org ID of the public keys you want",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "schema": {
+              "$ref": "#/definitions/PublicKeyList"
+            }
+          },
+          "401": {
+            "description": "Invalid credentials"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      }
+    }
+  },
+  "/orgs/{org-id/keys/{key-name}": {
+    "get": {
+      "tags": [
+        "OCS-API"
+      ],
+      "summary": "Get one public key",
+      "description": "",
+      "operationId": "getPublicKey",
+      "parameters": [
+        {
+          "name": "org-id",
+          "in": "path",
+          "description": "org ID of the public key you want",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "key-name",
+          "in": "path",
+          "description": "name of key you want (not the full file name)",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "produces": [
+        "application/octet-stream"
+      ],
+      "responses": {
+        "200": {
+          "description": "successful operation",
+          "schema": {
+            "$ref": "#/definitions/PublicKeyFile"
+          }
+        },
+        "400": {
+          "description": "Invalid key name"
+        },
+        "401": {
+          "description": "Invalid credentials"
+        },
+        "403": {
+          "description": "Permission denied"
+        }
+      }
+    },
+    "delete": {
+      "tags": [
+        "OCS-API"
+      ],
+      "summary": "Delete one key pair",
+      "description": "",
+      "operationId": "deleteKeyPair",
+      "parameters": [
+        {
+          "name": "org-id",
+          "in": "path",
+          "description": "org ID of the key pair you want to delete",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "key-name",
+          "in": "path",
+          "description": "name of key you want to delete (not the full file name)",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "responses": {
+        "204": {
+          "description": "successful operation"
+        },
+        "400": {
+          "description": "Invalid key name"
+        },
+        "401": {
+          "description": "Invalid credentials"
+        },
+        "403": {
+          "description": "Permission denied"
         }
       }
     }
@@ -271,11 +533,45 @@
         "description": "voucher device id"
       }
     },
-    "KeysTarFile": {
-      "type": "string",
-      "description": "gzipped tar file of private keys",
-      "xml": {
-        "name": "KeysTarFile"
+    "KeysCertInput": {
+      "type": "object",
+      "properties": {
+        "key_name": {
+          "type": "string"
+        },
+        "common_name": {
+          "type": "string"
+        },
+        "email_name": {
+          "type": "string"
+        },
+        "company_name": {
+          "type": "string"
+        },
+        "country_name": {
+          "type": "string"
+        },
+        "state_name": {
+          "type": "string"
+        },
+        "locale_name": {
+          "type": "string"
+        }
+      }
+    },
+    "PublicKeyFile": {
+      "type": "string"
+    },
+    "PublicKeyList": {
+      "type": "object",
+      "properties": {
+        "<user>": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "description": "public key file name"
+          }
+        }
       }
     }
   }

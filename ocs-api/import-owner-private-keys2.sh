@@ -3,7 +3,7 @@
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     cat << EndOfMessage
-Usage: ${0##*/} <org-id> <key-name> <common-name> <email-name> <company-name> <country-name> <state-name> <locale-name>
+Usage: ${0##*/} <org-id> <key-name> <common-name> <email-name> <company-name> <country-name> <state-name> <locale-name> <username>
 
 Arguments:
   <org-id> - The organizational unit or Horizon Org ID the user is in. Necessary information for keyCertificate generation.
@@ -14,14 +14,15 @@ Arguments:
   <country-name> - The country the user resides in. Necessary information for keyCertificate generation.
   <state-name> - The state the user resides in. Necessary information for keyCertificate generation.
   <locale-name> - The city the user resides in. Necessary information for keyCertificate generation.
+  <username> - The exchange user running the API that is calling this script.
 
 EndOfMessage
     exit 0
 fi
 
 #Make all positional arguments required. Try to check number of arguments passed? $# -lt 7
-if [[ -z "$1" ]] || [[ -z "$2" ]] || [[ -z "$3" ]] || [[ -z "$4" ]] || [[ -z "$5" ]] || [[ -z "$6" ]] || [[ -z "$7" ]] || [[ -z "$8" ]]; then
-    echo "Error: All json values were not specified" >&2
+if [[ -z "$1" ]] || [[ -z "$2" ]] || [[ -z "$3" ]] || [[ -z "$4" ]] || [[ -z "$5" ]] || [[ -z "$6" ]] || [[ -z "$7" ]] || [[ -z "$8" ]] || [[ -z "$9" ]]; then
+    echo "Error: All positional arguments were not specified" >&2
     exit 1
 fi
 
@@ -36,6 +37,7 @@ TMP_DIR=$(mktemp -d)
 #Positional Arguments for ocs api
 HZN_ORG_ID="$1"
 ORG_UNIT=$HZN_ORG_ID
+LOWER_ORG_UNIT=$(echo "$ORG_UNIT" | tr '[:upper:]' '[:lower:]')
 KEY_NAME="$2"
 KEY_NAME=$(echo "$KEY_NAME" | tr '[:upper:]' '[:lower:]')
 COMMON_NAME="$3"
@@ -44,6 +46,7 @@ COMPANY_NAME="$5"
 COUNTRY_NAME="$6"
 STATE_NAME="$7"
 LOCALE_NAME="$8"
+HZN_EXCHANGE_USER="$9"
 
 #============================FUNCTIONS=================================
 
@@ -72,7 +75,6 @@ function getKeyPair() {
   if [[ $(/usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore ocs/config/db/v1/creds/owner-keystore.p12 -storepass "${SDO_KEY_PWD}" | grep -E "^Alias name: *${HZN_ORG_ID}_${KEY_NAME}_rsa$") > 0 ]]; then
     echo "Key Name "${HZN_ORG_ID}_${KEY_NAME}" Already Used" 
     /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore ocs/config/db/v1/creds/owner-keystore.p12 -storepass "${SDO_KEY_PWD}" | grep -E "^Alias name: *${HZN_ORG_ID}_${KEY_NAME}_rsa$" >&2
-    #>&2 cat ocs/config/db/v1/creds/publicKeys/${ORG_UNIT}/${ORG_UNIT}_${KEY_NAME}_public-key.pem
     exit 3
   else
     echo "Key Name "${HZN_ORG_ID}_${KEY_NAME}" Not Found"
@@ -160,16 +162,17 @@ function combineKeys() {
         local keyName=$i
         local removeWord="pub-key.pem"
         keyName=${keyName//$removeWord/}
-        #adding delimiters for SDO 1.9 pub key format
+        #adding delimiters for SDO 1.9+ pub key format
         echo ""$keyName":" >key.txt
-        #make sure key name is lowercase for file name
-        cat key.txt $i >> ${ORG_UNIT}_${KEY_NAME}_public-key.pem
+        cat key.txt $i >> ${LOWER_ORG_UNIT}_${KEY_NAME}_public-key.pem
+        chk $? 'Concatenating Public Key files...'
       done
-    chk $? 'Concatenating Public Key files...'
     rm -- ecdsa*.pem rsapub* key.txt
   fi
 
-  mkdir -p /home/sdouser/ocs/config/db/v1/creds/publicKeys/${ORG_UNIT} && mv ${ORG_UNIT}_${KEY_NAME}_public-key.pem /home/sdouser/ocs/config/db/v1/creds/publicKeys/${ORG_UNIT}/
+  # Note: Even tho we store the public key under their user directory, that doesn't mean each user has their own namespace.
+  #     Only 1 instance of KEY_NAME is allowed in the org.
+  mkdir -p /home/sdouser/ocs/config/db/v1/creds/publicKeys/${ORG_UNIT}/${HZN_EXCHANGE_USER} && mv ${LOWER_ORG_UNIT}_${KEY_NAME}_public-key.pem /home/sdouser/ocs/config/db/v1/creds/publicKeys/${ORG_UNIT}/${HZN_EXCHANGE_USER}/
 
 }
 
@@ -179,7 +182,7 @@ function genKeyStore(){
   for i in "rsa" "ecdsa256" "ecdsa384"
       do
         # Convert the keyCertificate and private key into ‘PKCS12’ keystore format:
-        cd $TMP_DIR/"$i"Key/ && openssl pkcs12 -export -in "$i"Cert.crt -inkey "$i"private-key.pem -name "${ORG_UNIT}_${KEY_NAME}_$i" -out "${KEY_NAME}_$i.p12" -password pass:"$SDO_KEY_PWD"
+        cd $TMP_DIR/"$i"Key/ && openssl pkcs12 -export -in "$i"Cert.crt -inkey "$i"private-key.pem -name "${LOWER_ORG_UNIT}_${KEY_NAME}_$i" -out "${KEY_NAME}_$i.p12" -password pass:"$SDO_KEY_PWD"
         chk $? 'Converting private key and cert into keystore'
         cp "${KEY_NAME}_$i.p12" .. && rm -- *
         cd .. && rmdir $TMP_DIR/"$i"Key
@@ -192,8 +195,8 @@ function insertKeys(){
     for i in "rsa" "ecdsa256" "ecdsa384"
       do
         #Import custom keystores into the master keystore. /usr/lib/jvm/openjre-11-manual-installation/bin/
-        echo "yes" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -importkeystore -destkeystore /home/sdouser/ocs/config/db/v1/creds/owner-keystore.p12 -deststorepass "$SDO_KEY_PWD" -srckeystore "${KEY_NAME}_$i.p12" -srcstorepass "$SDO_KEY_PWD" -srcstoretype PKCS12 -alias "${ORG_UNIT}_${KEY_NAME}_$i"
-        chk $? "Inserting "${KEY_NAME}_$i.p12" keystore into ocs/config/db/v1/creds/owner-keystore.p12"
+        echo "yes" | /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -importkeystore -destkeystore /home/sdouser/ocs/config/db/v1/creds/owner-keystore.p12 -deststorepass "$SDO_KEY_PWD" -srckeystore "${KEY_NAME}_$i.p12" -srcstorepass "$SDO_KEY_PWD" -srcstoretype PKCS12 -alias "${LOWER_ORG_UNIT}_${KEY_NAME}_$i"
+        chk $? "Inserting "${LOWER_ORG_UNIT}_${KEY_NAME}_$i.p12" keystore into ocs/config/db/v1/creds/owner-keystore.p12"
       done
     rm -- *.p12
   else

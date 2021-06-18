@@ -23,11 +23,15 @@ REST API server to configure the SDO OCS (Owner Companion Service) DB files for 
 
 // These global vars are necessary because the handler functions are not given any context
 var OcsDbDir string
-var GetVoucherRegex = regexp.MustCompile(`^/api/vouchers/([^/]+)$`)
-var CurrentExchangeUrl string         // the external url, that the device needs
-var CurrentExchangeInternalUrl string // will default to CurrentExchangeUrl
-var CurrentCssUrl string              // the external url, that the device needs
-var CurrentPkgsFrom string            // the argument to the agent-install.sh -i flag
+var GetOrgVoucherRegex = regexp.MustCompile(`^/api/orgs/([^/]+)/vouchers/([^/]+)$`)
+var GetVoucherRegex = regexp.MustCompile(`^/api/vouchers/([^/]+)$`)       // backward compat
+var OrgVouchersRegex = regexp.MustCompile(`^/api/orgs/([^/]+)/vouchers$`) // used for both GET and POST
+var OrgKeyRegex = regexp.MustCompile(`^/api/orgs/([^/]+)/keys/([^/]+)$`)  // used for both GET and DELETE
+var OrgKeysRegex = regexp.MustCompile(`^/api/orgs/([^/]+)/keys$`)         // used for both GET and POST
+var CurrentExchangeUrl string                                             // the external url, that the device needs
+var CurrentExchangeInternalUrl string                                     // will default to CurrentExchangeUrl
+var CurrentCssUrl string                                                  // the external url, that the device needs
+var CurrentPkgsFrom string                                                // the argument to the agent-install.sh -i flag
 var KeyImportLock sync.Mutex
 
 /* not used anymore
@@ -60,6 +64,9 @@ func main() {
 	if err := os.MkdirAll(OcsDbDir+"/v1/values", 0750); err != nil {
 		outils.Fatal(3, "could not create directory %s: %v", OcsDbDir+"/v1/values", err)
 	}
+	if err := os.MkdirAll(OcsDbDir+"/v1/creds/publicKeys", 0750); err != nil {
+		outils.Fatal(3, "could not create directory %s: %v", OcsDbDir+"/v1/creds/publicKeys", err)
+	}
 
 	// Create all of the common config files, if we have the necessary env vars to do so
 	if httpErr := createConfigFiles(); httpErr != nil {
@@ -71,9 +78,10 @@ func main() {
 
 	// Listen on the specified port and protocol
 	keysDir := outils.GetEnvVarWithDefault("SDO_API_CERT_PATH", "/home/sdouser/ocs-api-dir/keys")
-	if outils.PathExists(keysDir+"/sdoapi.crt") && outils.PathExists(keysDir+"/sdoapi.key") {
+	certBaseName := outils.GetEnvVarWithDefault("SDO_API_CERT_BASE_NAME", "sdoapi")
+	if outils.PathExists(keysDir+"/"+certBaseName+".crt") && outils.PathExists(keysDir+"/"+certBaseName+".key") {
 		outils.Verbose("Listening on HTTPS port %s and using ocs db %s", port, OcsDbDir)
-		log.Fatal(http.ListenAndServeTLS(":"+port, keysDir+"/sdoapi.crt", keysDir+"/sdoapi.key", nil))
+		log.Fatal(http.ListenAndServeTLS(":"+port, keysDir+"/"+certBaseName+".crt", keysDir+"/"+certBaseName+".key", nil))
 	} else {
 		outils.Verbose("Listening on HTTP port %s and using ocs db %s", port, OcsDbDir)
 		log.Fatal(http.ListenAndServe(":"+port, nil))
@@ -85,19 +93,26 @@ func apiHandler(w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("Handling %s ...", r.URL.Path)
 	if r.Method == "GET" && r.URL.Path == "/api/version" {
 		getVersionHandler(w, r)
-		/* this route is disabled because penetration testing deemed this a security exposure, because you can cause this service to do arbitrary DNS lookups
-		} else if r.Method == "POST" && r.URL.Path == "/api/config" {
-			postConfigHandler(w, r) */
-	} else if matches := GetVoucherRegex.FindStringSubmatch(r.URL.Path); r.Method == "GET" && len(matches) >= 2 { // GET /api/vouchers/{device-id}
-		getVoucherHandler(matches[1], w, r)
-	} else if r.Method == "GET" && r.URL.Path == "/api/vouchers" {
-		getVouchersHandler(w, r)
-	} else if r.Method == "POST" && (r.URL.Path == "/api/vouchers" || r.URL.Path == "/api/voucher") { //todo: backward compat until we update hzn voucher import
-		postVoucherHandler(w, r)
-		/*} else if r.Method == "POST" && (r.URL.Path == "/api/rereadagentinstall") {
-		postRereadAgentInstallHandler(w, r) */
-	} else if r.Method == "POST" && (r.URL.Path == "/api/keys") {
-		postImportKeysHandler(w, r)
+	} else if matches := GetOrgVoucherRegex.FindStringSubmatch(r.URL.Path); r.Method == "GET" && len(matches) >= 3 { // GET /api/orgs/{ord-id}/vouchers/{device-id}
+		getVoucherHandler(matches[1], matches[2], w, r)
+	} else if matches := GetVoucherRegex.FindStringSubmatch(r.URL.Path); r.Method == "GET" && len(matches) >= 2 { // backward compat: GET /api/vouchers/{device-id}
+		getVoucherHandler("", matches[1], w, r)
+	} else if matches := OrgVouchersRegex.FindStringSubmatch(r.URL.Path); r.Method == "GET" && len(matches) >= 2 { // GET /api/orgs/{ord-id}/vouchers
+		getVouchersHandler(matches[1], w, r)
+	} else if r.Method == "GET" && r.URL.Path == "/api/vouchers" { // backward compat
+		getVouchersHandler("", w, r)
+	} else if matches := OrgVouchersRegex.FindStringSubmatch(r.URL.Path); r.Method == "POST" && len(matches) >= 2 { // POST /api/orgs/{ord-id}/vouchers
+		postVoucherHandler(matches[1], w, r)
+	} else if r.Method == "POST" && (r.URL.Path == "/api/vouchers" || r.URL.Path == "/api/voucher") { // backward compat: /api/voucher is for until we update hzn voucher import
+		postVoucherHandler("", w, r)
+	} else if matches := OrgKeyRegex.FindStringSubmatch(r.URL.Path); r.Method == "GET" && len(matches) >= 3 { // GET /api/orgs/{org-id}/keys/{key-name}
+		getKeyHandler(matches[1], matches[2], w, r)
+	} else if matches := OrgKeyRegex.FindStringSubmatch(r.URL.Path); r.Method == "DELETE" && len(matches) >= 3 { // DELETE /api/orgs/{org-id}/keys/{key-name}
+		deleteKeyHandler(matches[1], matches[2], w, r)
+	} else if matches := OrgKeysRegex.FindStringSubmatch(r.URL.Path); r.Method == "GET" && len(matches) >= 2 { // GET /api/orgs/{ord-id}/keys
+		getKeysHandler(matches[1], w, r)
+	} else if matches := OrgKeysRegex.FindStringSubmatch(r.URL.Path); r.Method == "POST" && len(matches) >= 2 { // POST /api/orgs/{ord-id}/keys
+		postImportKeysHandler(matches[1], w, r)
 	} else {
 		http.Error(w, "Route "+r.URL.Path+" not found", http.StatusNotFound)
 	}
@@ -120,19 +135,19 @@ func getVersionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-//============= GET /api/vouchers/{device-id} =============
+//============= GET /api/orgs/{ord-id}/vouchers/{device-id} and GET /api/vouchers/{device-id} =============
 // Reads/returns an already imported voucher
-func getVoucherHandler(deviceUuid string, w http.ResponseWriter, r *http.Request) {
-	outils.Verbose("GET /api/vouchers/%s ...", deviceUuid)
+func getVoucherHandler(orgId, deviceUuid string, w http.ResponseWriter, r *http.Request) {
+	outils.Verbose("GET /api/orgs/%s/vouchers/%s ...", orgId, deviceUuid)
 
 	// Determine the org id to use for the device, based on various inputs
-	deviceOrgId, httpErr := getDeviceOrgId(r)
+	deviceOrgId, httpErr := getDeviceOrgId(orgId, r)
 	if httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	}
 
-	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
+	if authenticated, _, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
@@ -164,19 +179,19 @@ func getVoucherHandler(deviceUuid string, w http.ResponseWriter, r *http.Request
 	outils.WriteResponse(http.StatusOK, w, voucherBytes)
 }
 
-//============= GET /api/vouchers =============
+//============= GET /api/orgs/{ord-id}/vouchers and GET /api/vouchers =============
 // Reads/returns all of the already imported vouchers
-func getVouchersHandler(w http.ResponseWriter, r *http.Request) {
-	outils.Verbose("GET /api/vouchers ...")
+func getVouchersHandler(orgId string, w http.ResponseWriter, r *http.Request) {
+	outils.Verbose("GET /api/orgs/%s/vouchers ...", orgId)
 
 	// Determine the org id to use for the device, based on various inputs
-	deviceOrgId, httpErr := getDeviceOrgId(r)
+	deviceOrgId, httpErr := getDeviceOrgId(orgId, r)
 	if httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	}
 
-	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
+	if authenticated, _, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
@@ -211,33 +226,27 @@ func getVouchersHandler(w http.ResponseWriter, r *http.Request) {
 	outils.WriteJsonResponse(http.StatusOK, w, vouchers)
 }
 
-//============= POST /api/vouchers =============
+//============= POST /api/orgs/{ord-id}/vouchers and POST /api/vouchers =============
 // Imports a voucher (can be called again for an existing voucher and will update/overwrite)
-func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
-	outils.Verbose("POST /api/vouchers ...")
+func postVoucherHandler(orgId string, w http.ResponseWriter, r *http.Request) {
+	outils.Verbose("POST /api/orgs/%s/vouchers ...", orgId)
 	valuesDir := OcsDbDir + "/v1/values"
 
 	// Determine the org id to use for the device, based on various inputs
-	deviceOrgId, httpErr := getDeviceOrgId(r)
+	deviceOrgId, httpErr := getDeviceOrgId(orgId, r)
 	if httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	}
 
 	// Authenticate this user with the exchange
-	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, valuesDir+"/agent-install.crt"); httpErr != nil {
+	if authenticated, _, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, valuesDir+"/agent-install.crt"); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
 		http.Error(w, "invalid exchange credentials provided", http.StatusUnauthorized)
 		return
 	}
-
-	/* If all of the common config files didn't get created at startup, tell them
-	if !outils.PathExists(valuesDir+"/agent-install.cfg") || !outils.PathExists(valuesDir+"/agent-install.sh") { // agent-install.crt is optional
-		http.Error(w, "Error: not all of the common config files were created in the OCS DB at startup. Have your admin restart the service with all of the necessary input.", http.StatusBadRequest)
-		return
-	} */
 
 	if httpErr := outils.IsValidPostJson(r); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
@@ -269,7 +278,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error converting GUID to UUID: "+err.Error(), http.StatusBadRequest)
 		return
 	}
-	outils.Verbose("POST /api/vouchers: device UUID: %s", uuid.String())
+	outils.Verbose("POST /api/orgs/%/vouchers: device UUID: %s", deviceOrgId, uuid.String())
 
 	// Create the device directory in the OCS DB
 	deviceDir := OcsDbDir + "/v1/devices/" + uuid.String()
@@ -280,7 +289,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Remove the state.json file, in case this voucher was previously imported. This allows to0 to be run again (register it with RV)
 	fileName := deviceDir + "/state.json"
-	outils.Verbose("POST /api/vouchers: removing %s (if exists) ...", fileName)
+	outils.Verbose("POST /api/orgs/%s/vouchers: removing %s (if exists) ...", deviceOrgId, fileName)
 	if err := os.RemoveAll(filepath.Clean(fileName)); err != nil { // RemoveAll does NOT return an error if fileName doesn't exist
 		http.Error(w, "could not remove "+fileName+": "+err.Error(), http.StatusInternalServerError)
 		return
@@ -288,7 +297,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Put the voucher in the OCS DB
 	fileName = deviceDir + "/voucher.json"
-	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
+	outils.Verbose("POST /api/orgs/%s/vouchers: creating %s ...", deviceOrgId, fileName)
 	if err := ioutil.WriteFile(filepath.Clean(fileName), bodyBytes, 0644); err != nil {
 		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
 		return
@@ -296,7 +305,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Create the device download file (svi.json) and psi.json
 	fileName = deviceDir + "/svi.json"
-	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
+	outils.Verbose("POST /api/orgs/%s/vouchers: creating %s ...", deviceOrgId, fileName)
 	sviJson1 := ""
 	if outils.PathExists(valuesDir + "/agent-install.crt") {
 		sviJson1 = data.SviJson1
@@ -307,7 +316,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fileName = deviceDir + "/psi.json"
-	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
+	outils.Verbose("POST /api/orgs/%s/vouchers: creating %s ...", deviceOrgId, fileName)
 	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(data.PsiJson), 0644); err != nil {
 		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
 		return
@@ -315,7 +324,7 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Create orgid.txt file to identify what org this device/voucher is part of
 	fileName = deviceDir + "/orgid.txt"
-	outils.Verbose("POST /api/vouchers: creating %s with value: %s ...", fileName, deviceOrgId)
+	outils.Verbose("POST /api/orgs/%s/vouchers: creating %s with value: %s ...", deviceOrgId, fileName, deviceOrgId)
 	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(deviceOrgId), 0644); err != nil {
 		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
 		return
@@ -329,13 +338,10 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create exec file
-	//aptRepo := "http://pkg.bluehorizon.network/linux/ubuntu"
-	//aptChannel := "testing"
-	//execCmd := outils.MakeExecCmd("/bin/sh agent-install-wrapper.sh -i " + aptRepo + " -t " + aptChannel + " -j apt-repo-public.key -a " + uuid.String() + ":" + nodeToken)
 	// Note: currently agent-install-wrapper.sh requires that the flags be in this order!!!!
 	execCmd := outils.MakeExecCmd(fmt.Sprintf("/bin/sh agent-install-wrapper.sh -i %s -a %s:%s -O %s", CurrentPkgsFrom, uuid.String(), nodeToken, deviceOrgId))
 	fileName = OcsDbDir + "/v1/values/" + uuid.String() + "_exec"
-	outils.Verbose("POST /api/vouchers: creating %s ...", fileName)
+	outils.Verbose("POST /api/orgs/%s/vouchers: creating %s ...", deviceOrgId, fileName)
 	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(execCmd), 0644); err != nil {
 		http.Error(w, "could not create "+fileName+": "+err.Error(), http.StatusInternalServerError)
 		return
@@ -349,22 +355,19 @@ func postVoucherHandler(w http.ResponseWriter, r *http.Request) {
 	outils.WriteJsonResponse(http.StatusCreated, w, respBody)
 }
 
-/* no longer used
-//============= POST /api/rereadagentinstall =============
-//todo: delete this API once https://github.com/open-horizon/SDO-support/issues/77 is implemented
-// Causes our service to get agent-install.sh again (to pick up any changes to it)
-func postRereadAgentInstallHandler(w http.ResponseWriter, r *http.Request) {
-	outils.Verbose("POST /api/rereadagentinstall ...")
+//============= GET /api/orgs/{org-id}/keys =============
+// Reads/returns all of the already created owner public key names
+func getKeysHandler(orgId string, w http.ResponseWriter, r *http.Request) {
+	outils.Verbose("GET /api/orgs/%s/keys ...", orgId)
 
 	// Determine the org id to use for the device, based on various inputs
-	deviceOrgId, httpErr := getDeviceOrgId(r)
+	deviceOrgId, httpErr := getDeviceOrgId(orgId, r)
 	if httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	}
 
-	valuesDir := OcsDbDir + "/v1/values"
-	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, valuesDir+"/agent-install.crt"); httpErr != nil {
+	if authenticated, _, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
@@ -372,32 +375,159 @@ func postRereadAgentInstallHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reread agent-install.sh
-	fileName := valuesDir + "/agent-install.sh"
-	if httpErr := getAgentInstallScript(fileName); httpErr != nil {
+	// Read the v1/creds/publicKeys/<org> directory in the db, and then read each <user> sub-dir to get all of the pubic key file names
+	pubKeyDirName := OcsDbDir + "/v1/creds/publicKeys/" + deviceOrgId
+	if err := os.MkdirAll(pubKeyDirName, 0750); err != nil { // in case the sub-dir doesn't even exist yet
+		http.Error(w, "could not create directory "+pubKeyDirName+": "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	userDirs, err := ioutil.ReadDir(filepath.Clean(pubKeyDirName))
+	if err != nil {
+		http.Error(w, "Error reading "+pubKeyDirName+" directory: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	pubKeyMap := make(map[string][]string) // the structure we will return (and will get converted to json)
+	for _, u := range userDirs {
+		if u.IsDir() {
+			uDir := pubKeyDirName + "/" + u.Name()
+			keyFiles, err := ioutil.ReadDir(filepath.Clean(uDir))
+			if err != nil {
+				http.Error(w, "Error reading "+uDir+" directory: "+err.Error(), http.StatusBadRequest)
+				return
+			}
+			keyFileNames := make([]string, 0) // the array of public key file names for this user that we will add
+			for _, f := range keyFiles {
+				if !f.IsDir() {
+					keyFileNames = append(keyFileNames, f.Name())
+				}
+			}
+
+			if len(keyFileNames) > 0 {
+				pubKeyMap[u.Name()] = keyFileNames // add it to the map we will return
+			}
+		}
+	}
+
+	// Send file names to client
+	httpCode := http.StatusOK
+	if len(pubKeyMap) == 0 {
+		httpCode = http.StatusNotFound
+	}
+	outils.WriteJsonResponse(httpCode, w, pubKeyMap)
+}
+
+//============= GET /api/orgs/{org-id}/keys/{key-name} =============
+// Reads/returns an already imported voucher
+func getKeyHandler(orgId, keyName string, w http.ResponseWriter, r *http.Request) {
+	outils.Verbose("GET /api/orgs/%s/keys/%s ...", orgId, keyName)
+
+	// Determine the org id to use for the device, based on various inputs
+	deviceOrgId, httpErr := getDeviceOrgId(orgId, r)
+	if httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-}
-*/
+	authenticated, user, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, OcsDbDir+"/v1/values/agent-install.crt")
+	if httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	} else if !authenticated {
+		http.Error(w, "invalid exchange credentials provided", http.StatusUnauthorized)
+		return
+	}
 
-//============= POST /api/keys =============
-// Receives in the body json containing the arguments required to run import-owner-key-pairs.sh script. Then it creates and import key pair into master keystore. Imports them into our keystore.
-// This allows sdo-owner-services to read vouchers intended for them, and to securely communicate with their devices booting up.
-func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
-	outils.Verbose("POST /api/keys ...")
+	// Verify key file is in the db
+	pubKeyDirName := OcsDbDir + "/v1/creds/publicKeys/" + deviceOrgId
+	if err := os.MkdirAll(pubKeyDirName, 0750); err != nil { // in case the sub-dir doesn't even exist yet
+		http.Error(w, "could not create directory "+pubKeyDirName+": "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	pubKeyFileName := pubKeyDirName + "/" + user + "/" + strings.ToLower(deviceOrgId+"_"+keyName) + "_public-key.pem"
+	if !outils.PathExists(pubKeyFileName) {
+		//http.Error(w, "Public key "+keyName+" for user "+user+" not found", http.StatusNotFound)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	// Send public key file to client
+	//w.WriteHeader(http.StatusCreated) // http.ServeFile() does this too
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", "attachment; filename="+keyName)
+	http.ServeFile(w, r, pubKeyFileName)
+}
+
+//============= DELETE /api/orgs/{org-id}/keys/{key-name} =============
+// Reads/returns an already imported voucher
+func deleteKeyHandler(orgId, keyName string, w http.ResponseWriter, r *http.Request) {
+	outils.Verbose("DELETE /api/orgs/%s/keys/%s ...", orgId, keyName)
 
 	// Determine the org id to use for the device, based on various inputs
-	deviceOrgId, httpErr := getDeviceOrgId(r)
+	deviceOrgId, httpErr := getDeviceOrgId(orgId, r)
+	if httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	}
+
+	authenticated, user, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, OcsDbDir+"/v1/values/agent-install.crt")
+	if httpErr != nil {
+		http.Error(w, httpErr.Error(), httpErr.Code)
+		return
+	} else if !authenticated {
+		http.Error(w, "invalid exchange credentials provided", http.StatusUnauthorized)
+		return
+	}
+
+	// Verify key file is in the db
+	pubKeyDirName := OcsDbDir + "/v1/creds/publicKeys/" + deviceOrgId
+	if err := os.MkdirAll(pubKeyDirName, 0750); err != nil { // in case the sub-dir doesn't even exist yet
+		http.Error(w, "could not create directory "+pubKeyDirName+": "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	pubKeyFileName := pubKeyDirName + "/" + user + "/" + strings.ToLower(deviceOrgId+"_"+keyName) + "_public-key.pem"
+	if !outils.PathExists(pubKeyFileName) {
+		//http.Error(w, "Public key "+keyName+" for user "+user+" not found", http.StatusNotFound)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	// Run script to delete the private and public keys
+	outils.Verbose("Running command: ./delete-owner-key.sh %s %s %s", deviceOrgId, user, keyName)
+	// Using mutex so only 1 instance of the script writes to the keystore at a time
+	KeyImportLock.Lock()
+	stdOut, stdErr, err := outils.RunCmd("./delete-owner-key.sh", deviceOrgId, user, keyName)
+	KeyImportLock.Unlock()
+	if err != nil {
+		http.Error(w, "error running delete-owner-key.sh: "+err.Error(), http.StatusBadRequest) // this includes stdErr
+		return
+	} else {
+		if len(stdErr) > 0 { // with shell scripts there can be error msgs in stderr even though the exit code was 0
+			outils.Verbose("stderr from delete-owner-key.sh: %s", string(stdErr))
+		}
+		outils.Verbose(string(stdOut))
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+//============= POST /api/orgs/{org-id}/keys =============
+// Receives in the body json the arguments required to run import-owner-key-pairs.sh script, which will create and import the private keys into the master keystore,
+// and stores the combine public keys into the file DB.
+// This allows sdo-owner-services to read vouchers intended for them, and to securely communicate with their devices booting up.
+func postImportKeysHandler(orgId string, w http.ResponseWriter, r *http.Request) {
+	outils.Verbose("POST /api/orgs/%s/keys ...", orgId)
+
+	// Determine the org id to use for the device, based on various inputs
+	deviceOrgId, httpErr := getDeviceOrgId(orgId, r)
 	if httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	}
 
 	valuesDir := OcsDbDir + "/v1/values"
-	if authenticated, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, valuesDir+"/agent-install.crt"); httpErr != nil {
+	authenticated, user, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, valuesDir+"/agent-install.crt")
+	if httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
@@ -442,10 +572,10 @@ func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Run the script that will create and import the key pairs
-	outils.Verbose("Running command: ./import-owner-private-keys2.sh %s %s %s %s %s %s %s %s", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name) // "%s %s", pemFilePath, deviceOrgId)
-	// Using mutex for java keystore import within the following script
-	KeyImportLock.Lock()                                                                                                                                                                                            // If locked > unlock it
-	stdOut, stdErr, err := outils.RunCmd("./import-owner-private-keys2.sh", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name) //
+	outils.Verbose("Running command: ./import-owner-private-keys2.sh %s %s %s %s %s %s %s %s %s", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name, user)
+	// Using mutex so only 1 instance of the script writes to the keystore at a time
+	KeyImportLock.Lock()
+	stdOut, stdErr, err := outils.RunCmd("./import-owner-private-keys2.sh", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name, user)
 	KeyImportLock.Unlock()
 	if err != nil {
 		http.Error(w, "error running import-owner-private-keys2.sh: "+err.Error(), http.StatusBadRequest) // this includes stdErr
@@ -457,26 +587,28 @@ func postImportKeysHandler(w http.ResponseWriter, r *http.Request) {
 		outils.Verbose(string(stdOut))
 	}
 
-	// I need to make all variables lowercase
-	keyTypeName := strings.ToLower(info.Key_name)
-	pubKeyDirName := OcsDbDir + "/v1/creds/publicKeys/" + deviceOrgId
-	fileName := deviceOrgId + "_" + keyTypeName + "_public-key.pem"
+	pubKeyDirName := OcsDbDir + "/v1/creds/publicKeys/" + deviceOrgId + "/" + user
+	fileName := strings.ToLower(deviceOrgId+"_"+info.Key_name) + "_public-key.pem" // need to make the file name lowercase, because the script did
 
-	w.WriteHeader(http.StatusCreated)
+	//w.WriteHeader(http.StatusCreated) // http.ServeFile() does this too
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", "attachment; filename=owner-public-key.pem")
 	http.ServeFile(w, r, pubKeyDirName+"/"+fileName)
-
 }
 
 //============= Non-Route Functions =============
 
 // Determine the org id to use for the device, based on various inputs from the client
-func getDeviceOrgId(r *http.Request) (string, *outils.HttpError) {
+func getDeviceOrgId(orgId string, r *http.Request) (string, *outils.HttpError) {
 	/* Get the orgid this device should be put in. It can come from several places (in precedence order):
+	- they ran a route that includes the org id (and is passed to this function as orgId)
 	- they explicitly specify the org in the url param: ?orgid=<org>
 	- if the creds are NOT in the root org, use the cred org
 	*/
+	if orgId != "" {
+		return orgId, nil
+	}
+
 	orgAndUser, _, ok := r.BasicAuth()
 	if !ok {
 		return "", outils.NewHttpError(http.StatusUnauthorized, "invalid exchange credentials provided")
@@ -628,45 +760,5 @@ func createConfigFiles() *outils.HttpError {
 		// continue, because maybe this is a value for the agent-install.sh -i flag that we don't know about yet
 	}
 
-	// Download and create apt-repo-public.key and its name file
-	/*future: support getting horizon pkgs from an APT or RPM repo
-	url := "http://pkg.bluehorizon.network/bluehorizon.network-public.key"
-	fileName = valuesDir + "/apt-repo-public.key"
-	outils.Verbose("Downloading %s to %s ...", url, fileName)
-	if err := outils.DownloadFile(url, fileName, 0644); err != nil {
-		return outils.NewHttpError(http.StatusInternalServerError, "could not download "+url+" to "+fileName+": "+err.Error())
-	}
-
-	fileName = valuesDir + "/apt-repo-public-key_name"
-	outils.Verbose("Creating %s ...", fileName)
-	dataStr = "apt-repo-public.key"
-	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(dataStr), 0644); err != nil {
-		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
-	}
-	*/
-
 	return nil
 }
-
-/* no longer used
-// Reads or rereads agent-install.sh from the location they told us to get it from. Used in POST /api/rereadagentinstall
-func getAgentInstallScript(destFileName string) *outils.HttpError {
-	if outils.PathExists("./agent-install.sh") {
-		// agent-install.sh was mounted into our container by the person starting it
-		outils.Verbose("agent-install.sh was mounted into the container, copying it...")
-		if httpErr := outils.CopyFile("./agent-install.sh", destFileName, 0750); httpErr != nil {
-			return httpErr
-		}
-	} else {
-		url := os.Getenv("AGENT_INSTALL_URL")
-		if url == "" {
-			url = "https://github.com/open-horizon/anax/releases/latest/download/agent-install.sh" // the default
-		}
-		outils.Verbose("Downloading %s to %s ...", url, destFileName)
-		if err := outils.DownloadFile(url, destFileName, 0750); err != nil { //todo: i think we also need to look inside the file and check if the 1st line begins with 404
-			return outils.NewHttpError(http.StatusInternalServerError, "could not download "+url+" to "+destFileName+": "+err.Error())
-		}
-	}
-	return nil
-}
-*/
