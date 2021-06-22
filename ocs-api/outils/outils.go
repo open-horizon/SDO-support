@@ -231,20 +231,44 @@ func CopyFile(fromFileName, toFileName string, perm os.FileMode) *HttpError {
 	return nil
 }
 
-// Verify the request credentials with the exchange. Returns true/false or error
-func ExchangeAuthenticate(r *http.Request, currentExchangeUrl, deviceOrgId, certificatePath string) (bool, *HttpError) {
+// Returns the org, user, and password (which can be a key) of the basic auth passed in the header of the request.
+// The 4th arg returns is a boolean that is false basic auth was not specified and invalid format.
+func GetBasicAuth(r *http.Request) (string, string, string, bool) {
 	orgAndUser, pwOrKey, ok := r.BasicAuth()
 	if !ok {
-		return false, nil
+		return "", "", "", false
 	}
 
-	// Split the creds
+	// Split the user into org and user
 	parts := strings.Split(orgAndUser, "/")
 	if len(parts) != 2 {
-		return false, nil
+		return "", "", pwOrKey, false
 	}
-	credOrgId := parts[0]
+	orgId := parts[0]
 	user := parts[1]
+	return orgId, user, pwOrKey, true
+}
+
+type UserDefinition struct {
+	Password    string `json:"password"`
+	Admin       bool   `json:"admin"`
+	HubAdmin    bool   `json:"hubAdmin"`
+	Email       string `json:"email"`
+	LastUpdated string `json:"lastUpdated,omitempty"`
+	UpdatedBy   string `json:"updatedBy,omitempty"`
+}
+
+type GetUsersResponse struct {
+	Users     map[string]UserDefinition `json:"users"`
+	LastIndex int                       `json:"lastIndex"`
+}
+
+// Verify the request credentials with the exchange. Returns true/false and the user (if true), or error
+func ExchangeAuthenticate(r *http.Request, currentExchangeUrl, deviceOrgId, certificatePath string) (bool, string, *HttpError) {
+	credOrgId, user, pwOrKey, ok := GetBasicAuth(r)
+	if !ok {
+		return false, "", nil
+	}
 
 	// Get certificate
 	var certPath string
@@ -256,22 +280,25 @@ func ExchangeAuthenticate(r *http.Request, currentExchangeUrl, deviceOrgId, cert
 
 	var url, method string
 	var goodStatusCode int
-	if orgAndUser == "root/root" {
+	if credOrgId == "root" && user == "root" {
 		// Special case of exchange root user: in this case it is ok for the creds org to be different from the request/device org
-		//To do this do GET /orgs/{orgid}/users
+		// Just need to validate the root creds by calling GET /orgs/{orgid}/users
 		method = http.MethodGet
 		url = fmt.Sprintf("%v/orgs/%v/users", currentExchangeUrl, deviceOrgId)
 		goodStatusCode = http.StatusOK
 	} else {
-		// Non-root creds: Invoke exchange to confirm the client has user creds are valid and have the access they need to create create and manage this device.
+		// Non-root creds: Invoke exchange to confirm the client has valid user creds and have the access they need to create and manage this device.
 		// Note: POST /orgs/{orgid}/users/{username}/confirm only confirms that the creds can read its own user resource. This is sufficient if the creds are in
 		//		the same org as the device, so we need to catch the case when the aren't.
 		if credOrgId != deviceOrgId {
-			return false, NewHttpError(http.StatusUnauthorized, "the org id of the credentials ("+credOrgId+") does not match the org id the SDO owner service is configured for ("+deviceOrgId+")")
+			return false, "", NewHttpError(http.StatusUnauthorized, "the org id of the credentials ("+credOrgId+") does not match the org id of the SDO device ("+deviceOrgId+")")
 		}
-		method = http.MethodPost
-		url = fmt.Sprintf("%v/orgs/%v/users/%v/confirm", currentExchangeUrl, credOrgId, user)
-		goodStatusCode = http.StatusCreated
+		//method = http.MethodPost
+		//url = fmt.Sprintf("%v/orgs/%v/users/%v/confirm", currentExchangeUrl, credOrgId, user)
+		//goodStatusCode = http.StatusCreated
+		method = http.MethodGet
+		url = fmt.Sprintf("%v/orgs/%v/users/%v", currentExchangeUrl, credOrgId, user)
+		goodStatusCode = http.StatusOK
 	}
 	apiMsg := fmt.Sprintf("%v %v", method, url)
 	Verbose("confirming credentials via %s", apiMsg)
@@ -279,30 +306,55 @@ func ExchangeAuthenticate(r *http.Request, currentExchangeUrl, deviceOrgId, cert
 	// Create an outgoing HTTP request to the exchange.
 	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
-		return false, NewHttpError(http.StatusInternalServerError, "unable to create HTTP request for %s, error: %v", apiMsg, err)
+		return false, "", NewHttpError(http.StatusInternalServerError, "unable to create HTTP request for %s, error: %v", apiMsg, err)
 	}
 
 	// Add the basic auth header so that the exchange will authenticate.
-	req.SetBasicAuth(orgAndUser, pwOrKey)
+	req.SetBasicAuth(credOrgId+"/"+user, pwOrKey)
 	req.Header.Add("Accept", "application/json")
 
 	// Send the request to verify the user.
 	httpClient, httpErr := GetHTTPClient(certPath)
 	if httpErr != nil {
-		return false, httpErr
+		return false, "", httpErr
 	}
-	resp, err := httpClient.Do(req)
+	resp, err := httpClient.Do(req) //todo: retry, when necessary, like CSS does
 	if err != nil {
-		return false, NewHttpError(http.StatusInternalServerError, "unable to send HTTP request for %s, error: %v", apiMsg, err)
+		return false, "", NewHttpError(http.StatusInternalServerError, "unable to send HTTP request for %s, error: %v", apiMsg, err)
 	} else if resp.StatusCode == goodStatusCode {
-		return true, nil
+		// They are authenticated, not get the real user (because the cred user could be iamapikey)
+		if credOrgId == "root" && user == "root" {
+			return true, "root", nil
+		}
+		// Non-root user, parse the response body to get the real user
+		users := new(GetUsersResponse)
+		if bodyBytes, err := ioutil.ReadAll(resp.Body); err != nil {
+			return false, "", NewHttpError(http.StatusInternalServerError, "unable to read HTTP response body for %s, error: %v", apiMsg, err)
+		} else if err = json.Unmarshal(bodyBytes, users); err != nil {
+			return false, "", NewHttpError(http.StatusInternalServerError, "unable to unmarshal HTTP response body for %s, error: %v", apiMsg, err)
+		} else {
+			for key, userInfo := range users.Users { // there is only 1 entry in this map, but we don't know the key, so loop thru the 1st one
+				// key is {orgid}/{username}
+				orgAndUsername := strings.Split(key, "/")
+				if len(orgAndUsername) != 2 {
+					return false, "", NewHttpError(http.StatusInternalServerError, "user response from exchange in unexpected format for %s, error: %v", apiMsg, err)
+				}
+				exUsername := orgAndUsername[1]
+				if userInfo.HubAdmin {
+					return false, "", nil // hub admins can't manage devices
+				} else {
+					return true, exUsername, nil
+				}
+			}
+			return false, "", nil // will never get here, but have to satisfy the compiler
+		}
 	} else if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return false, nil
+		return false, "", nil
 	} else {
-		return false, NewHttpError(resp.StatusCode, "unexpected http status code received from %s: %d", apiMsg, resp.StatusCode)
+		return false, "", NewHttpError(resp.StatusCode, "unexpected http status code received from %s: %d", apiMsg, resp.StatusCode)
 	}
-
 }
+
 func GetHTTPClient(certPath string) (*http.Client, *HttpError) {
 	// Try to reuse the 1 global client
 	if HttpClient == nil {
