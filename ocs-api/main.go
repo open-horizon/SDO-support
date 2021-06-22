@@ -418,7 +418,7 @@ func getKeysHandler(orgId string, w http.ResponseWriter, r *http.Request) {
 }
 
 //============= GET /api/orgs/{org-id}/keys/{key-name} =============
-// Reads/returns an already imported voucher
+// Reads/returns an already existing public key
 func getKeyHandler(orgId, keyName string, w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("GET /api/orgs/%s/keys/%s ...", orgId, keyName)
 
@@ -459,7 +459,7 @@ func getKeyHandler(orgId, keyName string, w http.ResponseWriter, r *http.Request
 }
 
 //============= DELETE /api/orgs/{org-id}/keys/{key-name} =============
-// Reads/returns an already imported voucher
+// Deletes an already imported key pair (public and private keys)
 func deleteKeyHandler(orgId, keyName string, w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("DELETE /api/orgs/%s/keys/%s ...", orgId, keyName)
 
