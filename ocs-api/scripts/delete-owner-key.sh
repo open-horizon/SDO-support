@@ -30,6 +30,8 @@ KEY_NAME=$(echo "$KEY_NAME" | tr '[:upper:]' '[:lower:]')
 
 # Globals
 PUBLIC_KEY_DIR=/home/sdouser/ocs/config/db/v1/creds/publicKeys
+KEYTOOL=/usr/lib/jvm/openjre-11-manual-installation/bin/keytool
+KEYSTORE_FILE=/home/sdouser/ocs/config/db/v1/creds/owner-keystore.p12
 
 #============================FUNCTIONS=================================
 
@@ -68,10 +70,10 @@ fi
 keypwd="$(grep -E '^ *FS_OWNER_KEYSTORE_PASSWORD=' ocs/ocs.env)"
 SDO_KEY_PWD=${keypwd#FS_OWNER_KEYSTORE_PASSWORD=}
 
-# Remove privates keys from the keystore. Keep going, even if error, so we clean up partial creations
+# Remove private keys from the keystore. Keep going, even if error, so we clean up partial creations
 for i in "rsa" "ecdsa256" "ecdsa384"; do
-    /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -delete -keystore /home/sdouser/ocs/config/db/v1/creds/owner-keystore.p12 -storepass "$SDO_KEY_PWD" -alias "${LOWER_ORG_ID}_${KEY_NAME}_$i"
-    chk $? "deleting "${LOWER_ORG_ID}_${KEY_NAME}_$i.p12" keystore from ocs/config/db/v1/creds/owner-keystore.p12" 'continue'
+    $KEYTOOL -delete -keystore $KEYSTORE_FILE -storepass "$SDO_KEY_PWD" -alias "${LOWER_ORG_ID}_${KEY_NAME}_$i"
+    chk $? "deleting ${LOWER_ORG_ID}_${KEY_NAME}_$i key from ocs/config/db/v1/creds/owner-keystore.p12" 'continue'
 done
 
 # Remove the public key

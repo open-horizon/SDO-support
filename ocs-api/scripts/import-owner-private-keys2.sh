@@ -71,13 +71,11 @@ ensureWeAreUser() {
 
 function getKeyPair() {
   #Check for existance of a specific key . If it isn't found good, if it is found exit 3
-  echo "Checking for private keys and concatenated public key using key name: "${HZN_ORG_ID}_${KEY_NAME}
-  if [[ $(/usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore ocs/config/db/v1/creds/owner-keystore.p12 -storepass "${SDO_KEY_PWD}" | grep -E "^Alias name: *${HZN_ORG_ID}_${KEY_NAME}_rsa$") > 0 ]]; then
-    echo "Key Name "${HZN_ORG_ID}_${KEY_NAME}" Already Used" 
-    /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore ocs/config/db/v1/creds/owner-keystore.p12 -storepass "${SDO_KEY_PWD}" | grep -E "^Alias name: *${HZN_ORG_ID}_${KEY_NAME}_rsa$" >&2
+  #echo "Checking for private keys and concatenated public key using key name: "${LOWER_ORG_UNIT}_${KEY_NAME}
+  if [[ $(/usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore ocs/config/db/v1/creds/owner-keystore.p12 -storepass "${SDO_KEY_PWD}" | grep -E "^Alias name: *${LOWER_ORG_UNIT}_${KEY_NAME}_rsa$") > 0 ]]; then
+    echo "Key Name "${LOWER_ORG_UNIT}_${KEY_NAME}" Already Used" 
+    /usr/lib/jvm/openjre-11-manual-installation/bin/keytool -list -v -keystore ocs/config/db/v1/creds/owner-keystore.p12 -storepass "${SDO_KEY_PWD}" | grep -E "^Alias name: *${LOWER_ORG_UNIT}_${KEY_NAME}_rsa$" >&2
     exit 3
-  else
-    echo "Key Name "${HZN_ORG_ID}_${KEY_NAME}" Not Found"
   fi
   }
 
@@ -96,13 +94,13 @@ function genKey() {
   mkdir -p $TMP_DIR/"${keyType}"Key && cd $TMP_DIR/"${keyType}"Key >/dev/null || return
   #Generate a private RSA key.
   if [[ $keyType == "rsa" ]]; then
-    echo -e "Generating an "${keyType}" private key."
+    #echo -e "Generating an "${keyType}" private key."
     openssl genrsa -out "${keyType}"private-key.pem 2048 >/dev/null
     chk $? 'Generating a rsa private key.'
     keyCertGenerator
   #Generate a private ecdsa (256 or 384) key.
   elif [[ $keyType == "ecdsa256" ]] || [[ $keyType == "ecdsa384" ]]; then
-    echo -e "Generating an "${keyType}" private key."
+    #echo -e "Generating an "${keyType}" private key."
     local var2=$(echo $keyType | cut -f2 -da)
     openssl ecparam -genkey -name secp"${var2}"r1 -out "${keyType}"private-key.pem >/dev/null
     chk $? 'Generating an ecdsa private key.'
@@ -145,7 +143,7 @@ function keyCertGenerator() {
 function genPublicKey() {
   # This function is ran after the private key and owner certificate has been created. This function will create a public key to correspond with
   # the owner private key/certificate. Generate a public key from the certificate file
-  echo "Generating "${keyType}" public key..."
+  #echo "Generating "${keyType}" public key..."
   openssl x509 -pubkey -noout -in $keyCert >../"${keyType}"pub-key.pem
   chk $? 'Creating public key...'
 }
@@ -156,7 +154,7 @@ function combineKeys() {
     #Combine all the public keys into one
     #adding delimiters for SDO 1.9 pub key format
     echo "," >> rsapub-key.pem && echo "," >> ecdsa256pub-key.pem
-    echo "Concatenating Public Key files..."
+    #echo "Concatenating Public Key files..."
     for i in "rsapub-key.pem" "ecdsa256pub-key.pem" "ecdsa384pub-key.pem"
       do
         local keyName=$i
@@ -213,11 +211,10 @@ getKeyPair
 
 allKeys
 combineKeys
-echo "Owner Private Keys and Owner Public Key have been created"
 
 genKeyStore
 insertKeys
-echo "Owner private key pairs have been imported."
+echo "Owner key pairs have been created and imported."
 
 
 

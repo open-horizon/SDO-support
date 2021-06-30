@@ -97,13 +97,13 @@ func WriteJsonResponse(httpCode int, w http.ResponseWriter, bodyStruct interface
 		http.Error(w, "Internal Server Error (could not encode json response)", http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
 	WriteResponse(httpCode, w, dataJson)
 }
 
 // Respond to the client with this code and body bytes
 func WriteResponse(httpCode int, w http.ResponseWriter, bodyBytes []byte) {
 	w.WriteHeader(httpCode) // seems like this has to be before writing the body
-	w.Header().Set("Content-Type", "application/json")
 	_, err := w.Write(bodyBytes)
 	if err != nil {
 		Error(err.Error())
