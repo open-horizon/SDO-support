@@ -370,7 +370,7 @@ func getKeysHandler(orgId string, w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("Running command: ./get-owner-key-expirations.sh %s %s", deviceOrgId, user)
 	// using read mutex so only no other client can write to the keystore while we are reading the keystore
 	KeyImportLock.RLock()
-	stdOut, stdErr, err := outils.RunCmd("./get-owner-key-expirations.sh", deviceOrgId, user)
+	stdOut, stdErr, err := outils.RunCmd(outils.RunCmdOpts{}, "./get-owner-key-expirations.sh", deviceOrgId, user)
 	KeyImportLock.RUnlock()
 	if err != nil {
 		http.Error(w, "error running get-owner-key-expirations.sh: "+err.Error(), http.StatusBadRequest) // this includes stdErr
@@ -541,7 +541,7 @@ func deleteKeyHandler(orgId, keyName string, w http.ResponseWriter, r *http.Requ
 	outils.Verbose("Running command: ./delete-owner-key.sh %s %s %s", deviceOrgId, user, keyName)
 	// Using mutex so only 1 instance of the script writes to the keystore at a time
 	KeyImportLock.Lock()
-	stdOut, stdErr, err := outils.RunCmd("./delete-owner-key.sh", deviceOrgId, user, keyName)
+	stdOut, stdErr, err := outils.RunCmd(outils.RunCmdOpts{}, "./delete-owner-key.sh", deviceOrgId, user, keyName)
 	KeyImportLock.Unlock()
 	if err != nil {
 		http.Error(w, "error running delete-owner-key.sh: "+err.Error(), http.StatusBadRequest) // this includes stdErr
@@ -618,10 +618,18 @@ func postImportKeysHandler(orgId string, w http.ResponseWriter, r *http.Request)
 	}
 
 	// Run the script that will create and import the key pairs
+	// for dev/test they can specify the url param expired=true to create an already expired key
+	runCmdOpts := outils.RunCmdOpts{}
+	expired, ok := r.URL.Query()["expired"]
+	if ok && len(expired) > 0 && expired[0] == "true" {
+		runCmdOpts.Environ = append(runCmdOpts.Environ, "CREATE_EXPIRED_KEY=true")
+		//os.Setenv("CREATE_EXPIRED_KEY", "true") // can't do this, because it will set it persistently for all threads serving clients
+		fmt.Printf("Creating expired test key %s ...\n", strings.ToLower(deviceOrgId+"_"+info.Key_name))
+	}
 	outils.Verbose("Running command: ./import-owner-private-keys2.sh %s %s %s %s %s %s %s %s %s", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name, user)
 	// Using mutex so only 1 instance of the script writes to the keystore at a time
 	KeyImportLock.Lock()
-	stdOut, stdErr, err := outils.RunCmd("./import-owner-private-keys2.sh", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name, user)
+	stdOut, stdErr, err := outils.RunCmd(runCmdOpts, "./import-owner-private-keys2.sh", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name, user)
 	KeyImportLock.Unlock()
 	if err != nil {
 		http.Error(w, "error running import-owner-private-keys2.sh: "+err.Error(), http.StatusBadRequest) // this includes stdErr

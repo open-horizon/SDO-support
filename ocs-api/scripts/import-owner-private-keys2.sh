@@ -203,17 +203,48 @@ function insertKeys(){
 fi
 }
 
+function genExpiredKeys() {   # an undocumented option for dev/test to create an already expired set of keys
+    # Create expired private keys
+    local keytool=/usr/lib/jvm/openjre-11-manual-installation/bin/keytool
+    local keystore_file=/home/sdouser/ocs/config/db/v1/creds/owner-keystore.p12
+    for i in "rsa" "ecdsa256" "ecdsa384"; do
+        echo "creating expired key ${LOWER_ORG_UNIT}_${KEY_NAME}_$i ..."
+        (
+            echo "$HZN_EXCHANGE_USER"
+            echo "$ORG_UNIT"
+            echo "$COMPANY_NAME"
+            echo "$LOCALE_NAME"
+            echo "$STATE_NAME"
+            echo "$COUNTRY_NAME"
+            echo "yes"
+        ) | $keytool -alias "${LOWER_ORG_UNIT}_${KEY_NAME}_$i" -genkey -keystore $keystore_file -storepass "${SDO_KEY_PWD}" -keyalg RSA -validity 1 -startdate -2d 2> /dev/null   # it echoes all of the prompts to stderr
+        # Note: in the cmd above we intentionally use -keyalg RSA for all 3 keys because it doesn't matter (they are expired/useless)
+        chk $? "creating expired key ${LOWER_ORG_UNIT}_${KEY_NAME}_$i"
+    done
+
+    # Create dummy public key
+    echo "creating dummy public key $ORG_UNIT/$HZN_EXCHANGE_USER/${LOWER_ORG_UNIT}_${KEY_NAME}_public-key.pem ..."
+    mkdir -p /home/sdouser/ocs/config/db/v1/creds/publicKeys/${ORG_UNIT}/${HZN_EXCHANGE_USER}
+    echo 'this is a dummy public key for an expired private key/cert' > /home/sdouser/ocs/config/db/v1/creds/publicKeys/$ORG_UNIT/$HZN_EXCHANGE_USER/${LOWER_ORG_UNIT}_${KEY_NAME}_public-key.pem
+    chk $? "creating dummy public key $ORG_UNIT/$HZN_EXCHANGE_USER/${LOWER_ORG_UNIT}_${KEY_NAME}_public-key.pem"
+}
+
 
 #============================MAIN CODE=================================
 
 ensureWeAreUser
 getKeyPair
 
-allKeys
-combineKeys
+if [[ $CREATE_EXPIRED_KEY == 'true' ]]; then
+    genExpiredKeys   # an undocumented option for dev/test to create an already expired set of keys
+else
+    # Create real keys
+    allKeys
+    combineKeys
 
-genKeyStore
-insertKeys
+    genKeyStore
+    insertKeys
+fi
 echo "Owner key pairs have been created and imported."
 
 
