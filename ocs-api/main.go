@@ -32,19 +32,7 @@ var CurrentExchangeUrl string                                             // the
 var CurrentExchangeInternalUrl string                                     // will default to CurrentExchangeUrl
 var CurrentCssUrl string                                                  // the external url, that the device needs
 var CurrentPkgsFrom string                                                // the argument to the agent-install.sh -i flag
-var KeyImportLock sync.Mutex
-
-/* not used anymore
-type CfgVarsStruct struct {
-	HZN_EXCHANGE_URL      string `json:"HZN_EXCHANGE_URL"`      // the external URL of the exchange (how devices should reach it)
-	EXCHANGE_INTERNAL_URL string `json:"EXCHANGE_INTERNAL_URL"` // optional: how ocs-api should contact the exchange. Will default to HZN_EXCHANGE_URL
-	HZN_FSS_CSSURL        string `json:"HZN_FSS_CSSURL"`
-	HZN_ORG_ID            string `json:"HZN_ORG_ID"` // the default org the node should be created in, if not overridden in the import API
-}
-type Config struct {
-	CfgVars CfgVarsStruct `json:"cfgVars"`
-	Crt     []byte        `json:"crt"` // making it type []byte will automatically base64 decode the json value
-} */
+var KeyImportLock sync.RWMutex
 
 func main() {
 	if len(os.Args) < 3 {
@@ -129,6 +117,7 @@ func getVersionHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Send voucher to client
 	w.WriteHeader(http.StatusOK) // seems like this has to be before writing the body
+	w.Header().Set("Content-Type", "text/plain")
 	_, err := w.Write([]byte(OCS_API_VERSION))
 	if err != nil {
 		outils.Error(err.Error())
@@ -176,6 +165,7 @@ func getVoucherHandler(orgId, deviceUuid string, w http.ResponseWriter, r *http.
 	}
 
 	// Send voucher to client
+	w.Header().Set("Content-Type", "application/json")
 	outils.WriteResponse(http.StatusOK, w, voucherBytes)
 }
 
@@ -356,7 +346,7 @@ func postVoucherHandler(orgId string, w http.ResponseWriter, r *http.Request) {
 }
 
 //============= GET /api/orgs/{org-id}/keys =============
-// Reads/returns all of the already created owner public key names
+// Reads/returns metadata of the already created owner key
 func getKeysHandler(orgId string, w http.ResponseWriter, r *http.Request) {
 	outils.Verbose("GET /api/orgs/%s/keys ...", orgId)
 
@@ -367,7 +357,8 @@ func getKeysHandler(orgId string, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if authenticated, _, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
+	authenticated, user, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, OcsDbDir+"/v1/values/agent-install.crt")
+	if httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
@@ -375,7 +366,46 @@ func getKeysHandler(orgId string, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Read the v1/creds/publicKeys/<org> directory in the db, and then read each <user> sub-dir to get all of the pubic key file names
+	// Get the expired disposition of each key certificate and build a map of them
+	outils.Verbose("Running command: ./get-owner-key-expirations.sh %s %s", deviceOrgId, user)
+	// using read mutex so only no other client can write to the keystore while we are reading the keystore
+	KeyImportLock.RLock()
+	stdOut, stdErr, err := outils.RunCmd(outils.RunCmdOpts{}, "./get-owner-key-expirations.sh", deviceOrgId, user)
+	KeyImportLock.RUnlock()
+	if err != nil {
+		http.Error(w, "error running get-owner-key-expirations.sh: "+err.Error(), http.StatusBadRequest) // this includes stdErr
+		return
+	} else {
+		if len(stdErr) > 0 { // with shell scripts there can be error msgs in stderr even though the exit code was 0
+			outils.Verbose("stderr from delete-owner-key.sh: %s", string(stdErr))
+		}
+		outils.Verbose("get-owner-key-expirations.sh stdout: " + string(stdOut))
+	}
+	expiredMap := make(map[string]bool)
+	trimmedStdOut := strings.TrimRight(string(stdOut), "\n") // using TrimRight() instead of TrimSuffix() because the former will trim multiple newlines
+	if len(trimmedStdOut) > 0 {
+		for _, line := range strings.Split(trimmedStdOut, "\n") {
+			// echo line is: <org>_<key-name>: <true or false>
+			parts := strings.Split(line, ": ")
+			if len(parts) != 2 {
+				http.Error(w, "unexpected line of output from get-owner-key-expirations.sh: "+line, http.StatusInternalServerError)
+				return
+			}
+			orgAndKey := parts[0]
+			var isExpired bool
+			if parts[1] == "true" {
+				isExpired = true
+			} else if parts[1] == "false" {
+				isExpired = false
+			} else {
+				http.Error(w, "unexpected expiration value from get-owner-key-expirations.sh: "+parts[1], http.StatusInternalServerError)
+				return
+			}
+			expiredMap[orgAndKey] = isExpired
+		}
+	} // else just leave expiredMap empty
+
+	// Read the publicKeys/<org> directory in the db, and then read each <user> sub-dir to get all of the pubic key file names
 	pubKeyDirName := OcsDbDir + "/v1/creds/publicKeys/" + deviceOrgId
 	if err := os.MkdirAll(pubKeyDirName, 0750); err != nil { // in case the sub-dir doesn't even exist yet
 		http.Error(w, "could not create directory "+pubKeyDirName+": "+err.Error(), http.StatusInternalServerError)
@@ -387,34 +417,49 @@ func getKeysHandler(orgId string, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pubKeyMap := make(map[string][]string) // the structure we will return (and will get converted to json)
+	// Struct for 1 element of the response body array
+	type KeyMeta struct {
+		Name      string `json:"name"`
+		Orgid     string `json:"orgid"`
+		Owner     string `json:"owner"`
+		FileName  string `json:"fileName"`
+		IsExpired bool   `json:"isExpired"`
+	}
+
+	pubKeyList := make([]KeyMeta, 0)
 	for _, u := range userDirs {
 		if u.IsDir() {
-			uDir := pubKeyDirName + "/" + u.Name()
+			user := u.Name()
+			uDir := pubKeyDirName + "/" + user
 			keyFiles, err := ioutil.ReadDir(filepath.Clean(uDir))
 			if err != nil {
 				http.Error(w, "Error reading "+uDir+" directory: "+err.Error(), http.StatusBadRequest)
 				return
 			}
-			keyFileNames := make([]string, 0) // the array of public key file names for this user that we will add
 			for _, f := range keyFiles {
 				if !f.IsDir() {
-					keyFileNames = append(keyFileNames, f.Name())
+					// determine key-name by stripping org and public-key.pem
+					orgAndKey := strings.TrimSuffix(f.Name(), "_public-key.pem")
+					keyName := strings.TrimPrefix(orgAndKey, strings.ToLower(deviceOrgId)+"_")
+					// get whether of not this key is expired from the map we created earlier
+					isExpired, ok := expiredMap[orgAndKey]
+					if !ok {
+						http.Error(w, "map key "+orgAndKey+" does not exist in expiration map", http.StatusInternalServerError) // mismatch between private keys in keystore and public keys in directory
+						return
+					}
+					keyMeta := KeyMeta{Name: keyName, FileName: f.Name(), Orgid: deviceOrgId, Owner: user, IsExpired: isExpired}
+					pubKeyList = append(pubKeyList, keyMeta)
 				}
-			}
-
-			if len(keyFileNames) > 0 {
-				pubKeyMap[u.Name()] = keyFileNames // add it to the map we will return
 			}
 		}
 	}
 
 	// Send file names to client
 	httpCode := http.StatusOK
-	if len(pubKeyMap) == 0 {
+	if len(pubKeyList) == 0 {
 		httpCode = http.StatusNotFound
 	}
-	outils.WriteJsonResponse(httpCode, w, pubKeyMap)
+	outils.WriteJsonResponse(httpCode, w, pubKeyList)
 }
 
 //============= GET /api/orgs/{org-id}/keys/{key-name} =============
@@ -496,7 +541,7 @@ func deleteKeyHandler(orgId, keyName string, w http.ResponseWriter, r *http.Requ
 	outils.Verbose("Running command: ./delete-owner-key.sh %s %s %s", deviceOrgId, user, keyName)
 	// Using mutex so only 1 instance of the script writes to the keystore at a time
 	KeyImportLock.Lock()
-	stdOut, stdErr, err := outils.RunCmd("./delete-owner-key.sh", deviceOrgId, user, keyName)
+	stdOut, stdErr, err := outils.RunCmd(outils.RunCmdOpts{}, "./delete-owner-key.sh", deviceOrgId, user, keyName)
 	KeyImportLock.Unlock()
 	if err != nil {
 		http.Error(w, "error running delete-owner-key.sh: "+err.Error(), http.StatusBadRequest) // this includes stdErr
@@ -564,18 +609,27 @@ func postImportKeysHandler(orgId string, w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Key name must not contain any characters that cant be stored in a file name
-	var isStringAlphabetic = regexp.MustCompile(`^[a-z0-9_\-]*$`).MatchString
+	// Key name must not contain any characters that cant be stored in a file name.
+	// Also can't allow underscores - since orgs can also have them, it could result in 2 different combos of org and key name having the same private key alias
+	var isStringAlphabetic = regexp.MustCompile(`^[a-z0-9\-]*$`).MatchString
 	if !isStringAlphabetic(info.Key_name) {
-		http.Error(w, "Key Name can only contain lowercase characters, numbers, underscores or hyphens.", http.StatusBadRequest)
+		http.Error(w, "Key Name can only contain lowercase characters, numbers, and hyphens.", http.StatusBadRequest)
 		return
 	}
 
 	// Run the script that will create and import the key pairs
+	// for dev/test they can specify the url param expired=true to create an already expired key
+	runCmdOpts := outils.RunCmdOpts{}
+	expired, ok := r.URL.Query()["expired"]
+	if ok && len(expired) > 0 && expired[0] == "true" {
+		runCmdOpts.Environ = append(runCmdOpts.Environ, "CREATE_EXPIRED_KEY=true")
+		//os.Setenv("CREATE_EXPIRED_KEY", "true") // can't do this, because it will set it persistently for all threads serving clients
+		fmt.Printf("Creating expired test key %s ...\n", strings.ToLower(deviceOrgId+"_"+info.Key_name))
+	}
 	outils.Verbose("Running command: ./import-owner-private-keys2.sh %s %s %s %s %s %s %s %s %s", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name, user)
 	// Using mutex so only 1 instance of the script writes to the keystore at a time
 	KeyImportLock.Lock()
-	stdOut, stdErr, err := outils.RunCmd("./import-owner-private-keys2.sh", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name, user)
+	stdOut, stdErr, err := outils.RunCmd(runCmdOpts, "./import-owner-private-keys2.sh", deviceOrgId, info.Key_name, info.Common_name, info.Email_name, info.Company_name, info.Country_name, info.State_name, info.Locale_name, user)
 	KeyImportLock.Unlock()
 	if err != nil {
 		http.Error(w, "error running import-owner-private-keys2.sh: "+err.Error(), http.StatusBadRequest) // this includes stdErr
@@ -590,7 +644,7 @@ func postImportKeysHandler(orgId string, w http.ResponseWriter, r *http.Request)
 	pubKeyDirName := OcsDbDir + "/v1/creds/publicKeys/" + deviceOrgId + "/" + user
 	fileName := strings.ToLower(deviceOrgId+"_"+info.Key_name) + "_public-key.pem" // need to make the file name lowercase, because the script did
 
-	//w.WriteHeader(http.StatusCreated) // http.ServeFile() does this too
+	w.WriteHeader(http.StatusCreated) // http.ServeFile() sets the code to StatusOK so you'll see a warning about superfluous response.WriteHeader
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", "attachment; filename=owner-public-key.pem")
 	http.ServeFile(w, r, pubKeyDirName+"/"+fileName)

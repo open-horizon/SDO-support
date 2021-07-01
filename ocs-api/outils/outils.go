@@ -97,13 +97,13 @@ func WriteJsonResponse(httpCode int, w http.ResponseWriter, bodyStruct interface
 		http.Error(w, "Internal Server Error (could not encode json response)", http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
 	WriteResponse(httpCode, w, dataJson)
 }
 
 // Respond to the client with this code and body bytes
 func WriteResponse(httpCode int, w http.ResponseWriter, bodyBytes []byte) {
 	w.WriteHeader(httpCode) // seems like this has to be before writing the body
-	w.Header().Set("Content-Type", "application/json")
 	_, err := w.Write(bodyBytes)
 	if err != nil {
 		Error(err.Error())
@@ -423,8 +423,12 @@ func TrustIcpCert(transport *http.Transport, certPath string) *HttpError {
 	return nil
 }
 
+type RunCmdOpts struct {
+	Environ []string // environment variables that should be set in the command's environment. Each string should contain: MY_VAR=some_value
+}
+
 // Run a command with args, and return stdout, stderr
-func RunCmd(commandString string, args ...string) ([]byte, []byte, error) {
+func RunCmd(options RunCmdOpts, commandString string, args ...string) ([]byte, []byte, error) {
 	/* For debug, build the full cmd string
 	fullCmdStr := commandString
 	for _, a := range args {
@@ -438,22 +442,38 @@ func RunCmd(commandString string, args ...string) ([]byte, []byte, error) {
 	if cmd == nil {
 		return nil, nil, errors.New("did not return a command object for " + commandString + ", returned nil")
 	}
+
+	// Add any specified env vars to the cmd environment
+	if options.Environ != nil && len(options.Environ) > 0 {
+		cmd.Env = os.Environ()
+		for _, keyAndValue := range options.Environ {
+			parts := strings.SplitN(keyAndValue, "=", 2)
+			if len(parts) != 2 {
+				return nil, nil, errors.New("Invalid key=value format for RunCmdOpts.Environ element: " + keyAndValue)
+			}
+			cmd.Env = append(cmd.Env, keyAndValue)
+		}
+	}
+
 	// Create the stdout pipe to hold the output from the command
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, nil, errors.New("Error retrieving output from command " + commandString + ", error: " + err.Error())
 	}
+
 	// Create the stderr pipe to hold the errors from the command
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		return nil, nil, errors.New("Error retrieving stderr from command " + commandString + ", error: " + err.Error())
 	}
+
 	// Get the command started
 	err = cmd.Start()
 	if err != nil {
 		return nil, nil, errors.New("Unable to start command " + commandString + ", error: " + err.Error())
 	}
 	err = error(nil)
+
 	// Read the output from stdout and stderr into byte arrays
 	// stdoutBytes, err := readPipe(stdout)
 	stdoutBytes, err := ioutil.ReadAll(stdout)
@@ -465,7 +485,8 @@ func RunCmd(commandString string, args ...string) ([]byte, []byte, error) {
 	if err != nil {
 		return nil, nil, errors.New("Error reading stderr from command " + commandString + ", error: " + err.Error())
 	}
-	// Now block waiting for the command to complete
+
+	// Now wait for the command to complete (which should be immediate, because we already received EOF on stdout and stderr above)
 	err = cmd.Wait()
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
