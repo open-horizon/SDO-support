@@ -71,16 +71,26 @@ Before continuing with the rest of the SDO process, it is good to verify that yo
 
 For production use of SDO, you need to create 3 key pairs and import them into the owner services container. These key pairs enable you to securely take over ownership of SDO ownership vouchers from SDO-enabled device manufacturers, and to securely configure your booting SDO devices. Use the provided API to easily create and import the necessary key pairs. (If you are only trying out SDO in a dev/test environment, you can use the built-in sample key pairs and skip this section. You can always add your own key pairs later.)
 
-Note: you only have to perform the steps in this section once. The keys create and import can be used with all of your devices.
+Note: you only have to perform the steps in this section once. The keys created and imported can be used with all of your devices.
 
-1. Now **on your admin host** go to the directory where you want your owner public keys to be saved. Run the API call below to import your user information json in order to generate and import key pairs into the SDO owner services.
+1. **On your admin host** go to the directory where you want your owner public keys to be saved. Run the commands below (modifying the key information as desired) to create the key pairs in the SDO owner service and receive the corresponding public keys:
 
    ```bash
-   curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -X POST -H Content-Type:application/json -d @ren.json -o "${HZN_ORG_ID}_${KEY_NAME}_public-key.pem" $HZN_SDO_SVC_URL/keys && echo
+   cat > key-info.json << EndOfText 
+   {
+     "key_name": "mykey",
+     "common_name": "My Full Name",
+     "email_name": "my@email.com",
+     "company_name": "My Company",
+     "country_name": "My Country",
+     "state_name": "My StateOrProvince",
+     "locale_name":"My City"
+   }
+   EndOfText
+   curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -X POST -H Content-Type:application/json -d @key-info.json -o "${HZN_ORG_ID}_${KEY_NAME}_public-key.pem" $HZN_SDO_SVC_URL/keys && echo
    ```  
 
-2. One file is returned as a result of this API call:
-   - `${HZN_ORG_ID}_${KEY_NAME}_public-key.pem`: The customer/owner public keys (all in a single file) corresponding to the private key pairs that were imported into SDO owner services. This is used by the device manufacturer to securely extend the vouchers to the owner. Pass this file as an argument whenever running simulate-mfg.sh, and give this public key to each device manufacturer producing SDO-enabled devices for you.
+2. One file is returned as a result of this API: `${HZN_ORG_ID}_${KEY_NAME}_public-key.pem` . This is your customer/owner public keys (all in a single file) corresponding to the private key pairs that were imported into the SDO owner service. This is used by the device manufacturer to securely extend the vouchers to the owner. Pass this file as an argument to `simulate-mfg.sh` when experimenting with SDO, and give this public key to each device manufacturer producing SDO-enabled devices for you.
     
 
 ### <a name="init-device"></a>Initialize a Test VM Device with SDO

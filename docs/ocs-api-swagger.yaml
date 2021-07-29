@@ -115,12 +115,12 @@ paths:
           description: successful operation
           schema:
             $ref: '#/definitions/Voucher'
-        '400':
-          description: Invalid voucher id
         '401':
           description: Invalid credentials
         '403':
           description: Permission denied
+        '404':
+          description: Voucher not found
   /orgs/{org-id}/keys:
     get:
       tags:
@@ -145,6 +145,8 @@ paths:
           description: Invalid credentials
         '403':
           description: Permission denied
+        '404':
+          description: Not found
     post:
       tags:
         - keys
@@ -205,12 +207,12 @@ paths:
           description: Successful. The public keys are returned, concatenated together.
           schema:
             $ref: '#/definitions/PublicKeyFile'
-        '400':
-          description: Invalid key name
         '401':
           description: Invalid credentials
         '403':
           description: Permission denied
+        '404':
+          description: Key name not found
     delete:
       tags:
         - keys
@@ -232,11 +234,13 @@ paths:
         '204':
           description: successful operation
         '400':
-          description: Invalid key name
+          description: Invalid request
         '401':
           description: Invalid credentials
         '403':
           description: Permission denied
+        '404':
+          description: Key name not found
 definitions:
   Version:
     type: string

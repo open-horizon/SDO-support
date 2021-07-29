@@ -148,7 +148,7 @@ func getVoucherHandler(orgId, deviceUuid string, w http.ResponseWriter, r *http.
 	voucherFileName := OcsDbDir + "/v1/devices/" + deviceUuid + "/voucher.json"
 	voucherBytes, err := ioutil.ReadFile(filepath.Clean(voucherFileName))
 	if err != nil {
-		http.Error(w, "Error reading "+voucherFileName+": "+err.Error(), http.StatusBadRequest)
+		http.Error(w, "Error reading "+voucherFileName+": "+err.Error(), http.StatusNotFound)
 		return
 	}
 
@@ -160,7 +160,7 @@ func getVoucherHandler(orgId, deviceUuid string, w http.ResponseWriter, r *http.
 		return
 	}
 	if orgidTxtStr != deviceOrgId { // this device is in our org
-		http.Error(w, "Device "+deviceUuid+" is not in org "+deviceOrgId, http.StatusBadRequest)
+		http.Error(w, "Device "+deviceUuid+" is not in org "+deviceOrgId, http.StatusForbidden)
 		return
 	}
 
@@ -193,7 +193,7 @@ func getVouchersHandler(orgId string, w http.ResponseWriter, r *http.Request) {
 	vouchersDirName := OcsDbDir + "/v1/devices"
 	deviceDirs, err := ioutil.ReadDir(filepath.Clean(vouchersDirName))
 	if err != nil {
-		http.Error(w, "Error reading "+vouchersDirName+" directory: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, "Error reading "+vouchersDirName+" directory: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -373,7 +373,7 @@ func getKeysHandler(orgId string, w http.ResponseWriter, r *http.Request) {
 	stdOut, stdErr, err := outils.RunCmd(outils.RunCmdOpts{}, "./get-owner-key-expirations.sh", deviceOrgId, user)
 	KeyImportLock.RUnlock()
 	if err != nil {
-		http.Error(w, "error running get-owner-key-expirations.sh: "+err.Error(), http.StatusBadRequest) // this includes stdErr
+		http.Error(w, "error running get-owner-key-expirations.sh: "+err.Error(), http.StatusInternalServerError) // this includes stdErr
 		return
 	} else {
 		if len(stdErr) > 0 { // with shell scripts there can be error msgs in stderr even though the exit code was 0
@@ -413,7 +413,7 @@ func getKeysHandler(orgId string, w http.ResponseWriter, r *http.Request) {
 	}
 	userDirs, err := ioutil.ReadDir(filepath.Clean(pubKeyDirName))
 	if err != nil {
-		http.Error(w, "Error reading "+pubKeyDirName+" directory: "+err.Error(), http.StatusBadRequest)
+		http.Error(w, "Error reading "+pubKeyDirName+" directory: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -433,7 +433,7 @@ func getKeysHandler(orgId string, w http.ResponseWriter, r *http.Request) {
 			uDir := pubKeyDirName + "/" + user
 			keyFiles, err := ioutil.ReadDir(filepath.Clean(uDir))
 			if err != nil {
-				http.Error(w, "Error reading "+uDir+" directory: "+err.Error(), http.StatusBadRequest)
+				http.Error(w, "Error reading "+uDir+" directory: "+err.Error(), http.StatusInternalServerError)
 				return
 			}
 			for _, f := range keyFiles {
@@ -533,7 +533,7 @@ func deleteKeyHandler(orgId, keyName string, w http.ResponseWriter, r *http.Requ
 	pubKeyFileName := pubKeyDirName + "/" + user + "/" + strings.ToLower(deviceOrgId+"_"+keyName) + "_public-key.pem"
 	if !outils.PathExists(pubKeyFileName) {
 		//http.Error(w, "Public key "+keyName+" for user "+user+" not found", http.StatusNotFound)
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
