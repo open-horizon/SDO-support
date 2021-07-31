@@ -10,8 +10,8 @@ echo "Will be running: ./agent-install.sh $*"
 
 # Verify the number of args is what we are handling below
 maxArgs=8   # the exec statement below is only passing up to this many args to agent-install.sh
-if [ $# -gt $maxArgs -o "$1" != '-i' -o "$3" != '-a' -o "$5" != '-O' ]; then
-    # it is easy to miss this error msg in the midst of the verbose sdo output
+if [ $# -gt $maxArgs -o "$1" != '-i' -o "$3" != '-a' -o "$5" != '-O' -o "$7" != '-k' ]; then
+    # it is easy to miss this error msg in the midst of the verbose sdo output, so make it more obvious
     echo "~~~~~~~~~~~~~~~~\nError: too many arguments passed to agent-install-wrapper.sh or the arguments are in the wrong order\n~~~~~~~~~~~~~~~~"
     exit 2
 fi
@@ -35,8 +35,9 @@ fi
 pkgsFrom="$2"   #future: add a very lightweight arg parser so we are not dependent on these being in a specific order
 nodeAuth="$4"
 deviceOrgId="$6"
+cfgFrom="$8"
 
-#future: When Intel's host native client stops setting these, remove this section
+#future: When Intel's host native client stops setting these, remove this line
 unset http_proxy https_proxy
 
 # Install curl if not present
@@ -51,10 +52,10 @@ if ! command -v curl >/dev/null 2>&1; then
     fi
 fi
 
-#if [ `echo "$pkgsFrom" | cut -c 1-4` = 'css:' ]; then
+eval export `cat agent-install.cfg`   # we need the value of HZN_FSS_CSSURL regardless of the value of $pkgsFrom
+
 if [ "${pkgsFrom%%:*}" = 'css' ]; then
     # Get agent-install.sh from the mgmt hub CSS
-    eval export `cat agent-install.cfg`   # we need the value of HZN_FSS_CSSURL
     agentInstallRemotePath="${HZN_FSS_CSSURL%/}/api/v1/objects/IBM/agent_files/agent-install.sh/data"
     echo "Downloading $agentInstallRemotePath ..."
     httpCode=`curl -sSL -w "%{http_code}" -u "$deviceOrgId/$nodeAuth" --cacert agent-install.crt -o agent-install.sh "$agentInstallRemotePath"`
@@ -62,7 +63,7 @@ if [ "${pkgsFrom%%:*}" = 'css' ]; then
         echo "~~~~~~~~~~~~~~~~\nError downloading $agentInstallRemotePath: httpCode=$httpCode\n~~~~~~~~~~~~~~~~"
         exit 2
     fi
-else
+else   # $pkgsFrom==https://github.com/open-horizon/anax/releases/* but $cfgFrom is likely css:
     # It is a URL like https://github.com/open-horizon/anax/releases/latest/download, just add agent-install.sh to the end
     agentInstallRemotePath="$pkgsFrom/agent-install.sh"
     echo "Downloading $agentInstallRemotePath ..."
