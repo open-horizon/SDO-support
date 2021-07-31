@@ -32,6 +32,7 @@ var CurrentExchangeUrl string                                             // the
 var CurrentExchangeInternalUrl string                                     // will default to CurrentExchangeUrl
 var CurrentCssUrl string                                                  // the external url, that the device needs
 var CurrentPkgsFrom string                                                // the argument to the agent-install.sh -i flag
+var CurrentCfgFileFrom string                                             // the argument to the agent-install.sh -k flag
 var KeyImportLock sync.RWMutex
 
 func main() {
@@ -329,7 +330,7 @@ func postVoucherHandler(orgId string, w http.ResponseWriter, r *http.Request) {
 
 	// Create exec file
 	// Note: currently agent-install-wrapper.sh requires that the flags be in this order!!!!
-	execCmd := outils.MakeExecCmd(fmt.Sprintf("/bin/sh agent-install-wrapper.sh -i %s -a %s:%s -O %s", CurrentPkgsFrom, uuid.String(), nodeToken, deviceOrgId))
+	execCmd := outils.MakeExecCmd(fmt.Sprintf("/bin/sh agent-install-wrapper.sh -i %s -a %s:%s -O %s -k %s", CurrentPkgsFrom, uuid.String(), nodeToken, deviceOrgId, CurrentCfgFileFrom))
 	fileName = OcsDbDir + "/v1/values/" + uuid.String() + "_exec"
 	outils.Verbose("POST /api/orgs/%s/vouchers: creating %s ...", deviceOrgId, fileName)
 	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(execCmd), 0644); err != nil {
@@ -754,8 +755,7 @@ func createConfigFiles() *outils.HttpError {
 	CurrentCssUrl = os.Getenv("HZN_FSS_CSSURL")
 	fileName = valuesDir + "/agent-install.cfg"
 	outils.Verbose("Creating %s ...", fileName)
-	// Even tho we now explicitly set the org via the agent-install.sh -O flag, we leave the default in the cfg file for backward compatibility
-	dataStr = "HZN_EXCHANGE_URL=" + CurrentExchangeUrl + "\nHZN_FSS_CSSURL=" + CurrentCssUrl + "\n"
+	dataStr = "HZN_EXCHANGE_URL=" + CurrentExchangeUrl + "\nHZN_FSS_CSSURL=" + CurrentCssUrl + "\n" // we now explicitly set the org via the agent-install.sh -O flag
 	if len(crt) > 0 {
 		// only add this if we actually created the agent-install.crt file above
 		dataStr += "HZN_MGMT_HUB_CERT_PATH=agent-install.crt\n"
@@ -772,26 +772,9 @@ func createConfigFiles() *outils.HttpError {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 	}
 
-	/*
-		// Get and create agent-install.sh and its name file
-		fileName = valuesDir + "/agent-install.sh"
-		if httpErr := getAgentInstallScript(fileName); httpErr != nil {
-			return httpErr
-		}
-
-		fileName = valuesDir + "/agent-install-sh_name"
-		outils.Verbose("Creating %s ...", fileName)
-		dataStr = "agent-install.sh"
-		if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(dataStr), 0644); err != nil {
-			return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
-		}
-	*/
-
 	// Create agent-install-wrapper.sh and its name file
 	fileName = valuesDir + "/agent-install-wrapper.sh"
 	outils.Verbose("Copying ./agent-install-wrapper.sh to %s ...", fileName)
-	//if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(data.AgentInstallWrapper), 0750); err != nil {
-	// The Dockerfile copied agent-install-wrapper.sh into the container home dir (the same dir we get started in)
 	if err := outils.CopyFile("./agent-install-wrapper.sh", filepath.Clean(fileName), 0750); err != nil {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not copy ./agent-install-wrapper.sh to "+fileName+": "+err.Error())
 	}
@@ -811,6 +794,17 @@ func createConfigFiles() *outils.HttpError {
 	// try to ensure they didn't give us a bad value for SDO_GET_PKGS_FROM
 	if !strings.HasPrefix(CurrentPkgsFrom, "https://github.com/open-horizon/anax/releases") && !strings.HasPrefix(CurrentPkgsFrom, "css:") {
 		outils.Warning("Unrecognized value specified for SDO_GET_PKGS_FROM: %s", CurrentPkgsFrom)
+		// continue, because maybe this is a value for the agent-install.sh -i flag that we don't know about yet
+	}
+
+	CurrentCfgFileFrom = os.Getenv("SDO_GET_CFG_FILE_FROM")
+	if CurrentCfgFileFrom == "" {
+		CurrentCfgFileFrom = "css:" // default
+	}
+	outils.Verbose("Will be configuring devices to get agent-install.cfg from %s", CurrentCfgFileFrom)
+	// try to ensure they didn't give us a bad value for SDO_GET_CFG_FILE_FROM
+	if !strings.HasPrefix(CurrentCfgFileFrom, "agent-install.cfg") && !strings.HasPrefix(CurrentCfgFileFrom, "css:") {
+		outils.Warning("Unrecognized value specified for SDO_GET_CFG_FILE_FROM: %s", CurrentCfgFileFrom)
 		// continue, because maybe this is a value for the agent-install.sh -i flag that we don't know about yet
 	}
 
