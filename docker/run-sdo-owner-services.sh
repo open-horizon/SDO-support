@@ -13,7 +13,7 @@ Arguments:
 Required environment variables:
   HZN_EXCHANGE_URL - the external URL of the exchange (used for authentication delegation and in the configuration of the device)
   HZN_FSS_CSSURL - the external URL of CSS (used in the configuration of the device)
-  HZN_MGMT_HUB_CERT - the base64 encoded content of the management hub cluster self-signed certificate (can be set to 'N/A' if the mgmt hub does not require a cert)
+  HZN_MGMT_HUB_CERT - the base64 encoded content of the management hub cluster ingress self-signed certificate (can be set to 'N/A' if the mgmt hub does not require a cert). If set, this certificate is given to the edge nodes in the HZN_MGMT_HUB_CERT_PATH variable.
 
 Recommended environment variables:
   SDO_KEY_PWD - The password for your generated keystore. This password must be passed into the Dockerfile so that start-sdo-owner-services.sh can mount to $containerHome/ocs/config/application.properties/fs.owner.keystore-password
@@ -28,6 +28,9 @@ Additional environment variables (that do not usually need to be set):
   SDO_API_CERT_HOST_PATH - path on this host of the directory holding the certificate and key files named sdoapi.crt and sdoapi.key, respectively. Default is for the OCS-API to not support TLS.
   SDO_API_CERT_PATH - path that the directory holding the certificate and key files is mounted to within the container. Default is /home/sdouser/ocs-api-dir/keys .
   EXCHANGE_INTERNAL_URL - how OCS-API should contact the exchange for authentication. Will default to HZN_EXCHANGE_URL.
+  EXCHANGE_INTERNAL_CERT - the base64 encoded certificate that OCS-API should use when contacting the exchange for authentication. Will default to the sdoapi.crt file in the directory specified by SDO_API_CERT_HOST_PATH.
+  EXCHANGE_INTERNAL_RETRIES - the maximum number of times to try connecting to the exchange during startup to verify the connection info.
+  EXCHANGE_INTERNAL_INTERVAL - the number of seconds to wait between attempts to connect to the exchange during startup
   SDO_GET_PKGS_FROM - where to have the edge devices get the horizon packages from. If set to css:, it will be expanded to css:/api/v1/objects/IBM/agent_files. Or it can be set to something like https://github.com/open-horizon/anax/releases/latest/download (which is the default).
   SDO_GET_CFG_FILE_FROM - where to have the edge devices get the agent-install.cfg file from. If set to css: (the default), it will be expanded to css:/api/v1/objects/IBM/agent_files/agent-install.cfg. Or it can set to agent-install.cfg, which means using the file that the SDO owner services creates.
   SDO_RV_VOUCHER_TTL - tell the rendezvous server to persist vouchers for this number of seconds (default 7200).
@@ -141,4 +144,4 @@ else
     chk $? 'Pulling from Docker Hub...'
 fi
 # Run the service container
-docker run --name $SDO_DOCKER_IMAGE -dt --mount "type=volume,src=sdo-ocs-db,dst=$SDO_OCS_DB_CONTAINER_DIR" $privateKeyMount $certKeyMount -p $portNum:$portNum -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_KEY_PWD=$SDO_KEY_PWD" -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "SDO_OCS_API_PORT=$SDO_OCS_API_PORT" -e "SDO_OCS_API_TLS_PORT=$SDO_OCS_API_TLS_PORT" -e "SDO_API_CERT_PATH=$SDO_API_CERT_PATH" -e "SDO_RV_PORT=$SDO_RV_PORT" -e "SDO_OPS_PORT=$SDO_OPS_PORT" -e "SDO_OPS_EXTERNAL_PORT=$SDO_OPS_EXTERNAL_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "EXCHANGE_INTERNAL_URL=$EXCHANGE_INTERNAL_URL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" -e "SDO_GET_PKGS_FROM=$SDO_GET_PKGS_FROM" -e "SDO_GET_CFG_FILE_FROM=$SDO_GET_CFG_FILE_FROM" -e "SDO_RV_VOUCHER_TTL=$SDO_RV_VOUCHER_TTL" -e "VERBOSE=$VERBOSE" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION
+docker run --name $SDO_DOCKER_IMAGE -dt --mount "type=volume,src=sdo-ocs-db,dst=$SDO_OCS_DB_CONTAINER_DIR" $privateKeyMount $certKeyMount -p $portNum:$portNum -p $SDO_RV_PORT:$SDO_RV_PORT -p $SDO_OPS_PORT:$SDO_OPS_PORT -e "SDO_KEY_PWD=$SDO_KEY_PWD" -e "SDO_OWNER_SVC_HOST=$SDO_OWNER_SVC_HOST" -e "SDO_OCS_DB_PATH=$SDO_OCS_DB_CONTAINER_DIR" -e "SDO_OCS_API_PORT=$SDO_OCS_API_PORT" -e "SDO_OCS_API_TLS_PORT=$SDO_OCS_API_TLS_PORT" -e "SDO_API_CERT_PATH=$SDO_API_CERT_PATH" -e "SDO_RV_PORT=$SDO_RV_PORT" -e "SDO_OPS_PORT=$SDO_OPS_PORT" -e "SDO_OPS_EXTERNAL_PORT=$SDO_OPS_EXTERNAL_PORT" -e "HZN_EXCHANGE_URL=$HZN_EXCHANGE_URL" -e "EXCHANGE_INTERNAL_URL=$EXCHANGE_INTERNAL_URL" -e "EXCHANGE_INTERNAL_CERT=$EXCHANGE_INTERNAL_CERT" -e "EXCHANGE_INTERNAL_RETRIES=$EXCHANGE_INTERNAL_RETRIES" -e "EXCHANGE_INTERNAL_INTERVAL=$EXCHANGE_INTERNAL_INTERVAL" -e "HZN_FSS_CSSURL=$HZN_FSS_CSSURL" -e "HZN_MGMT_HUB_CERT=$HZN_MGMT_HUB_CERT" -e "SDO_GET_PKGS_FROM=$SDO_GET_PKGS_FROM" -e "SDO_GET_CFG_FILE_FROM=$SDO_GET_CFG_FILE_FROM" -e "SDO_RV_VOUCHER_TTL=$SDO_RV_VOUCHER_TTL" -e "VERBOSE=$VERBOSE" $DOCKER_REGISTRY/$SDO_DOCKER_IMAGE:$VERSION

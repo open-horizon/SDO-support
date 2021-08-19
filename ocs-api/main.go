@@ -28,11 +28,14 @@ var GetVoucherRegex = regexp.MustCompile(`^/api/vouchers/([^/]+)$`)       // bac
 var OrgVouchersRegex = regexp.MustCompile(`^/api/orgs/([^/]+)/vouchers$`) // used for both GET and POST
 var OrgKeyRegex = regexp.MustCompile(`^/api/orgs/([^/]+)/keys/([^/]+)$`)  // used for both GET and DELETE
 var OrgKeysRegex = regexp.MustCompile(`^/api/orgs/([^/]+)/keys$`)         // used for both GET and POST
-var CurrentExchangeUrl string                                             // the external url, that the device needs
-var CurrentExchangeInternalUrl string                                     // will default to CurrentExchangeUrl
-var CurrentCssUrl string                                                  // the external url, that the device needs
-var CurrentPkgsFrom string                                                // the argument to the agent-install.sh -i flag
-var CurrentCfgFileFrom string                                             // the argument to the agent-install.sh -k flag
+var ExchangeUrl string                                                    // the external url, that the device needs
+var ExchangeInternalUrl string                                            // will default to ExchangeUrl
+var ExchangeInternalCertPath string                                       // will default to /home/sdouser/ocs-api-dir/keys/sdoapi.crt if not set by EXCHANGE_INTERNAL_CERT
+var ExchangeInternalRetries int                                           // the number of times to retry connecting to the exchange during startup
+var ExchangeInternalInterval int                                          // the number of seconds to wait before retrying again to connect to the exchange during startup
+var CssUrl string                                                         // the external url, that the device needs
+var PkgsFrom string                                                       // the argument to the agent-install.sh -i flag
+var CfgFileFrom string                                                    // the argument to the agent-install.sh -k flag
 var KeyImportLock sync.RWMutex
 
 func main() {
@@ -45,6 +48,8 @@ func main() {
 	port := os.Args[1]
 	OcsDbDir = os.Args[2]
 	outils.SetVerbose()
+	ExchangeInternalRetries = outils.GetEnvVarIntWithDefault("EXCHANGE_INTERNAL_RETRIES", 12) // by default a total of 1 minute of trying
+	ExchangeInternalInterval = outils.GetEnvVarIntWithDefault("EXCHANGE_INTERNAL_INTERVAL", 5)
 
 	// Ensure we can get to the db, and create the necessary subdirs, if necessary
 	if err := os.MkdirAll(OcsDbDir+"/v1/devices", 0750); err != nil {
@@ -65,14 +70,32 @@ func main() {
 	//http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/api/", apiHandler)
 
+	// Get the cert to use when talking to the exchange for authentication, if set
+	if outils.IsEnvVarSet("EXCHANGE_INTERNAL_CERT") {
+		crtBytes, err := base64.StdEncoding.DecodeString(os.Getenv("EXCHANGE_INTERNAL_CERT"))
+		if err != nil {
+			outils.Verbose("Base64 decoding EXCHANGE_INTERNAL_CERT was unsuccessful (%s), using it as not encoded ...", err.Error())
+			// Note: supposedly we could instead use this regex to check for base64 encoding: ^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)?$
+			crtBytes = []byte(os.Getenv("EXCHANGE_INTERNAL_CERT"))
+		}
+		ExchangeInternalCertPath = "/home/sdouser/ocs-api-dir/exchange.crt"
+		outils.Verbose("Creating %s ...", ExchangeInternalCertPath)
+		if err := ioutil.WriteFile(ExchangeInternalCertPath, crtBytes, 0644); err != nil {
+			outils.Fatal(3, "could not create "+ExchangeInternalCertPath+": "+err.Error())
+		}
+	}
+
 	// Listen on the specified port and protocol
 	keysDir := outils.GetEnvVarWithDefault("SDO_API_CERT_PATH", "/home/sdouser/ocs-api-dir/keys")
 	certBaseName := outils.GetEnvVarWithDefault("SDO_API_CERT_BASE_NAME", "sdoapi")
 	if outils.PathExists(keysDir+"/"+certBaseName+".crt") && outils.PathExists(keysDir+"/"+certBaseName+".key") {
-		outils.Verbose("Listening on HTTPS port %s and using ocs db %s", port, OcsDbDir)
+		ExchangeInternalCertPath = keysDir + "/" + certBaseName + ".crt" // if it wasn't set, default it to the same cert we are using for listening on our port
+		outils.VerifyExchangeConnection(ExchangeInternalUrl, ExchangeInternalCertPath, ExchangeInternalRetries, ExchangeInternalInterval)
+		fmt.Printf("Listening on HTTPS port %s and using ocs db %s\n", port, OcsDbDir)
 		log.Fatal(http.ListenAndServeTLS(":"+port, keysDir+"/"+certBaseName+".crt", keysDir+"/"+certBaseName+".key", nil))
 	} else {
-		outils.Verbose("Listening on HTTP port %s and using ocs db %s", port, OcsDbDir)
+		outils.VerifyExchangeConnection(ExchangeInternalUrl, ExchangeInternalCertPath, ExchangeInternalRetries, ExchangeInternalInterval)
+		fmt.Printf("Listening on HTTP port %s and using ocs db %s\n", port, OcsDbDir)
 		log.Fatal(http.ListenAndServe(":"+port, nil))
 	}
 } // end of main
@@ -137,7 +160,7 @@ func getVoucherHandler(orgId, deviceUuid string, w http.ResponseWriter, r *http.
 		return
 	}
 
-	if authenticated, _, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
+	if authenticated, _, httpErr := outils.ExchangeAuthenticate(r, ExchangeInternalUrl, deviceOrgId, ExchangeInternalCertPath); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
@@ -182,7 +205,7 @@ func getVouchersHandler(orgId string, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if authenticated, _, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, OcsDbDir+"/v1/values/agent-install.crt"); httpErr != nil {
+	if authenticated, _, httpErr := outils.ExchangeAuthenticate(r, ExchangeInternalUrl, deviceOrgId, ExchangeInternalCertPath); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
@@ -231,7 +254,7 @@ func postVoucherHandler(orgId string, w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Authenticate this user with the exchange
-	if authenticated, _, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, valuesDir+"/agent-install.crt"); httpErr != nil {
+	if authenticated, _, httpErr := outils.ExchangeAuthenticate(r, ExchangeInternalUrl, deviceOrgId, ExchangeInternalCertPath); httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
 	} else if !authenticated {
@@ -330,7 +353,7 @@ func postVoucherHandler(orgId string, w http.ResponseWriter, r *http.Request) {
 
 	// Create exec file
 	// Note: currently agent-install-wrapper.sh requires that the flags be in this order!!!!
-	execCmd := outils.MakeExecCmd(fmt.Sprintf("/bin/sh agent-install-wrapper.sh -i %s -a %s:%s -O %s -k %s", CurrentPkgsFrom, uuid.String(), nodeToken, deviceOrgId, CurrentCfgFileFrom))
+	execCmd := outils.MakeExecCmd(fmt.Sprintf("/bin/sh agent-install-wrapper.sh -i %s -a %s:%s -O %s -k %s", PkgsFrom, uuid.String(), nodeToken, deviceOrgId, CfgFileFrom))
 	fileName = OcsDbDir + "/v1/values/" + uuid.String() + "_exec"
 	outils.Verbose("POST /api/orgs/%s/vouchers: creating %s ...", deviceOrgId, fileName)
 	if err := ioutil.WriteFile(filepath.Clean(fileName), []byte(execCmd), 0644); err != nil {
@@ -358,7 +381,7 @@ func getKeysHandler(orgId string, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	authenticated, user, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, OcsDbDir+"/v1/values/agent-install.crt")
+	authenticated, user, httpErr := outils.ExchangeAuthenticate(r, ExchangeInternalUrl, deviceOrgId, ExchangeInternalCertPath)
 	if httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
@@ -475,7 +498,7 @@ func getKeyHandler(orgId, keyName string, w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	authenticated, user, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, OcsDbDir+"/v1/values/agent-install.crt")
+	authenticated, user, httpErr := outils.ExchangeAuthenticate(r, ExchangeInternalUrl, deviceOrgId, ExchangeInternalCertPath)
 	if httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
@@ -516,7 +539,7 @@ func deleteKeyHandler(orgId, keyName string, w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	authenticated, user, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, OcsDbDir+"/v1/values/agent-install.crt")
+	authenticated, user, httpErr := outils.ExchangeAuthenticate(r, ExchangeInternalUrl, deviceOrgId, ExchangeInternalCertPath)
 	if httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
@@ -571,8 +594,8 @@ func postImportKeysHandler(orgId string, w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	valuesDir := OcsDbDir + "/v1/values"
-	authenticated, user, httpErr := outils.ExchangeAuthenticate(r, CurrentExchangeInternalUrl, deviceOrgId, valuesDir+"/agent-install.crt")
+	//valuesDir := OcsDbDir + "/v1/values"
+	authenticated, user, httpErr := outils.ExchangeAuthenticate(r, ExchangeInternalUrl, deviceOrgId, ExchangeInternalCertPath)
 	if httpErr != nil {
 		http.Error(w, httpErr.Error(), httpErr.Code)
 		return
@@ -745,17 +768,17 @@ func createConfigFiles() *outils.HttpError {
 	}
 
 	// Create agent-install.cfg and its name file
-	CurrentExchangeUrl = os.Getenv("HZN_EXCHANGE_URL")
+	ExchangeUrl = os.Getenv("HZN_EXCHANGE_URL")
 	// CurrentExchangeInternalUrl is not needed for the device config file, only for ocs-api exchange authentication
 	if outils.IsEnvVarSet("EXCHANGE_INTERNAL_URL") {
-		CurrentExchangeInternalUrl = os.Getenv("EXCHANGE_INTERNAL_URL")
+		ExchangeInternalUrl = os.Getenv("EXCHANGE_INTERNAL_URL")
 	} else {
-		CurrentExchangeInternalUrl = CurrentExchangeUrl // default
+		ExchangeInternalUrl = ExchangeUrl // default
 	}
-	CurrentCssUrl = os.Getenv("HZN_FSS_CSSURL")
+	CssUrl = os.Getenv("HZN_FSS_CSSURL")
 	fileName = valuesDir + "/agent-install.cfg"
 	outils.Verbose("Creating %s ...", fileName)
-	dataStr = "HZN_EXCHANGE_URL=" + CurrentExchangeUrl + "\nHZN_FSS_CSSURL=" + CurrentCssUrl + "\n" // we now explicitly set the org via the agent-install.sh -O flag
+	dataStr = "HZN_EXCHANGE_URL=" + ExchangeUrl + "\nHZN_FSS_CSSURL=" + CssUrl + "\n" // we now explicitly set the org via the agent-install.sh -O flag
 	if len(crt) > 0 {
 		// only add this if we actually created the agent-install.crt file above
 		dataStr += "HZN_MGMT_HUB_CERT_PATH=agent-install.crt\n"
@@ -763,7 +786,7 @@ func createConfigFiles() *outils.HttpError {
 	if err := ioutil.WriteFile(fileName, []byte(dataStr), 0644); err != nil {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 	}
-	outils.Verbose("Will be configuring devices to use config:\n%s", dataStr)
+	fmt.Printf("Will be configuring devices to use config:\n%s\n", dataStr)
 
 	fileName = valuesDir + "/agent-install-cfg_name"
 	outils.Verbose("Creating %s ...", fileName)
@@ -786,25 +809,25 @@ func createConfigFiles() *outils.HttpError {
 		return outils.NewHttpError(http.StatusInternalServerError, "could not create "+fileName+": "+err.Error())
 	}
 
-	CurrentPkgsFrom = os.Getenv("SDO_GET_PKGS_FROM")
-	if CurrentPkgsFrom == "" {
-		CurrentPkgsFrom = "https://github.com/open-horizon/anax/releases/latest/download" // default
+	PkgsFrom = os.Getenv("SDO_GET_PKGS_FROM")
+	if PkgsFrom == "" {
+		PkgsFrom = "https://github.com/open-horizon/anax/releases/latest/download" // default
 	}
-	outils.Verbose("Will be configuring devices to get horizon packages from %s", CurrentPkgsFrom)
+	fmt.Printf("Will be configuring devices to get horizon packages from %s\n", PkgsFrom)
 	// try to ensure they didn't give us a bad value for SDO_GET_PKGS_FROM
-	if !strings.HasPrefix(CurrentPkgsFrom, "https://github.com/open-horizon/anax/releases") && !strings.HasPrefix(CurrentPkgsFrom, "css:") {
-		outils.Warning("Unrecognized value specified for SDO_GET_PKGS_FROM: %s", CurrentPkgsFrom)
+	if !strings.HasPrefix(PkgsFrom, "https://github.com/open-horizon/anax/releases") && !strings.HasPrefix(PkgsFrom, "css:") {
+		outils.Warning("Unrecognized value specified for SDO_GET_PKGS_FROM: %s", PkgsFrom)
 		// continue, because maybe this is a value for the agent-install.sh -i flag that we don't know about yet
 	}
 
-	CurrentCfgFileFrom = os.Getenv("SDO_GET_CFG_FILE_FROM")
-	if CurrentCfgFileFrom == "" {
-		CurrentCfgFileFrom = "css:" // default
+	CfgFileFrom = os.Getenv("SDO_GET_CFG_FILE_FROM")
+	if CfgFileFrom == "" {
+		CfgFileFrom = "css:" // default
 	}
-	outils.Verbose("Will be configuring devices to get agent-install.cfg from %s", CurrentCfgFileFrom)
+	fmt.Printf("Will be configuring devices to get agent-install.cfg from %s\n", CfgFileFrom)
 	// try to ensure they didn't give us a bad value for SDO_GET_CFG_FILE_FROM
-	if !strings.HasPrefix(CurrentCfgFileFrom, "agent-install.cfg") && !strings.HasPrefix(CurrentCfgFileFrom, "css:") {
-		outils.Warning("Unrecognized value specified for SDO_GET_CFG_FILE_FROM: %s", CurrentCfgFileFrom)
+	if !strings.HasPrefix(CfgFileFrom, "agent-install.cfg") && !strings.HasPrefix(CfgFileFrom, "css:") {
+		outils.Warning("Unrecognized value specified for SDO_GET_CFG_FILE_FROM: %s", CfgFileFrom)
 		// continue, because maybe this is a value for the agent-install.sh -i flag that we don't know about yet
 	}
 
