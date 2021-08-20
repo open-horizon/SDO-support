@@ -82,12 +82,15 @@ Note: you only have to perform the steps in this section once. The keys created 
      "common_name": "My Full Name",
      "email_name": "my@email.com",
      "company_name": "My Company",
-     "country_name": "My Country",
+     "country_name": "Two Letter Country Code",
      "state_name": "My StateOrProvince",
      "locale_name":"My City"
    }
    EndOfText
-   curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -X POST -H Content-Type:application/json -d @key-info.json -o "${HZN_ORG_ID}_${KEY_NAME}_public-key.pem" $HZN_SDO_SVC_URL/keys && echo
+
+   curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -X POST -H Content-Type:application/json -d @key-info.json -o "${HZN_ORG_ID}_${KEY_NAME}_public-key.pem" $HZN_SDO_SVC_URL/orgs/${HZN_ORG_ID}/keys && echo
+
+   curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -X GET -H Content-Type:application/json $HZN_SDO_SVC_URL/orgs/${HZN_ORG_ID}/keys && echo
    ```  
 
 2. One file is returned as a result of this API: `${HZN_ORG_ID}_${KEY_NAME}_public-key.pem` . This is your customer/owner public keys (all in a single file) corresponding to the private key pairs that were imported into the SDO owner service. This is used by the device manufacturer to securely extend the vouchers to the owner. Pass this file as an argument to `simulate-mfg.sh` when experimenting with SDO, and give this public key to each device manufacturer producing SDO-enabled devices for you.
