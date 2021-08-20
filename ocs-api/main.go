@@ -618,6 +618,11 @@ func postImportKeysHandler(orgId string, w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if len(info.Country_name) > 2 {
+		http.Error(w, "Country name must be a 2 Letter Country Code.", http.StatusBadRequest)
+		return
+	}
+
 	// Run the script that will create and import the key pairs
 	// for dev/test they can specify the url param expired=true to create an already expired key
 	runCmdOpts := outils.RunCmdOpts{}
