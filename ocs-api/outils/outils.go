@@ -4,18 +4,20 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/hex"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
+	mrand "math/rand"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -110,14 +112,40 @@ func WriteResponse(httpCode int, w http.ResponseWriter, bodyBytes []byte) {
 	}
 }
 
-// Generate a random node token
+// Generate a random node token that follows the new exchange requirements for node and agbot tokens
 func GenerateNodeToken() (string, *HttpError) {
+	// Taken from anax/cutil/cutil.go
+	random := mrand.New(mrand.NewSource(int64(time.Now().Nanosecond())))
+
+	randStr := ""
+	randStr += string(rune(random.Intn(10) + 48)) // add a random digit to the string
+	randStr += string(rune(random.Intn(26) + 65)) // add an uppercase letter to the string
+	randStr += string(rune(random.Intn(26) + 97)) // add a lowercase letter to the string
+	randStr += string(rune(random.Intn(10) + 48)) // add one more random digit so we reach 64 bytes at the end
+
+	// pad out the password to make it <=15 chars
+	bytes := make([]byte, 63)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", NewHttpError(http.StatusInternalServerError, "Error reading random bytes for node token: "+err.Error())
+	}
+	randStr += base64.URLEncoding.EncodeToString(bytes)
+
+	// shuffle the string
+	shuffledStr := []rune(randStr)
+	mrand.Shuffle(len(shuffledStr), func(i, j int) {
+		shuffledStr[i], shuffledStr[j] = shuffledStr[j], shuffledStr[i]
+	})
+
+	return string(shuffledStr), nil
+
+	/* this method generates a 44 char token of random numbers and lowercase chars
 	bytes := make([]byte, 22) // 44 hex chars
 	_, err := rand.Read(bytes)
 	if err != nil {
 		return "", NewHttpError(http.StatusInternalServerError, "Error creating random bytes for node token: "+err.Error())
 	}
 	return hex.EncodeToString(bytes), nil
+	*/
 }
 
 // Convert a space-separated string into a null separated string (with extra null at end)
@@ -181,6 +209,19 @@ func GetEnvVarWithDefault(envVarName, defaultValue string) string {
 		return defaultValue
 	}
 	return envVarValue
+}
+
+// Get this environment variable as an int or use this default. Exits with error if the value is not a valid int.
+func GetEnvVarIntWithDefault(envVarName string, defaultValue int) int {
+	envVarStr := os.Getenv(envVarName)
+	if envVarStr == "" {
+		return defaultValue
+	}
+	envVarInt, err := strconv.Atoi(envVarStr)
+	if err != nil {
+		Fatal(1, "environment variable %s value %s must be a valid integer", envVarName, envVarStr)
+	}
+	return envVarInt
 }
 
 // Returns true if this env var is set
@@ -261,6 +302,48 @@ type UserDefinition struct {
 type GetUsersResponse struct {
 	Users     map[string]UserDefinition `json:"users"`
 	LastIndex int                       `json:"lastIndex"`
+}
+
+// Verify (with retries) we can communicate with the exchange with the specified connection info. Exits with fatal error if we can't.
+func VerifyExchangeConnection(currentExchangeUrl, certificatePath string, retries, interval int) {
+	method := http.MethodGet
+	url := fmt.Sprintf("%v/admin/version", currentExchangeUrl)
+	fmt.Printf("Verifying connection to Exchange %s ...\n", currentExchangeUrl)
+
+	// Create an HTTP request object to the exchange.
+	req, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		Fatal(3, "unable to create HTTP request for %s, error: %v", url, err)
+	}
+	httpClient, httpErr := GetHTTPClient(certificatePath) // if certificatePath=="" then it won't use a cert
+	if httpErr != nil {
+		Fatal(3, "unable to get HTTP client for %s, error: %v", url, httpErr.Error())
+	}
+
+	// Send the request to get the version
+	success := false
+	for i := 1; i <= retries; i++ {
+		whatsNext := fmt.Sprintf("Will retry in %d seconds.", interval)
+		if i == retries {
+			whatsNext = "Number of retries exhausted, giving up."
+		}
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			fmt.Printf("Unable to send HTTP request to %s, message: %v . %s\n", url, err, whatsNext)
+		} else if resp.StatusCode != http.StatusOK {
+			fmt.Printf("Unable to connect to the %s and get its version. HTTP code: %d . %s\n", url, resp.StatusCode, whatsNext)
+		} else { // the connection to the exchange succeeded
+			success = true
+			break
+		}
+		time.Sleep(time.Duration(interval) * time.Second)
+	}
+
+	if success {
+		fmt.Printf("Successfully connected to Exchange %s\n", currentExchangeUrl)
+	} else {
+		Fatal(3, "could not connect to Exchange %s in %d attempts", currentExchangeUrl, retries)
+	}
 }
 
 // Verify the request credentials with the exchange. Returns true/false and the user (if true), or error
