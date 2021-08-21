@@ -89,7 +89,10 @@ func main() {
 	keysDir := outils.GetEnvVarWithDefault("SDO_API_CERT_PATH", "/home/sdouser/ocs-api-dir/keys")
 	certBaseName := outils.GetEnvVarWithDefault("SDO_API_CERT_BASE_NAME", "sdoapi")
 	if outils.PathExists(keysDir+"/"+certBaseName+".crt") && outils.PathExists(keysDir+"/"+certBaseName+".key") {
-		ExchangeInternalCertPath = keysDir + "/" + certBaseName + ".crt" // if it wasn't set, default it to the same cert we are using for listening on our port
+		if ExchangeInternalCertPath == "" {
+			ExchangeInternalCertPath = keysDir + "/" + certBaseName + ".crt" // if it wasn't set, default it to the same cert we are using for listening on our port
+			fmt.Printf("Environment variable EXCHANGE_INTERNAL_CERT is not set, defaulting to the certificate in %s\n", ExchangeInternalCertPath)
+		}
 		outils.VerifyExchangeConnection(ExchangeInternalUrl, ExchangeInternalCertPath, ExchangeInternalRetries, ExchangeInternalInterval)
 		fmt.Printf("Listening on HTTPS port %s and using ocs db %s\n", port, OcsDbDir)
 		log.Fatal(http.ListenAndServeTLS(":"+port, keysDir+"/"+certBaseName+".crt", keysDir+"/"+certBaseName+".key", nil))
