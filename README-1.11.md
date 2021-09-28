@@ -56,7 +56,7 @@ Before continuing with the rest of the SDO process, it is good to verify that yo
 
    ```bash
    # either use curl directly
-   curl -k -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" $HZN_SDO_SVC_URL/vouchers | jq
+   curl -k -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" $HZN_SDO_SVC_URL/orgs/$HZN_ORG_ID/vouchers | jq
    # or use the hzn command, if you have the horizon-cli package installed
    hzn voucher list
    ```
