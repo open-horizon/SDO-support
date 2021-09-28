@@ -4,5 +4,6 @@ Edge devices built with [Intel SDO](https://software.intel.com/en-us/secure-devi
 
 The following versions of SDO have been integrated with Horizon. Use the version that is the same as the `sdo-owner-service` container running on your Horizon management hub.
 
+- [Horizon SDO 1.11 README](README-1.11.md)
 - [Horizon SDO 1.10 README](README-1.10.md)
 - [Horizon SDO 1.8 README](README-1.8.md)
