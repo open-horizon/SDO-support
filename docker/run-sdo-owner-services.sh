@@ -46,7 +46,7 @@ if [[ $HZN_MGMT_HUB_CERT == 'N/A' || $HZN_MGMT_HUB_CERT == 'n/a' ]]; then
     unset HZN_MGMT_HUB_CERT
 fi
 
-VERSION="${1:-1.10}"
+VERSION="${1:-latest}"
 ownerPrivateKey="$2"
 if [[ -n "$ownerPrivateKey" && ! -f "$ownerPrivateKey" ]]; then
     echo "Error: specified owner-private-key-file '$ownerPrivateKey' does not exist."
