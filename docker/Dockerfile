@@ -45,8 +45,7 @@ RUN curl -sS -o epel-release-latest-8.noarch.rpm https://dl.fedoraproject.org/pu
     rpm -i /root/epel-release-latest-8.noarch.rpm && \
     microdnf update -y && \
     microdnf install --nodocs -y openssl ca-certificates tar findutils shadow-utils procps openssl-devel haveged && \
-    microdnf clean all && \
-    groupadd -g 1000 sdouser && adduser -u 1000 -g sdouser sdouser
+    microdnf clean all 
 
 # Install openjdk-11-jre. The tar.gz file is 43 MB, unpacked is 124 MB
 # Note: with SDO 1.7, it is necessary to use java 11.0.4 or earlier, because there is an issue with the SDO bouncycastle version and 11.0.5 and above
@@ -64,7 +63,6 @@ RUN curl -sSL -o openjre-11_linux-x64_bin.tar.gz https://github.com/AdoptOpenJDK
 # this doesn't work here, because docker writes /etc/hosts when it starts the container
 #RUN echo "127.0.0.1 RVSDO OwnerSDO" >> /etc/hosts
 
-USER sdouser
 WORKDIR $WORKDIR
 
 # Get the license file
@@ -73,26 +71,33 @@ COPY sdo/NOTICES-v1.10.1/iot-platform-sdk/* /licenses/SDOIotPlatformSDK/
 
 # Get rendezvous files. The rv subdir will be created automatically by COPY
 # Note: need to use uid and gid to be able to build on non-linux hosts
-COPY --chown=1000:1000 sdo/pri-v1.10.1/rendezvous/* $WORKDIR/rv/
+COPY sdo/pri-v1.10.1/rendezvous/* $WORKDIR/rv/
 
 # Get to0scheduler files
-COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.10.1/to0scheduler $WORKDIR/to0scheduler/
+COPY sdo/iot-platform-sdk-v1.10.1/to0scheduler $WORKDIR/to0scheduler/
 
 # Get OCS files
 # Note: we don't want the contents of ocs/config/db, that is excluded in the .dockerignore file
-COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.10.1/ocs $WORKDIR/ocs/
+COPY sdo/iot-platform-sdk-v1.10.1/ocs $WORKDIR/ocs/
 # This is only the default owner private key. It will be moved into ocs/config/db/v1/creds by start-sdo-owner-servic es.sh if they don't specify their own key in run-sdo-owner-services.sh
-COPY --chown=1000:1000 keys/sample-owner-keystore.p12 $WORKDIR/ocs/config/sample-owner-keystore.p12
+COPY keys/sample-owner-keystore.p12 $WORKDIR/ocs/config/sample-owner-keystore.p12
 #This command gives `USER sdouser` the correct permissions for mounting this key inside the container
-RUN touch ocs/config/owner-keystore.p12 && chown sdouser:sdouser ocs/config/owner-keystore.p12
+RUN touch ocs/config/owner-keystore.p12
 # SDO_OCS_DB_PATH is where the named volume will get mounted to. Create the subdirs, and make sure we own everything
-RUN mkdir -p $SDO_OCS_DB_PATH/v1/{creds,devices,values} ocs-api-dir/keys && chown -R 1000:1000 $SDO_OCS_DB_PATH ocs-api-dir
+RUN mkdir -p $SDO_OCS_DB_PATH/v1/{creds,devices,values} ocs-api-dir/keys
 
 # Get OPS files
-COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.10.1/ops $WORKDIR/ops/
+COPY sdo/iot-platform-sdk-v1.10.1/ops $WORKDIR/ops/
 
 # Get our ocs-api binary, startup script, agent-install-wrapper.sh, and keystore scripts
-COPY --chown=1000:1000 ocs-api/linux/ocs-api ocs-api/scripts/*.sh docker/start-sdo-owner-services.sh $WORKDIR/
+COPY ocs-api/linux/ocs-api ocs-api/scripts/*.sh docker/start-sdo-owner-services.sh $WORKDIR/
+
+# Get the script for fixing permissions, to make the container able to run on Openshift
+COPY docker/fix-permissions /usr/local/bin
+# Apply the script for fixing permissions to a few directories
+RUN /usr/local/bin/fix-permissions $WORKDIR && /usr/local/bin/fix-permissions $SDO_OCS_DB_PATH && /usr/local/bin/fix-permissions ocs-api-dir && /usr/local/bin/fix-permissions ocs/config/owner-keystore.p12
+
+USER 1001
 
 # Note: the EXPOSE stmt doesn't actually expose the port, it just serves as documentation about the -p flags docker run should use. We may override these values, so just let docker run set them.
 #EXPOSE 8040  8042  9008
