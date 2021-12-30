@@ -7,8 +7,8 @@ STABLE_VERSION ?= 1.11
 
 #todo: add BUILD_NUMBER like in anax/Makefile
 
-# If you are building with podman you can pass it here
-export DOCKER_OR_PODMAN ?= docker
+# If you are building with a container engine different from docker you can set it here (e.g. podman)
+export CONTAINER_ENGINE ?= docker
 # The crc internal registry will always look like this
 export CRC_REGISTRY ?= default-route-openshift-image-registry.apps-crc.testing
 # When pushing to the crc local registry and using standard configurations, you need to do it in the same namespace where you deploy your workload
@@ -45,14 +45,14 @@ run-ocs-api: ocs-api/ocs-api
 
 # Build the SDO services docker image - see the build environment requirements listed in docker/Dockerfile
 $(SDO_DOCKER_IMAGE): ocs-api/linux/ocs-api
-	- $(DOCKER_OR_PODMAN) rm -f $(SDO_DOCKER_IMAGE) 2> /dev/null || :
-	$(DOCKER_OR_PODMAN) build -t $(DOCKER_REGISTRY)/$@:$(VERSION) $(SDO_IMAGE_LABELS) $(DOCKER_OPTS) -f docker/Dockerfile .
+	- $(CONTAINER_ENGINE) rm -f $(SDO_DOCKER_IMAGE) 2> /dev/null || :
+	$(CONTAINER_ENGINE) build -t $(DOCKER_REGISTRY)/$@:$(VERSION) $(SDO_IMAGE_LABELS) $(DOCKER_OPTS) -f docker/Dockerfile .
 
 # Run the SDO services docker container
 # If you want to run the image w/o rebuilding: make -W sdo-owner-services -W ocs-api/linux/ocs-api run-sdo-owner-services
 run-$(SDO_DOCKER_IMAGE): $(SDO_DOCKER_IMAGE)
 	: $${HZN_EXCHANGE_URL:?} $${HZN_FSS_CSSURL:?} $${HZN_MGMT_HUB_CERT:?}
-	- $(DOCKER_OR_PODMAN) rm -f $(SDO_DOCKER_IMAGE) 2> /dev/null || :
+	- $(CONTAINER_ENGINE) rm -f $(SDO_DOCKER_IMAGE) 2> /dev/null || :
 	docker/run-sdo-owner-services.sh $(VERSION)
 
 # Push the SDO services docker image that you are still working on to the registry. This is necessary if you are testing on a different machine than you are building on.
@@ -60,32 +60,35 @@ dev-push-$(SDO_DOCKER_IMAGE):
 	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
 
 # Push the SDO services docker image that you are still working on to the CRC registry. This is necessary if you are testing on a CRC openshift cluster.
+# To login into the CRC internal registry please run:
+# eval $(crc podman-env --root)
+# podman login -u kubeadmin -p $(oc whoami -t) default-route-openshift-image-registry.apps-crc.testing --tls-verify=false
 crc-push-$(SDO_DOCKER_IMAGE):
-	$(DOCKER_OR_PODMAN) tag $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION) $(CRC_REGISTRY)/$(NAMESPACE)/$(SDO_DOCKER_IMAGE):$(VERSION)
-	$(DOCKER_OR_PODMAN) push $(CRC_REGISTRY)/$(NAMESPACE)/$(SDO_DOCKER_IMAGE):$(VERSION)
+	$(CONTAINER_ENGINE) tag $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION) $(CRC_REGISTRY)/$(NAMESPACE)/$(SDO_DOCKER_IMAGE):$(VERSION)
+	$(CONTAINER_ENGINE) push $(CRC_REGISTRY)/$(NAMESPACE)/$(SDO_DOCKER_IMAGE):$(VERSION)
 
 # Push the SDO services docker image to the registry and tag as testing
 push-$(SDO_DOCKER_IMAGE):
-	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
-	docker tag $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION) $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):testing
-	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):testing
+	$(CONTAINER_ENGINE) push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
+	$(CONTAINER_ENGINE) tag $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION) $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):testing
+	$(CONTAINER_ENGINE) push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):testing
 
 # Push the SDO services docker image to the registry and tag as latest
 publish-$(SDO_DOCKER_IMAGE):
-	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
-	docker tag $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION) $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):latest
-	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):latest
-	docker tag $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION) $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(STABLE_VERSION)
-	docker push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(STABLE_VERSION)
+	$(CONTAINER_ENGINE) push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
+	$(CONTAINER_ENGINE) tag $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION) $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):latest
+	$(CONTAINER_ENGINE) push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):latest
+	$(CONTAINER_ENGINE) tag $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION) $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(STABLE_VERSION)
+	$(CONTAINER_ENGINE) push $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(STABLE_VERSION)
 
 # Use this if you are on a machine where you did not build the image
 pull-$(SDO_DOCKER_IMAGE):
-	docker pull $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
+	$(CONTAINER_ENGINE) pull $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):$(VERSION)
 
 clean:
 	go clean
 	rm -f ocs-api/ocs-api ocs-api/linux/ocs-api
-	- $(DOCKER_OR_PODMAN) rm -f $(SDO_DOCKER_IMAGE) 2> /dev/null || :
-	- $(DOCKER_OR_PODMAN) rmi $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):{$(VERSION),latest,$(STABLE_VERSION)} 2> /dev/null || :
+	- $(CONTAINER_ENGINE) rm -f $(SDO_DOCKER_IMAGE) 2> /dev/null || :
+	- $(CONTAINER_ENGINE) rmi $(DOCKER_REGISTRY)/$(SDO_DOCKER_IMAGE):{$(VERSION),latest,$(STABLE_VERSION)} 2> /dev/null || :
 
 .PHONY: default run-ocs-api run-$(SDO_DOCKER_IMAGE) push-$(SDO_DOCKER_IMAGE) publish-$(SDO_DOCKER_IMAGE) promote-$(SDO_DOCKER_IMAGE) pull-$(SDO_DOCKER_IMAGE) clean

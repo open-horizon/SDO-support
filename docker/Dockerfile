@@ -41,11 +41,13 @@ WORKDIR /root
 # To search for rpms (or for what rpms provides a command): http://www.rpm-find.net/linux/RPM/
 # Note: libssl-dev is is required by all the sdo services on ubuntu. I think the equivalent rpm is openssl-devel
 # Note: due to a bug in microdnf, using the --nodocs option causes an exit code of 141: https://github.com/rpm-software-management/microdnf/issues/50
+# sdouser is added to the root group, this is required to let other users in the same group able to change files created by sdouser
 RUN curl -sS -o epel-release-latest-8.noarch.rpm https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
     rpm -i /root/epel-release-latest-8.noarch.rpm && \
     microdnf update -y && \
     microdnf install --nodocs -y openssl ca-certificates tar findutils shadow-utils procps openssl-devel haveged && \
-    microdnf clean all 
+    microdnf clean all && \
+    adduser -u 1000 -g 0 sdouser
 
 # Install openjdk-11-jre. The tar.gz file is 43 MB, unpacked is 124 MB
 # Note: with SDO 1.7, it is necessary to use java 11.0.4 or earlier, because there is an issue with the SDO bouncycastle version and 11.0.5 and above
@@ -81,8 +83,10 @@ COPY sdo/iot-platform-sdk-v1.10.1/to0scheduler $WORKDIR/to0scheduler/
 COPY sdo/iot-platform-sdk-v1.10.1/ocs $WORKDIR/ocs/
 # This is only the default owner private key. It will be moved into ocs/config/db/v1/creds by start-sdo-owner-servic es.sh if they don't specify their own key in run-sdo-owner-services.sh
 COPY keys/sample-owner-keystore.p12 $WORKDIR/ocs/config/sample-owner-keystore.p12
+
 #This command gives `USER sdouser` the correct permissions for mounting this key inside the container
-RUN touch ocs/config/owner-keystore.p12
+RUN touch $WORKDIR/ocs/config/owner-keystore.p12
+
 # SDO_OCS_DB_PATH is where the named volume will get mounted to. Create the subdirs, and make sure we own everything
 RUN mkdir -p $SDO_OCS_DB_PATH/v1/{creds,devices,values} ocs-api-dir/keys
 
@@ -92,11 +96,10 @@ COPY sdo/iot-platform-sdk-v1.10.1/ops $WORKDIR/ops/
 # Get our ocs-api binary, startup script, agent-install-wrapper.sh, and keystore scripts
 COPY ocs-api/linux/ocs-api ocs-api/scripts/*.sh docker/start-sdo-owner-services.sh $WORKDIR/
 
-# Get the script for fixing permissions, to make the container able to run on Openshift
+# Get the script for fixing permissions, to make the container able to run rootless
 COPY docker/fix-permissions /usr/local/bin
-# Apply the script for fixing permissions to a few directories
-RUN /usr/local/bin/fix-permissions $WORKDIR && /usr/local/bin/fix-permissions $SDO_OCS_DB_PATH && /usr/local/bin/fix-permissions ocs-api-dir && /usr/local/bin/fix-permissions ocs/config/owner-keystore.p12
-
+# Apply it 
+RUN /usr/local/bin/fix-permissions $WORKDIR
 USER 1001
 
 # Note: the EXPOSE stmt doesn't actually expose the port, it just serves as documentation about the -p flags docker run should use. We may override these values, so just let docker run set them.
