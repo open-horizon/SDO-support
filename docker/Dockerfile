@@ -1,21 +1,18 @@
 FROM registry.access.redhat.com/ubi8/ubi-minimal:8.0
 
 # Builds a composite docker service that the "owner" needs to run. Specifically it contains the following services:
-#   Intel SDO development/test rendezvous service
-#   Intel SDO to0scheduler service
-#   Intel SDO OPS (Owner Protocol Service)
-#   Intel SDO OCS (Owner Companion Service)
-#   Open-horizon ocs-api (OCS REST API)
+#   Intel FDO development/test rendezvous service
+#   Intel FDO Manufacturer service
+#   Intel FDO Owner services
 
 # Building a UBI image:
 #   https://access.redhat.com/articles/4238681
 #   https://playbook.cloudpaklab.ibm.com/ubi-faq/#Q_Can_I_addenable_additional_package_repositories_for_UBI_images
 
 # docker build requirements:
-#   Follow the Developer's section of the top-level README.md to download the necessary SDO tar files and build this docker image
+#   Follow the Developer's section of the top-level README.md to download the necessary FDO tar files and build this docker image
 
 # docker run requirements (see run-sdo-owner-services.sh):
-#   Mount a named docker volume at WORKDIR/ocs/config/db
 #   Pass in the env vars required by start-sdo-owner-services.sh
 #   Expose the ports in the EXPOSE ports below
 
@@ -25,15 +22,22 @@ FROM registry.access.redhat.com/ubi8/ubi-minimal:8.0
 
 # Note: if ENV variables are used in this Dockerfile, they can not effectively be overridden by docker run
 # WORKDIR: the working dir for the 2nd half of this file, and what all of the services will run from, SDO_OCS_DB_PATH: the ocs service read this. SDO_OCS_API_PORT and VERBOSE can be overridden on docker run.
-ENV WORKDIR=/home/sdouser
-ENV SDO_OCS_DB_PATH=$WORKDIR/ocs/config/db
+ENV WORKDIR=/home/fdouser
+ENV FDO_OWNER_SERVICES_DB=$WORKDIR/owner/app_data/
 # These env vars are only used at runtime (by start-sdo-owner-services.sh), so can be overridden by docker run
-ENV SDO_RV_PORT=8040   SDO_OPS_PORT=8042   SDO_OCS_API_PORT=9008   VERBOSE=true
-ENV SDO_OPS_EXTERNAL_PORT=$SDO_OPS_PORT
-ENV SDO_OCS_API_TLS_PORT=$SDO_OCS_API_PORT
+ENV FDO_RV_PORT=8040   FDO_OWNER_PORT=8042     FDO_MANUFACT_PORT=8039    VERBOSE=true 
+# Owner database port may be replacing OCS API Port = 8051. Not exposed
+ENV FDO_OWNER_EXTERNAL_PORT=$FDO_OWNER_PORT
 
 # Working during during the installations
 WORKDIR /root
+
+# Ubuntu 20.04 / RHEL 8.4.
+# Maven 3.6.3.
+# Java 11.
+# Haveged.
+# Docker engine (minimum version 18.09, Supported till version 20.10.7) / Podman engine (For RHEL)
+# Docker-compose (minimum version 1.21.2) / Podman-compose (For RHEL)
 
 # The haveged rpm (needed by RV) is in EPEL, so add that repo: https://fedoraproject.org/wiki/EPEL
 # To see the available EPEL pkgs: http://mirror.nodesdirect.com/epel/8/Everything/x86_64/Packages/
@@ -59,7 +63,7 @@ RUN curl -sSL -o openjre-11_linux-x64_bin.tar.gz https://github.com/AdoptOpenJDK
     rm openjre-11_linux-x64_bin.tar.gz && \
     mkdir -p /usr/lib/jvm && \
     mv jdk-11.0.10+9-jre /usr/lib/jvm/openjre-11-manual-installation && \
-    update-alternatives --install /usr/bin/java java /usr/lib/jvm/openjre-11-manual-installation/bin/java 1
+    update-alternatives --install /usr/bin/java java /usr/lib/jvm/openjre-11-manual-installation/bin/java 1 
 
 # this doesn't work here, because docker writes /etc/hosts when it starts the container
 #RUN echo "127.0.0.1 RVSDO OwnerSDO" >> /etc/hosts
@@ -69,36 +73,43 @@ WORKDIR $WORKDIR
 
 # Get the license file
 COPY LICENSE.txt /licenses/
-COPY sdo/NOTICES-v1.10.6/iot-platform-sdk/* /licenses/SDOIotPlatformSDK/
+COPY fdo/NOTICES-v1.1.0/pri-fidoiot/* /licenses/FDOIotPlatformSDK/
 
 # Get rendezvous files. The rv subdir will be created automatically by COPY
 # Note: need to use uid and gid to be able to build on non-linux hosts
-COPY --chown=1000:1000 sdo/pri-v1.10.6/rendezvous/* $WORKDIR/rv/
+COPY --chown=1000:1000 fdo/pri-fidoiot-v1.1.0/rv/* $WORKDIR/rv/
 
-# Get to0scheduler files
-COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.10.6/to0scheduler $WORKDIR/to0scheduler/
+# Get Owner services files
+COPY --chown=1000:1000 fdo/pri-fidoiot-v1.1.0/owner/* $WORKDIR/owner/
 
-# Get OCS files
-# Note: we don't want the contents of ocs/config/db, that is excluded in the .dockerignore file
-COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.10.6/ocs $WORKDIR/ocs/
-# This is only the default owner private key. It will be moved into ocs/config/db/v1/creds by start-sdo-owner-servic es.sh if they don't specify their own key in run-sdo-owner-services.sh
-COPY --chown=1000:1000 keys/sample-owner-keystore.p12 $WORKDIR/ocs/config/sample-owner-keystore.p12
-#This command gives `USER sdouser` the correct permissions for mounting this key inside the container
-RUN touch ocs/config/owner-keystore.p12 && chown sdouser:sdouser ocs/config/owner-keystore.p12
-# SDO_OCS_DB_PATH is where the named volume will get mounted to. Create the subdirs, and make sure we own everything
-RUN mkdir -p $SDO_OCS_DB_PATH/v1/{creds,devices,values} ocs-api-dir/keys && chown -R 1000:1000 $SDO_OCS_DB_PATH ocs-api-dir
+# Get Manufacturer service files
+COPY --chown=1000:1000 fdo/pri-fidoiot-v1.1.0/manufacturer/* $WORKDIR/manufacturer/
 
-# Get OPS files
-COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.10.6/ops $WORKDIR/ops/
+# Get FDO Scripts
+COPY --chown=1000:1000 fdo/pri-fidoiot-v1.1.0/scripts/* $WORKDIR/scripts/
+
+# Get AIO
+COPY --chown=1000:1000 fdo/pri-fidoiot-v1.1.0/aio/* $WORKDIR/aio/
+
+# Get Reseller
+COPY --chown=1000:1000 fdo/pri-fidoiot-v1.1.0/reseller/* $WORKDIR/reseller/
+
+
+# # This is only the default owner private key. It will be moved into ocs/config/db/v1/creds by start-sdo-owner-servic es.sh if they don't specify their own key in run-sdo-owner-services.sh
+# COPY --chown=1000:1000 keys/sample-owner-keystore.p12 $WORKDIR/ocs/config/sample-owner-keystore.p12
+# #This command gives `USER sdouser` the correct permissions for mounting this key inside the container
+# RUN touch ocs/config/owner-keystore.p12 && chown sdouser:sdouser ocs/config/owner-keystore.p12
+# # SDO_OCS_DB_PATH is where the named volume will get mounted to. Create the subdirs, and make sure we own everything
+# RUN mkdir -p $SDO_OCS_DB_PATH/v1/{creds,devices,values} ocs-api-dir/keys && chown -R 1000:1000 $SDO_OCS_DB_PATH ocs-api-dir
 
 # Get our ocs-api binary, startup script, agent-install-wrapper.sh, and keystore scripts
-COPY --chown=1000:1000 ocs-api/linux/ocs-api ocs-api/scripts/*.sh docker/start-sdo-owner-services.sh $WORKDIR/
+COPY --chown=1000:1000 docker/start-fdo.sh $WORKDIR/
 
 # Note: the EXPOSE stmt doesn't actually expose the port, it just serves as documentation about the -p flags docker run should use. We may override these values, so just let docker run set them.
-#EXPOSE 8040  8042  9008
-# RV: 8040, OPS: 8042, Our ocs-api: 9008
+#EXPOSE 8040  8042  8051
+# RV: 8040, OPS: 8042, 8051
 # Note: the OCS and to0scheduler traffic is all internal to this container, so don't need to expose 9009 and 8049, respectively
 
 # Pass db path and ocs-api port in as env vars, so they can be set via docker run if desired
-CMD $WORKDIR/start-sdo-owner-services.sh
+CMD $WORKDIR/start-fdo.sh
 #CMD ["bash"]

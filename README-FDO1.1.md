@@ -1,62 +1,64 @@
-# Open Horizon SDO 1.10
+# Open Horizon FDO 1.1
 
 ## Overview of the Open Horizon SDO Support
 
-Edge devices built with [Intel SDO](https://software.intel.com/en-us/secure-device-onboard) (Secure Device Onboard) can be added to an Open Horizon instance by simply importing their associated ownership vouchers and then powering on the devices.
+Edge devices built with [Intel FDO](https://software.intel.com/en-us/secure-device-onboard) (FIDO Device Onboard) can be added to an Open Horizon instance by simply importing their associated ownership vouchers and then powering on the devices.
 
-The software in this git repository provides integration between SDO and Open Horizon, making it easy to use SDO-enabled edge devices with Horizon. The Horizon SDO support consists of these components:
+The software in this git repository provides integration between FDO and Open Horizon, making it easy to use FDO-enabled edge devices with Horizon. The Horizon FDO support consists of these components:
 
-1. A consolidated docker image of all of the SDO "owner" services (those that run on the Horizon management hub).
-1. An SDO rendezvous server (RV) that is the first service that booting SDO-enabled devices contact. The rendezvous server redirects the device to the correct Horizon instance for configuration.
-1. A command and API to automate the process of creating private keys and certificates, and importing those into the master keystore in sdo owner services. Also returns concatenated public keys so each tenant is able to use their own key pairs so that they can securely use SDO.
-1. An `hzn voucher` sub-command to import one or more ownership vouchers into a horizon instance. (An ownership voucher is a file that the device manufacturer gives to the purchaser (owner) along with the physical device.)
-1. A sample script called `simulate-mfg.sh` to run the SDO-enabling steps on a VM "device" that a device manufacturer would run on a physical device. This enables you to try out the SDO process with your Horizon instance before purchasing SDO-enabled devices.
-1. A script called `owner-boot-device` that performs the second half of using a simulated VM "device" by initiating the same SDO booting process on the VM that runs on a physical SDO-enabled device when it boots.
+1. A docker image of of the FDO "owner" service (those that run on the Horizon management hub).
+1. An FDO rendezvous server (RV) that is the first service that booting FDO-enabled devices contact. The rendezvous server redirects the device to the correct Horizon instance for configuration.
+1. A script that automates the process of creating private keys and certificates, and importing those into the master keystore in the FDO owner service. Also returns concatenated public keys so each tenant is able to use their own key pairs so that they can securely use SDO.
+1. An `hzn voucher` sub-command to import one or more ownership vouchers into Owner service. (An ownership voucher is a file that the device manufacturer gives to the purchaser (owner) along with the physical device.)
+1. A sample script called `simulate-mfg.sh` to run the FDO-enabling steps on a VM "device" that a device manufacturer would run on a physical device. This enables you to try out the FDO process with your Horizon instance before purchasing FDO-enabled devices.
+1. A script called `owner-boot-device` that performs the second half of using a simulated VM "device" by initiating the same FDO booting process on the VM that runs on a physical FDO-enabled device when it boots.
 
 ## <a name="use-sdo"></a>Using the SDO Support
 
-Perform the following steps to try out the Horizon SDO support:
+Perform the following steps to try out the Horizon FDO support:
 
-- [Start the SDO Owner Services](#start-services) (only has to be done the first time)
-- [Generate Owner Key Pairs](#gen-keypair)
-- [Initialize a Device with SDO](#init-device)
+- [Start the FDO Owner Services](#start-services) (only has to be done the first time)
+- [Initialize a Device with FDO](#init-device)
 - [Import the Ownership Voucher](#import-voucher)
 - [Boot the Device to Have it Configured](#boot-device)
 
-### <a name="start-services"></a>Start the SDO Owner Services
+### <a name="start-services"></a>Start the FDO Owner Services
 
-The SDO owner services respond to booting devices and enable administrators to import ownership vouchers. These owner services are bundled into a single container which is normally started as part of installing the Horizon management hub, by either the [All-in-1 developer management hub](https://github.com/open-horizon/devops/blob/master/mgmt-hub/README.md) or by a vendor that provides a production version of Horizon.
+The FDO owner service responds to booting devices and enable administrators to import ownership vouchers. This owner service is normally started as part of installing the Horizon management hub, by either the [All-in-1 developer management hub](https://github.com/open-horizon/devops/blob/master/mgmt-hub/README.md) or by a vendor that provides a production version of Horizon.
 
-If you need to run your own instance of the SDO owner services for development purposes, see [Starting Your Own Instance of the SDO Owner Services](#start-services-developer).
+If you need to run your own instance of the FDO owner service for development purposes, see [Starting Your Own Instance of the SDO Owner Services](#start-services-developer).
 
 #### <a name="verify-services"></a>Verify the SDO Owner Services API Endpoints
 
-Before continuing with the rest of the SDO process, it is good to verify that you have the correct information necessary to reach the SDO owner service endpoints. **On a Horizon "admin" host** run these simple SDO APIs to verify that the services within the docker container are accessible and responding properly. (A Horizon admin host is one that has the `horizon-cli` package installed, which provides the `hzn` command, and has the environment variables `HZN_EXCHANGE_URL`, `HZN_SDO_SVC_URL`, `HZN_ORG_ID`, and `HZN_EXCHANGE_USER_AUTH` set correctly for your Horizon management hub.)
+Before continuing with the rest of the FDO process, it is good to verify that you have the correct information necessary to reach the FDO owner service endpoints. **On a Horizon "admin" host** run these simple FDO APIs to verify that the services within the docker container are accessible and responding properly. (A Horizon admin host is one that has the `horizon-cli` package installed, which provides the `hzn` command, and has the environment variables `HZN_EXCHANGE_URL`, `HZN_SDO_SVC_URL`, `HZN_ORG_ID`, and `HZN_EXCHANGE_USER_AUTH` set correctly for your Horizon management hub.)
 
 1. Export these environment variables for the subsequent steps. Contact the management hub installer for the exact values:
 
    ```bash
    export HZN_ORG_ID=<exchange-org>
-   export HZN_EXCHANGE_USER_AUTH=<user>:<password>
-   export HZN_SDO_SVC_URL=<protocol>://<sdo-owner-svc-host>:<ocs-api-port>/<ocs-api-path>
-   export SDO_RV_URL=http://sdo-sbx.trustedservices.intel.com:80
+   export HZN_EXCHANGE_USER_AUTH=apiUser:<password>
+
+   export HZN_FDO_SVC_URL=<protocol>://<sdo-owner-svc-host>:8042
+   #export HZN_FDO_SVC_URL=http://localhost:8042
+   export FDO_RV_URL=http://<sdo-rv-svc-host>:8040
+   #export FDO_RV_URL=http://localhost:8040
    export HZN_MGMT_HUB_CERT_PATH=<mgmt-hub-cert-file>   # if it requires a certificate
    ```
 
    **Note:**
    * The Open Horizon SDO support code includes a built-in rendezvous server that can be used during development or air-gapped environments. See [Running the SDO Support During Dev/Test](#running-dev-test).
 
-2. Query the OCS API version:
+2. Query the Owner services health and version:
 
    ```bash
-   curl -k -sS $HZN_SDO_SVC_URL/version && echo
+   curl -D - --digest --location --request GET $HZN_FDO_SVC_URL/health
    ```
 
 3. Query the ownership vouchers that have already been imported (initially it will be an empty list):
 
    ```bash
    # either use curl directly
-   curl -k -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" $HZN_SDO_SVC_URL/vouchers | jq
+   curl -D - --digest -u $HZN_EXCHANGE_USER_AUTH --location --request GET $HZN_FDO_SVC_URL/api/v1/owner/vouchers --header 'Content-Type: text/plain'
    # or use the hzn command, if you have the horizon-cli package installed
    hzn voucher list
    ```
@@ -64,66 +66,54 @@ Before continuing with the rest of the SDO process, it is good to verify that yo
 4. "Ping" the rendezvous server:
 
    ```bash
-   curl -k -sS -w "%{http_code}" -H Content-Type:application/json -X POST $SDO_RV_URL/mp/113/msg/20 | jq
+   curl -D - --digest -u $HZN_EXCHANGE_USER_AUTH --location --request GET $FDO_RV_URL/health
+
    ```
    
-### <a name="gen-keypair"></a>Generate Owner Key Pairs
+### <a name="gen-keypair"></a>Simulate Manufacturing to Generate Ownership Voucher
 
-For production use of SDO, you need to create 3 key pairs and import them into the owner services container. These key pairs enable you to securely take over ownership of SDO ownership vouchers from SDO-enabled device manufacturers, and to securely configure your booting SDO devices. Use the provided API to easily create and import the necessary key pairs. (If you are only trying out SDO in a dev/test environment, you can use the built-in sample key pairs and skip this section. You can always add your own key pairs later.)
+For production use of FDO, you need to import an Ownership Voucher into the owner services container. This ownership voucher enables you to securely take over ownership of FDO ownership vouchers from FDO-enabled device manufacturers, and to securely configure your booting FDO devices. Follow the instructions to build the manufacturing service and use the provided script to simulate the process of retrieving an Ownership Voucher from the manufacturer.
 
-Note: you only have to perform the steps in this section once. The keys created and imported can be used with all of your devices.
+####################
 
-1. **On your admin host** go to the directory where you want your owner public keys to be saved. Run the commands below (modifying the key information as desired) to create the key pairs in the SDO owner service and receive the corresponding public keys:
 
-   ```bash
-   cat > key-info.json << EndOfText 
-   {
-     "key_name": "mykey",
-     "common_name": "My Full Name",
-     "email_name": "my@email.com",
-     "company_name": "My Company",
-     "country_name": "Two Letter Country Code",
-     "state_name": "My StateOrProvince",
-     "locale_name":"My City"
-   }
-   EndOfText
+1. **On your admin host** Run the command below (modifying the host information as desired) to build the manufacturer service:
 
-   curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -X POST -H Content-Type:application/json -d @key-info.json -o "${HZN_ORG_ID}_${KEY_NAME}_public-key.pem" $HZN_SDO_SVC_URL/orgs/${HZN_ORG_ID}/keys && echo
+   ```cd fdo/pri-fidoiot-v1.1.0.2/maufacturer && docker-compose up --build  -d ```
 
-   curl -sS -w "%{http_code}" -u "$HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -X GET -H Content-Type:application/json $HZN_SDO_SVC_URL/orgs/${HZN_ORG_ID}/keys && echo
-   ```  
-
-2. One file is returned as a result of this API: `${HZN_ORG_ID}_${KEY_NAME}_public-key.pem` . This is your customer/owner public keys (all in a single file) corresponding to the private key pairs that were imported into the SDO owner service. This is used by the device manufacturer to securely extend the vouchers to the owner. Pass this file as an argument to `simulate-mfg.sh` when experimenting with SDO, and give this public key to each device manufacturer producing SDO-enabled devices for you.
-    
 
 ### <a name="init-device"></a>Initialize a Test VM Device with SDO
 
-If you already have a physical SDO-enabled device, you can use that instead, and skip this section.
+If you already have a physical FDO-enabled device, you can use that instead, and skip this section.
 
-The sample script called `simulate-mfg.sh` simulates the steps of an SDO-enabled device manufacturer: initializes your "device" with SDO and credentials, creates an ownership voucher, and extends it to you the owner. Perform these steps **on the VM device to be initialized** (these steps are written for Ubuntu 18.04):
+The sample script called `simulate-mfg.sh` simulates the steps of an FDO-enabled device manufacturer: initializes your "device" with FDO and credentials, creates an ownership voucher, and extends it to you the owner. Perform these steps **on the VM device to be initialized** (these steps are written for Ubuntu 20.04):
 
 ```bash
-mkdir -p $HOME/sdo && cd $HOME/sdo
-curl -sSLO https://github.com/open-horizon/SDO-support/releases/download/v1.10/simulate-mfg.sh
+mkdir -p $HOME/fdo && cd $HOME/fdo
+curl -sSLO <insert script link here>
 chmod +x simulate-mfg.sh
-export SDO_RV_URL=http://sdo-sbx.trustedservices.intel.com:80
-export SDO_SAMPLE_MFG_KEEP_SVCS=true   # makes it faster if you run multiple tests
-sudo -E ./simulate-mfg.sh
+export FDO_RV_URL=http://sdo-sbx.trustedservices.intel.com:80
+export FDO_SAMPLE_MFG_KEEP_SVCS=true   # makes it faster if you run multiple tests
+sudo -E ./simulate-mfg.sh 
 ```
 
-This creates an ownership voucher in the file `/var/sdo/voucher.json`.
+This creates an ownership voucher in the file `/sdo/voucher.json`.
 
 ### <a name="import-voucher"></a>Import the Ownership Voucher
 
-The ownership voucher created for the device in the previous step needs to be imported to the SDO owner services. **On the Horizon admin host**:
+The ownership voucher created for the device in the previous step needs to be imported to the FDO Owner service. **On the Horizon admin host**:
 
-1. When you purchase a physical SDO-enabled device, you receive an ownership voucher from the manufacturer. In the case of the VM device you have configured to simulate an SDO-enabled device, the analogous step is to copy the file `/var/sdo/voucher.json` from your VM device to here.
-2. Import the ownership voucher. In this step you can also control what edge services should be run on the device, once it is booted and configured. You can do this using one of three flags:
+1. When you purchase a physical FDO-enabled device, you receive an ownership voucher from the manufacturer. In the case of the VM device you have configured to simulate an FDO-enabled device, the analogous step is to copy the file `/sdo/voucher.json` from your VM device to here.
+2. Import the ownership voucher.
+
+########### LATE BINDING?? #############
+ In this step you can also control what edge services should be run on the device, once it is booted and configured. You can do this using one of three flags:
    - Specify a deployment pattern using `--pattern=<pattern-name>` . You must separately create this deployment pattern in the Exchange. 
    - Specify a node policy json file using `--policy=<node-policy-file>` . You must separately create a corresponding **deployment** policy in the Exchange.
    - Use the shorthand flag `--example=<example-name>`, which will automatically generate and set a node policy with the constraint `openhorizon.example == <example-name>`. When the Horizon management hub was installed, deployment policies were created that deploy some of the example edge services to edge devices with a node policy like this. Once such example name is `helloworld`, which is what we are using in this command:
 
    ```bash
+
    hzn voucher import voucher.json --example=helloworld
    ```
 
@@ -188,7 +178,7 @@ These steps only need to be performed by developers of this project.
    make push-sdo-owner-services
    ```
 
-5. After the development team has validated the service, publish it to docker hub as the latest patch release with the `latest` tag and the version to use for this major/minor release (e.g. `1.10`):
+5. After the development team has validated the service, publish it to docker hub as the latest patch release with the `latest` tag and the version to use for this major/minor release (e.g. `1.11`):
 
    ```bash
    make publish-sdo-owner-services
@@ -272,7 +262,7 @@ When following the instructions in [Using the SDO Support](#use-sdo), set the fo
    export SDO_GET_PKGS_FROM=css:
    # set your own password for the master keystore
    export SDO_KEY_PWD=<pw>
-   # when curling run-sdo-owner-services.sh use the master branch instead of the 1.10 tag
+   # when curling run-sdo-owner-services.sh use the master branch instead of the 1.11 tag
    ```
 
 - In [Initialize a Device with SDO](#init-device) set:
@@ -288,11 +278,21 @@ When following the instructions in [Using the SDO Support](#use-sdo), set the fo
    export SDO_MFG_IMAGE_TAG=1.2.3   # using the docker image you are still working on
    # this will speed repetitive testing, because it will leave the mfg containers running if they haven't changed
    export SDO_SAMPLE_MFG_KEEP_SVCS=true
-   # when curling simulate-mfg.sh use the master branch instead of the 1.10 tag
+   # when curling simulate-mfg.sh use the master branch instead of the 1.11 tag
    ```
 
 - In [Import the Ownership Voucher](#import-voucher) set: (nothing special so far)
 - In [Boot the Device to Have it Configured](#boot-device) set: (nothing special so far)
+
+### <a name="create-new-release"></a>Creating a Release in the SDO-support Repo
+
+- Create a [release](https://github.com/open-horizon/SDO-support/releases) with the major and minor version (but not a patch number), e.g. `v1.11`
+- Upload these assets to the release:
+  - tools/owner-boot-device
+  - sample-mfg/simulate-mfg.sh
+  - sample-mfg/sdo_to.service
+  - sample-mfg/sdo_device_binaries_1.10_linux_x64.tar.gz (this version number corresponds to the major/minor number of `SDO_VERSION` in `Makefile`)
+- Copy the previous version of the `README-*.md` to a new version and make the appropriate changes
 
 ### <a name="new-sdo-version"></a>Checklist For Moving Up to a New SDO Version
 
