@@ -24,7 +24,6 @@ chk $? 'downloading client-sdk-fidoiot'
 tar -zxf client-sdk-fidoiot-v1.1.0.2.tar.gz
 chk $? 'unpacking client-sdk-fidoiot'
 
-
 echo "Getting epid-verification-service"
 #curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.6/iot-platform-sdk-v1.10.6.tar.gz
 curl --progress-bar -LO https://github.com/secure-device-onboard/release-fidoiot/releases/download/v1.1.0.1/epid-verification-service-v1.1.0.1.tar.gz
@@ -46,18 +45,11 @@ chk $? 'downloading NOTICES'
 tar -zxf NOTICES-v1.1.0.2.tar.gz
 chk $? 'unpacking NOTICES'
 
-
-
 echo "Getting Third Party Components"
 curl --progress-bar -LO https://github.com/secure-device-onboard/release-fidoiot/releases/download/v1.1.0.2/third-party-components.tar.gz
 chk $? 'downloading third-party-components'
 tar -zxf third-party-components.tar.gz
 chk $? 'unpacking third-party-components'
-
-echo"Getting postgreSQL jar file for owner/lib"
-curl --progress-bar -LO https://jdbc.postgresql.org/download/postgresql-42.3.6.jar
-chk $? 'downloading postgreSQL jar'
-mv postgresql-42.3.6.jar fdo/pri-fidoiot-v1.1.0.2/owner/lib/postgresql-42.3.6.jar
 
 cd ${SCRIPT_LOCATION}
 echo "Complete."

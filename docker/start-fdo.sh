@@ -5,24 +5,24 @@
 # Defaults/constants
 ownerPortDefault='8042'
 rvPortDefault='8040'
-manufactPortDefault='8039'
 
+workingDir='fdo'
+deviceBinaryDir='pri-fidoiot-v1.1.0.2' 
 # These can be passed in via CLI args or env vars
 ownerApiPort="${1:-$ownerPortDefault}"  # precedence: arg, or tls port, or non-tls port, or default
-ownerPort=${FDO_OWNER_PORT:-$ownerPortDefault}
+ownerPort=${HZN_FDO_SVC_URL:-$ownerPortDefault}
 ownerExternalPort=${FDO_OWNER_EXTERNAL_PORT:-$ownerPort}
-manufacturerPort=${FDO_MANUFACT_PORT:-$manufactPortDefault}
 rvPort=${FDO_RV_PORT:-$rvPortDefault}
 #VERBOSE='true'   # let it be set by the container provisioner
+FDO_SUPPORT_RELEASE=${FDO_SUPPORT_RELEASE:-https://github.com/secure-device-onboard/release-fidoiot/releases/download/v1.1.0.2}
+
+
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     cat << EndOfMessage
-Usage: ${0##*/} [<owner-api-port>]
+Usage: ${0##*/}
 
-Environment variables that can be used instead of CLI args: FDO_OWNER_PORT
-Required environment variables: HZN_EXCHANGE_URL, HZN_FSS_CSSURL
-Recommended environment variables: HZN_MGMT_HUB_CERT (unless the mgmt hub uses http or a CA-trusted certificate), SDO_KEY_PWD (unless using sample key files)
-Additional environment variables: FDO_RV_PORT, FDO_MANUFACT_PORT, FDO_OWNER_EXTERNAL_PORT, EXCHANGE_INTERNAL_URL, VERBOSE
+Required environment variables: HZN_EXCHANGE_USER_AUTH, FDO_RV_PORT
 EndOfMessage
     exit 1
 fi
@@ -46,6 +46,19 @@ chk() {
     fi
 }
 
+chkHttp() {
+    local exitCode=$1
+    local httpCode=$2
+    local task=$3
+    local dontExit=$4   # set to 'continue' to not exit for this error
+    chk $exitCode $task
+    if [[ $httpCode == 200 ]]; then return; fi
+    echo "Error: http code $httpCode from: $task"
+    if [[ $dontExit != 'continue' ]]; then
+        exit $httpCode
+    fi
+}
+
 isDockerComposeAtLeast() {
     : ${1:?}
     local minVersion=$1
@@ -60,26 +73,31 @@ isDockerComposeAtLeast() {
         return 1
     fi
 }
+###### MAIN CODE ######
 
-# # If postgres isn't installed, do that
-# if ! command -v postgres --version 2>&1; then
-#     if [[ $(whoami) != 'root' ]]; then
-#         echo "Error: docker is not installed, but we are not root, so can not install it for you. Exiting"
-#         exit 2
-#     fi
-#     echo "Postgres is required, installing it..."
-#     apt-get install -y postgresql postgresql-contrib
-#     sudo apt install postgresql-client-common
-#     chk $? 'installing postgres'
-# fi
 
 if [[ -z "$HZN_EXCHANGE_USER_AUTH" ]]; then
     echo "Error: This environment variable must be set to access Owner services APIs: HZN_EXCHANGE_USER_AUTH"
     exit 0
 fi
 
-# If haveged isnt installed, install it !
-sudo apt-get install haveged
+
+# Get the other files we need from our git repo, by way of our device binaries tar file
+if [[ ! -d $deviceBinaryDir ]]; then
+echo "$deviceBinaryDir DOES NOT EXIST"
+    deviceBinaryTar="$deviceBinaryDir.tar.gz"
+    deviceBinaryUrl="$FDO_SUPPORT_RELEASE/$deviceBinaryTar"
+    echo "Removing old PRI tar files, and getting and unpacking $deviceBinaryDir ..."
+    rm -rf $workingDir/pri-fidoiot-*   # it is important to only have 1 device binary dir, because the device script does a find to locate device.jar
+    mkdir -p $workingDir && cd $workingDir
+    httpCode=$(curl -w "%{http_code}" --progress-bar -L -O  $deviceBinaryUrl)
+    chkHttp $? $httpCode "getting $deviceBinaryTar"
+    tar -zxf $deviceBinaryTar
+    cd
+fi
+
+
+
 # If docker isn't installed, do that
 if ! command -v docker >/dev/null 2>&1; then
     echo "Docker is required, installing it..."
@@ -89,6 +107,15 @@ if ! command -v docker >/dev/null 2>&1; then
     chk $? 'adding docker repository'
     apt-get install -y docker-ce docker-ce-cli containerd.io
     chk $? 'installing docker'
+fi
+#make sure Docker daemon is running
+sudo chmod 666 /var/run/docker.sock
+# If haveged isnt installed, install it !
+
+if ! command haveged --help >/dev/null 2>&1; then
+    echo "Haveged is required, installing it"
+    sudo apt-get install haveged
+    chk $? 'installing haveged'
 fi
 
 # If docker-compose isn't installed, or isn't at least 1.21.0 (when docker-compose.yml version 2.4 was introduced), then install/upgrade it
@@ -123,7 +150,8 @@ echo "Running key generation script..."
 if [[ "$FDO_DEV" == '1' || "$FDO_DEV" == 'true' ]]; then
 
     echo "Using local testing configuration, because FDO_DEV=$FDO_DEV"
-    #Configuring Owwner services for development
+    #Configuring Owwner services for development, If you are running the local
+    #development RV server, then you must disable the port numbers for rv/docker-compose.yml & owner/docker-compose.yml
     sed -i -e '/ports:/ s/./#&/' fdo/pri-fidoiot-v1.1.0.2/owner/docker-compose.yml
     chk $? 'sed ports for owner/docker-compose.yml'
     sed -i -e '/- "8042:8042"/ s/./#&/' fdo/pri-fidoiot-v1.1.0.2/owner/docker-compose.yml
@@ -144,23 +172,12 @@ if [[ "$FDO_DEV" == '1' || "$FDO_DEV" == 'true' ]]; then
     #sed -i -e '/network_mode: host/ s/./#&/' rv/docker-compose.yml
     chk $? 'sed rv/docker-compose.yml'
 
-
-sed -e 's/api_password=.*/api_password='$api_password'/' fdo/pri-fidoiot-v1.1.0.2/device/service.yml
-
-sed -e 's/di-url: http.*/di-url: 'localhost'/' fdo/pri-fidoiot-v1.1.0.2/device/service.yml
-
-
-    sed -e '/network_mode: host/ s/./#&/' fdo/pri-fidoiot-v1.1.0.2/manufacturer/docker-compose.yml
-    chk $? 'sed manufacturer/docker-compose.yml'
-
     #Use HZN_EXCHANGE_USER_AUTH for Owner and RV services API password
     USER_AUTH=$HZN_EXCHANGE_USER_AUTH
     removeWord="apiUser:"
     api_password=${USER_AUTH//$removeWord/}
     sed -i -e 's/api_password=.*/api_password='$api_password'/' fdo/pri-fidoiot-v1.1.0.2/owner/service.env
     sed -i -e 's/api_password=.*/api_password='$api_password'/' fdo/pri-fidoiot-v1.1.0.2/rv/service.env
-    sed -i -e 's/api_password=.*/api_password='$api_password'/' fdo/pri-fidoiot-v1.1.0.2/manufacturer/service.env
-
     #Delete owner and rv service db files here if re-running in a test environment
     #rm fdo/pri-fidoiot-v1.1.0.2/owner/app-data/emdb.mv.db && fdo/pri-fidoiot-v1.1.0.2/rv/app-data/emdb.mv.db
     
