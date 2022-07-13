@@ -76,26 +76,26 @@ COPY sdo/NOTICES-v1.10.6/iot-platform-sdk/* /licenses/SDOIotPlatformSDK/
 
 # Get rendezvous files. The rv subdir will be created automatically by COPY
 # Note: need to use uid and gid to be able to build on non-linux hosts
-COPY --chown=1000:1000 sdo/pri-v1.10.6/rendezvous/* $WORKDIR/rv/
+COPY --chown=1000:0 sdo/pri-v1.10.6/rendezvous/* $WORKDIR/rv/
 
 # Get to0scheduler files
-COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.10.6/to0scheduler $WORKDIR/to0scheduler/
+COPY --chown=1000:0 sdo/iot-platform-sdk-v1.10.6/to0scheduler $WORKDIR/to0scheduler/
 
 # Get OCS files
 # Note: we don't want the contents of ocs/config/db, that is excluded in the .dockerignore file
-COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.10.6/ocs $WORKDIR/ocs/
+COPY --chown=1000:0 sdo/iot-platform-sdk-v1.10.6/ocs $WORKDIR/ocs/
 # This is only the default owner private key. It will be moved into ocs/config/db/v1/creds by start-sdo-owner-servic es.sh if they don't specify their own key in run-sdo-owner-services.sh
-COPY --chown=1000:1000 keys/sample-owner-keystore.p12 $WORKDIR/ocs/config/sample-owner-keystore.p12
+COPY --chown=1000:0 keys/sample-owner-keystore.p12 $WORKDIR/ocs/config/sample-owner-keystore.p12
 #This command gives `USER sdouser` the correct permissions for mounting this key inside the container
 RUN touch ocs/config/owner-keystore.p12 && chown sdouser:sdouser ocs/config/owner-keystore.p12
 # SDO_OCS_DB_PATH is where the named volume will get mounted to. Create the subdirs, and make sure we own everything
 RUN mkdir -p $SDO_OCS_DB_PATH/v1/{creds,devices,values} ocs-api-dir/keys && chown -R 1000:1000 $SDO_OCS_DB_PATH ocs-api-dir
 
 # Get OPS files
-COPY --chown=1000:1000 sdo/iot-platform-sdk-v1.10.6/ops $WORKDIR/ops/
+COPY --chown=1000:0 sdo/iot-platform-sdk-v1.10.6/ops $WORKDIR/ops/
 
 # Get our ocs-api binary, startup script, agent-install-wrapper.sh, and keystore scripts
-COPY --chown=1000:1000 ocs-api/linux/ocs-api ocs-api/scripts/*.sh docker/start-sdo-owner-services.sh $WORKDIR/
+COPY --chown=1000:0 ocs-api/linux/ocs-api ocs-api/scripts/*.sh docker/start-sdo-owner-services.sh $WORKDIR/
 
 # Note: the EXPOSE stmt doesn't actually expose the port, it just serves as documentation about the -p flags docker run should use. We may override these values, so just let docker run set them.
 #EXPOSE 8040  8042  9008
