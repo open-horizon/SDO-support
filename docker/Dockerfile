@@ -45,8 +45,11 @@ RUN curl -sS -o epel-release-latest-8.noarch.rpm https://dl.fedoraproject.org/pu
     rpm -i /root/epel-release-latest-8.noarch.rpm && \
     microdnf update -y && \
     microdnf install --nodocs -y openssl ca-certificates tar findutils shadow-utils procps openssl-devel haveged && \
-    microdnf clean all && \
-    groupadd -g 1000 sdouser && adduser -u 1000 -g sdouser sdouser
+    microdnf clean all
+
+RUN useradd -r -u 1000 -g root sdouser \
+    && mkdir /home/sdouser \
+    && chown -R sdouser:root /home/sdouser
 
 # Install openjdk-11-jre. The tar.gz file is 43 MB, unpacked is 124 MB
 # Note: with SDO 1.7, it is necessary to use java 11.0.4 or earlier, because there is an issue with the SDO bouncycastle version and 11.0.5 and above
