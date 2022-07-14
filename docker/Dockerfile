@@ -87,9 +87,9 @@ COPY --chown=1000:0 sdo/iot-platform-sdk-v1.10.6/ocs $WORKDIR/ocs/
 # This is only the default owner private key. It will be moved into ocs/config/db/v1/creds by start-sdo-owner-servic es.sh if they don't specify their own key in run-sdo-owner-services.sh
 COPY --chown=1000:0 keys/sample-owner-keystore.p12 $WORKDIR/ocs/config/sample-owner-keystore.p12
 #This command gives `USER sdouser` the correct permissions for mounting this key inside the container
-RUN touch ocs/config/owner-keystore.p12 && chown sdouser:sdouser ocs/config/owner-keystore.p12
+RUN touch ocs/config/owner-keystore.p12 && chown sdouser:root ocs/config/owner-keystore.p12
 # SDO_OCS_DB_PATH is where the named volume will get mounted to. Create the subdirs, and make sure we own everything
-RUN mkdir -p $SDO_OCS_DB_PATH/v1/{creds,devices,values} ocs-api-dir/keys && chown -R 1000:1000 $SDO_OCS_DB_PATH ocs-api-dir
+RUN mkdir -p $SDO_OCS_DB_PATH/v1/{creds,devices,values} ocs-api-dir/keys && chown -R 1000:0 $SDO_OCS_DB_PATH ocs-api-dir
 
 # Get OPS files
 COPY --chown=1000:0 sdo/iot-platform-sdk-v1.10.6/ops $WORKDIR/ops/
