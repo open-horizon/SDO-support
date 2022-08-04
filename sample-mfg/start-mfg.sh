@@ -217,7 +217,7 @@ fi
 
 if ! command haveged --help >/dev/null 2>&1; then
     echo "Haveged is required, installing it"
-    sudo apt-get install haveged
+    sudo apt-get install -y haveged
     chk $? 'installing haveged'
 fi
 
@@ -308,4 +308,41 @@ sed -i -e 's/api_password=.*/api_password='$api_password'/' $PWD/$deviceBinaryDi
 echo "Starting manufacturer service..."
 sudo chmod 666 /var/run/docker.sock
 #(cd owner && java -jar aio.jar)
-(cd $PWD/$deviceBinaryDir/manufacturer && docker-compose up --build  -d) 
+(cd $PWD/$deviceBinaryDir/manufacturer && docker-compose up --build  -d)
+
+#get Domain Name from Rendezvous Server URL
+FDO_RV_DNS=$(echo "$FDO_RV_URL" | awk -F/ '{print $3}' | awk -F: '{print $1}')
+echo "FDO_RV_DNS: ${FDO_RV_DNS}"
+
+echo "waiting for manufacturer service to boot..."
+httpCode=500
+while [ $httpCode != 200 ]
+do
+  sleep 2
+  httpCode=$(curl -I -s -w "%{http_code}" -o /dev/null --digest -u ${USER_AUTH} --location --request GET 'http://localhost:8039/health')
+done
+
+echo "setting rendezvous server location to ${FDO_RV_DNS}:8040"
+response=$(curl -s -w "%{http_code}" -D - --digest -u ${USER_AUTH} --location --request POST 'http://localhost:8039/api/v1/rvinfo' --header 'Content-Type: text/plain' --data-raw '[[[5,"'"${FDO_RV_DNS}"'"],[3,8040],[12,1],[2,"'"${FDO_RV_DNS}"'"],[4,8040]]]')
+code=$?
+httpCode=$(tail -n1 <<< "$response")
+chkHttp $code $httpCode "setting rendezvous server location"
+
+echo "beginning device initialization"
+(cd $deviceBinaryDir/device && java -jar device.jar)
+
+echo "getting device info (alias, serial number, UUID)"
+response=$(curl -s -w "\\n%{http_code}" --digest -u ${USER_AUTH} --location --request GET 'http://localhost:8039/api/v1/deviceinfo/10000' --header 'Content-Type: text/plain')
+code=$?
+httpCode=$(tail -n1 <<< "$response")
+chkHttp $code $httpCode "getting device info"
+serial=$(echo $response | grep -o '"serial_no":"[^"]*' | grep -o '[^"]*$')
+alias=$(echo $response | grep -o '"alias":"[^"]*' | grep -o '[^"]*$')
+
+echo "getting device public key"
+httpCode=$(curl -s -w "%{http_code}" --digest -u ${USER_AUTH} --location --request GET "$HZN_FDO_SVC_URL/api/v1/certificate?alias=$alias" --header 'Content-Type: text/plain' -o public_key.pem)
+chkHttp $? $httpCode "getting device public key"
+
+echo "getting ownership voucher"
+httpCode=$(curl -s -w "%{http_code}" --digest -u ${USER_AUTH} --location --request POST "http://localhost:8039/api/v1/mfg/vouchers/$serial" --header 'Content-Type: text/plain' --data-binary '@public_key.pem' -o owner_voucher.txt)
+chkHttp $? $httpCode "getting ownership voucher"
