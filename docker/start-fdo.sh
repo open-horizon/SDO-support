@@ -183,6 +183,20 @@ echo "Running key generation script..."
 # Replacing component credentials 
 (cd fdo/pri-fidoiot-v1.1.0.2/scripts && cp -r creds/. ../)
 
+#configure to use PostgreSQL database
+sed -i -e 's/org.h2.Driver/org.postgresql.Driver/' fdo/pri-fidoiot-v1.1.0.2/owner/service.yml
+chk $? 'sed owner/service.yml driver_class'
+sed -i -e 's/jdbc:h2:tcp:\/\/localhost:8051\/.\/app-data\/emdb/jdbc:postgresql:\/\/localhost:5432\/fdo/' fdo/pri-fidoiot-v1.1.0.2/owner/service.yml
+chk $? 'sed owner/service.yml connection url'
+sed -i -e 's/org.hibernate.dialect.H2Dialect/org.hibernate.dialect.PostgreSQLDialect/' fdo/pri-fidoiot-v1.1.0.2/owner/service.yml
+chk $? 'sed owner/service.yml dialect'
+sed -i -e 's/StandardDatabaseServer/RemoteDatabaseServer/' fdo/pri-fidoiot-v1.1.0.2/owner/service.yml
+chk $? 'sed owner/service.yml database server worker'
+
+#override auto-generated DB username and password
+sed -i -e 's/db_user=.*/db_user=fdo/' fdo/pri-fidoiot-v1.1.0.2/owner/service.env
+sed -i -e 's/db_password=.*/db_password=fdo/' fdo/pri-fidoiot-v1.1.0.2/owner/service.env
+
 if [[ "$FDO_DEV" == '1' || "$FDO_DEV" == 'true' ]]; then
 
     echo "Using local testing configuration, because FDO_DEV=$FDO_DEV"
@@ -201,16 +215,6 @@ if [[ "$FDO_DEV" == '1' || "$FDO_DEV" == 'true' ]]; then
     sed -i -e 's/#- org.fidoalliance.fdo.protocol.HttpOwnerSchemeSupplier/- org.fidoalliance.fdo.protocol.HttpOwnerSchemeSupplier/' fdo/pri-fidoiot-v1.1.0.2/owner/service.yml
     chk $? 'sed owner/service.yml'
 
-    #configure to use PostgreSQL database
-    sed -i -e 's/org.h2.Driver/org.postgresql.Driver/' fdo/pri-fidoiot-v1.1.0.2/owner/service.yml
-    chk $? 'sed owner/service.yml driver_class'
-    sed -i -e 's/jdbc:h2:tcp:\/\/localhost:8051\/.\/app-data\/emdb/jdbc:postgresql:\/\/localhost:5432\/fdo/' fdo/pri-fidoiot-v1.1.0.2/owner/service.yml
-    chk $? 'sed owner/service.yml connection url'
-    sed -i -e 's/org.hibernate.dialect.H2Dialect/org.hibernate.dialect.PostgreSQLDialect/' fdo/pri-fidoiot-v1.1.0.2/owner/service.yml
-    chk $? 'sed owner/service.yml dialect'
-    sed -i -e 's/StandardDatabaseServer/RemoteDatabaseServer/' fdo/pri-fidoiot-v1.1.0.2/owner/service.yml
-    chk $? 'sed owner/service.yml database server worker'
-
     #Configuring local RV server for development
     sed -i -e '/ports:/ s/./#&/' fdo/pri-fidoiot-v1.1.0.2/rv/docker-compose.yml
     sed -i -e '/- "8040:8040"/ s/./#&/' fdo/pri-fidoiot-v1.1.0.2/rv/docker-compose.yml
@@ -226,10 +230,6 @@ if [[ "$FDO_DEV" == '1' || "$FDO_DEV" == 'true' ]]; then
     sed -i -e 's/api_password=.*/api_password='$api_password'/' fdo/pri-fidoiot-v1.1.0.2/rv/service.env
     #Delete owner and rv service db files here if re-running in a test environment
     #rm fdo/pri-fidoiot-v1.1.0.2/owner/app-data/emdb.mv.db && fdo/pri-fidoiot-v1.1.0.2/rv/app-data/emdb.mv.db
-
-    #override auto-generated DB username and password
-    sed -i -e 's/db_user=.*/db_user=fdo/' fdo/pri-fidoiot-v1.1.0.2/owner/service.env
-    sed -i -e 's/db_password=.*/db_password=fdo/' fdo/pri-fidoiot-v1.1.0.2/owner/service.env
 
 else
 
