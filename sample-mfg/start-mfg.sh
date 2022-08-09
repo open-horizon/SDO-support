@@ -314,13 +314,15 @@ sudo chmod 666 /var/run/docker.sock
 FDO_RV_DNS=$(echo "$FDO_RV_URL" | awk -F/ '{print $3}' | awk -F: '{print $1}')
 echo "FDO_RV_DNS: ${FDO_RV_DNS}"
 
-echo "waiting for manufacturer service to boot..."
+echo -n "waiting for manufacturer service to boot."
 httpCode=500
 while [ $httpCode != 200 ]
 do
+  echo -n "."
   sleep 2
   httpCode=$(curl -I -s -w "%{http_code}" -o /dev/null --digest -u ${USER_AUTH} --location --request GET 'http://localhost:8039/health')
 done
+echo ""
 
 echo "setting rendezvous server location to ${FDO_RV_DNS}:8040"
 response=$(curl -s -w "%{http_code}" -D - --digest -u ${USER_AUTH} --location --request POST 'http://localhost:8039/api/v1/rvinfo' --header 'Content-Type: text/plain' --data-raw '[[[5,"'"${FDO_RV_DNS}"'"],[3,8040],[12,1],[2,"'"${FDO_RV_DNS}"'"],[4,8040]]]')
@@ -337,7 +339,9 @@ code=$?
 httpCode=$(tail -n1 <<< "$response")
 chkHttp $code $httpCode "getting device info"
 serial=$(echo $response | grep -o '"serial_no":"[^"]*' | grep -o '[^"]*$')
+echo "serial:$serial"
 alias=$(echo $response | grep -o '"alias":"[^"]*' | grep -o '[^"]*$')
+echo "alias:$alias"
 
 echo "getting device public key"
 httpCode=$(curl -s -w "%{http_code}" --digest -u ${USER_AUTH} --location --request GET "$HZN_FDO_SVC_URL/api/v1/certificate?alias=$alias" --header 'Content-Type: text/plain' -o public_key.pem)
