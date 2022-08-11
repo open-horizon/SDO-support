@@ -171,10 +171,10 @@ The ownership voucher created for the device in the previous step needs to be im
 
 2. To0 will be automatically triggered, but if it has not been you can run the following API call to initiate To0 of specific device uuid from Owner Services.
 ```bash
-curl -D - --digest -u $HZN_EXCHANGE_USER_AUTH --location --request POST $HZN_FDO_SVC_URL/api/v1/to0/<device-uuid-here> --header 'Content-Type: text/plain'
+curl -D - --digest -u $HZN_EXCHANGE_USER_AUTH --location --request GET $HZN_FDO_SVC_URL/api/v1/to0/<device-uuid-here> --header 'Content-Type: text/plain'
 
 #For example
-curl -D - --digest -u $HZN_EXCHANGE_USER_AUTH --location --request POST $HZN_FDO_SVC_URL/api/v1/to0/732bc99a-cfaf-46fe-92d6-dd87bb81e6c9 --header 'Content-Type: text/plain'
+curl -D - --digest -u $HZN_EXCHANGE_USER_AUTH --location --request GET $HZN_FDO_SVC_URL/api/v1/to0/732bc99a-cfaf-46fe-92d6-dd87bb81e6c9 --header 'Content-Type: text/plain'
 
 ```
 

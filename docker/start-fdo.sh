@@ -7,14 +7,14 @@ ownerPortDefault='8042'
 rvPortDefault='8040'
 
 workingDir='fdo'
-deviceBinaryDir='pri-fidoiot-v1.1.0.2' 
+deviceBinaryDir='pri-fidoiot-v1.1.1' 
 # These can be passed in via CLI args or env vars
 ownerApiPort="${1:-$ownerPortDefault}"  # precedence: arg, or tls port, or non-tls port, or default
 ownerPort=${HZN_FDO_SVC_URL:-$ownerPortDefault}
 ownerExternalPort=${FDO_OWNER_EXTERNAL_PORT:-$ownerPort}
 rvPort=${FDO_RV_PORT:-$rvPortDefault}
 #VERBOSE='true'   # let it be set by the container provisioner
-FDO_SUPPORT_RELEASE=${FDO_SUPPORT_RELEASE:-https://github.com/secure-device-onboard/release-fidoiot/releases/download/v1.1.0.2}
+FDO_SUPPORT_RELEASE=${FDO_SUPPORT_RELEASE:-https://github.com/secure-device-onboard/release-fidoiot/releases/download/v1.1.1}
 
 if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     cat << EndOfMessage
@@ -158,17 +158,17 @@ if ! psql -lqt | cut -d \| -f 1 | grep -qw 'fdo'; then
 fi
 
 #download PostgreSQL JDBC jar
-cd fdo/pri-fidoiot-v1.1.0.2/owner/lib
+cd fdo/pri-fidoiot-v1.1.1/owner/lib
 httpCode=$(curl -w "%{http_code}" --progress-bar -L -O  https://jdbc.postgresql.org/download/postgresql-42.4.0.jar)
 chkHttp $? $httpCode "getting $deviceBinaryTar"
 cd ../../../..
 
 #edit manifest of aio.jar so that it will find the postgresql jar we just downloaded in the lib directory
-unzip fdo/pri-fidoiot-v1.1.0.2/owner/aio.jar
+unzip fdo/pri-fidoiot-v1.1.1/owner/aio.jar
 chk $? 'unzip'
 sed -i -e 's/Class-Path:/Class-Path: lib\/postgresql-42.4.0.jar/' META-INF/MANIFEST.MF
 chk $? 'sed classpath of aio.jar manifest'
-zip -r fdo/pri-fidoiot-v1.1.0.2/owner/aio.jar org META-INF
+zip -r fdo/pri-fidoiot-v1.1.1/owner/aio.jar org META-INF
 chk $? 're-zip'
 #clean-up files
 rm -r org META-INF
@@ -179,46 +179,59 @@ echo "Using ports: Owner Service: $ownerPort, RV: $rvPort"
 
 # Run key generation script
 echo "Running key generation script..."
-(cd fdo/pri-fidoiot-v1.1.0.2/scripts && ./keys_gen.sh)
+(cd fdo/pri-fidoiot-v1.1.1/scripts && ./keys_gen.sh)
 # Replacing component credentials 
-(cd fdo/pri-fidoiot-v1.1.0.2/scripts && cp -r creds/. ../)
+(cd fdo/pri-fidoiot-v1.1.1/scripts && cp -r creds/. ../)
 
 #configure to use PostgreSQL database
-sed -i -e 's/org.h2.Driver/org.postgresql.Driver/' fdo/pri-fidoiot-v1.1.0.2/owner/service.yml
+sed -i -e 's/org.h2.Driver/org.postgresql.Driver/' fdo/pri-fidoiot-v1.1.1/owner/service.yml
 chk $? 'sed owner/service.yml driver_class'
-sed -i -e 's/jdbc:h2:tcp:\/\/localhost:8051\/.\/app-data\/emdb/jdbc:postgresql:\/\/localhost:5432\/fdo/' fdo/pri-fidoiot-v1.1.0.2/owner/service.yml
+sed -i -e 's/jdbc:h2:tcp:\/\/localhost:8051\/.\/app-data\/emdb/jdbc:postgresql:\/\/localhost:5432\/fdo/' fdo/pri-fidoiot-v1.1.1/owner/service.yml
 chk $? 'sed owner/service.yml connection url'
-sed -i -e 's/org.hibernate.dialect.H2Dialect/org.hibernate.dialect.PostgreSQLDialect/' fdo/pri-fidoiot-v1.1.0.2/owner/service.yml
+sed -i -e 's/org.hibernate.dialect.H2Dialect/org.hibernate.dialect.PostgreSQLDialect/' fdo/pri-fidoiot-v1.1.1/owner/service.yml
 chk $? 'sed owner/service.yml dialect'
-sed -i -e 's/StandardDatabaseServer/RemoteDatabaseServer/' fdo/pri-fidoiot-v1.1.0.2/owner/service.yml
+sed -i -e 's/StandardDatabaseServer/RemoteDatabaseServer/' fdo/pri-fidoiot-v1.1.1/owner/service.yml
 chk $? 'sed owner/service.yml database server worker'
 
 #override auto-generated DB username and password
-sed -i -e 's/db_user=.*/db_user=fdo/' fdo/pri-fidoiot-v1.1.0.2/owner/service.env
-sed -i -e 's/db_password=.*/db_password=fdo/' fdo/pri-fidoiot-v1.1.0.2/owner/service.env
+sed -i -e 's/db_user=.*/db_user=fdo/' fdo/pri-fidoiot-v1.1.1/owner/service.env
+sed -i -e 's/db_password=.*/db_password=fdo/' fdo/pri-fidoiot-v1.1.1/owner/service.env
 
 if [[ "$FDO_DEV" == '1' || "$FDO_DEV" == 'true' ]]; then
+
+      #need java installed in order to generate the SSL keystore for HTTPS
+      # If java 11 isn't installed, do that
+      if java -version 2>&1 | grep version | grep -q 11.; then
+          echo "Found java 11"
+      else
+          echo "Java 11 not found, installing it..."
+          apt-get update && apt-get install -y openjdk-11-jre-headless
+          chk $? 'installing java 11'
+      fi
 
     echo "Using local testing configuration, because FDO_DEV=$FDO_DEV"
     #Configuring Owwner services for development, If you are running the local
     #development RV server, then you must disable the port numbers for rv/docker-compose.yml & owner/docker-compose.yml
-    sed -i -e '/ports:/ s/./#&/' fdo/pri-fidoiot-v1.1.0.2/owner/docker-compose.yml
+    sed -i -e '/ports:/ s/./#&/' fdo/pri-fidoiot-v1.1.1/owner/docker-compose.yml
     chk $? 'sed ports for owner/docker-compose.yml'
-    sed -i -e '/- "8042:8042"/ s/./#&/' fdo/pri-fidoiot-v1.1.0.2/owner/docker-compose.yml
+    sed -i -e '/- "8042:8042"/ s/./#&/' fdo/pri-fidoiot-v1.1.1/owner/docker-compose.yml
     chk $? 'sed 8042 for owner/docker-compose.yml'
-    sed -i -e '/- "8043:8043"/ s/./#&/' fdo/pri-fidoiot-v1.1.0.2/owner/docker-compose.yml
+    sed -i -e '/- "8043:8043"/ s/./#&/' fdo/pri-fidoiot-v1.1.1/owner/docker-compose.yml
     chk $? 'sed 8043 for owner/docker-compose.yml'
+    sed -i -e 's/image: pri-fdo-owner/image: pri-fdo-owner\n    network_mode: host/' fdo/pri-fidoiot-v1.1.1/owner/docker-compose.yml
+    chk $? 'sed network_mode: host for owner/docker-compose.yml'
 
     #Disabling https for development/testing purposes
-    sed -i -e '/- org.fidoalliance.fdo.protocol.StandardOwnerSchemeSupplier/ s/./#&/' fdo/pri-fidoiot-v1.1.0.2/owner/service.yml
+    sed -i -e '/- org.fidoalliance.fdo.protocol.StandardOwnerSchemeSupplier/ s/./#&/' fdo/pri-fidoiot-v1.1.1/owner/service.yml
     chk $? 'sed owner/service.yml'
-    sed -i -e 's/#- org.fidoalliance.fdo.protocol.HttpOwnerSchemeSupplier/- org.fidoalliance.fdo.protocol.HttpOwnerSchemeSupplier/' fdo/pri-fidoiot-v1.1.0.2/owner/service.yml
+    sed -i -e 's/#- org.fidoalliance.fdo.protocol.HttpOwnerSchemeSupplier/- org.fidoalliance.fdo.protocol.HttpOwnerSchemeSupplier/' fdo/pri-fidoiot-v1.1.1/owner/service.yml
     chk $? 'sed owner/service.yml'
 
     #Configuring local RV server for development
-    sed -i -e '/ports:/ s/./#&/' fdo/pri-fidoiot-v1.1.0.2/rv/docker-compose.yml
-    sed -i -e '/- "8040:8040"/ s/./#&/' fdo/pri-fidoiot-v1.1.0.2/rv/docker-compose.yml
-    sed -i -e '/- "8041:8041"/ s/./#&/' fdo/pri-fidoiot-v1.1.0.2/rv/docker-compose.yml
+    sed -i -e '/ports:/ s/./#&/' fdo/pri-fidoiot-v1.1.1/rv/docker-compose.yml
+    sed -i -e '/- "8040:8040"/ s/./#&/' fdo/pri-fidoiot-v1.1.1/rv/docker-compose.yml
+    sed -i -e '/- "8041:8041"/ s/./#&/' fdo/pri-fidoiot-v1.1.1/rv/docker-compose.yml
+    sed -i -e 's/image: pri-fdo-rv/image: pri-fdo-rv\n    network_mode: host/' fdo/pri-fidoiot-v1.1.1/rv/docker-compose.yml
     #sed -i -e '/network_mode: host/ s/./#&/' rv/docker-compose.yml
     chk $? 'sed rv/docker-compose.yml'
 
@@ -226,24 +239,49 @@ if [[ "$FDO_DEV" == '1' || "$FDO_DEV" == 'true' ]]; then
     USER_AUTH=$HZN_EXCHANGE_USER_AUTH
     removeWord="apiUser:"
     api_password=${USER_AUTH//$removeWord/}
-    sed -i -e 's/api_password=.*/api_password='$api_password'/' fdo/pri-fidoiot-v1.1.0.2/owner/service.env
-    sed -i -e 's/api_password=.*/api_password='$api_password'/' fdo/pri-fidoiot-v1.1.0.2/rv/service.env
+    sed -i -e 's/api_password=.*/api_password='$api_password'/' fdo/pri-fidoiot-v1.1.1/owner/service.env
+    sed -i -e 's/api_password=.*/api_password='$api_password'/' fdo/pri-fidoiot-v1.1.1/rv/service.env
     #Delete owner and rv service db files here if re-running in a test environment
-    #rm fdo/pri-fidoiot-v1.1.0.2/owner/app-data/emdb.mv.db && fdo/pri-fidoiot-v1.1.0.2/rv/app-data/emdb.mv.db
+    #rm fdo/pri-fidoiot-v1.1.1/owner/app-data/emdb.mv.db && fdo/pri-fidoiot-v1.1.1/rv/app-data/emdb.mv.db
+
+    ssl_password=$(cat fdo/pri-fidoiot-v1.1.1/owner/service.env | grep "ssl_password" | awk -F= '{print $2}')
+    #generate SSL cert and put it in a keystore
+    keytool -genkeypair -alias ssl -keyalg RSA -keysize 2048 -dname "CN=<ip addr>" -keypass $ssl_password -validity 100 -storetype PKCS12 -keystore ssl.p12 -storepass $ssl_password
+
+    #we must start the owner service, give it the SSL certificate via HTTP, then reboot it in order to enable HTTPS
+    (cd fdo/pri-fidoiot-v1.1.1/owner && docker-compose up --build -d)
+    echo -n "waiting for owner service to boot."
+    httpCode=500
+    while [ $httpCode != 200 ]
+    do
+      echo -n "."
+      sleep 2
+      httpCode=$(curl -I -s -w "%{http_code}" -o /dev/null --digest -u ${USER_AUTH} --location --request GET 'http://localhost:8042/health')
+    done
+    echo ""
+
+    echo "adding SSL certificate to owner service"
+    response=$(curl -s -w "%{http_code}" -D - --digest -u ${USER_AUTH} --location --request POST 'http://localhost:8042/api/v1/certificate?filename=ssl.p12' --header 'Content-Type: text/plain' --data-binary '@ssl.p12')
+    code=$?
+    httpCode=$(tail -n1 <<< "$response")
+    chkHttp $code $httpCode "adding SSL certificate to owner service"
+
+    echo "shutting down owner service"
+    docker stop pri-fdo-owner
+    docker rm pri-fdo-owner
 
 else
 
     #Comment out network_mode: host for Owner services. Need TLS work
-    sed -i -e '/network_mode: host/ s/./#&/' fdo/pri-fidoiot-v1.1.0.2/owner/docker-compose.yml
-    #Postgresql substitution in docker-compose.yml
+    sed -i -e '/network_mode: host/ s/./#&/' fdo/pri-fidoiot-v1.1.1/owner/docker-compose.yml
 
 fi
 
 # Run all of the services
 echo "Starting owner service..."
 #(cd owner && java -jar aio.jar)
-(cd fdo/pri-fidoiot-v1.1.0.2/owner && docker-compose up --build  -d) 
+(cd fdo/pri-fidoiot-v1.1.1/owner && docker-compose up --build  -d) 
 
 echo "Starting rendezvous service..."
 #(cd rv && java -jar aio.jar)
-(cd fdo/pri-fidoiot-v1.1.0.2/rv && docker-compose up --build  -d)
+(cd fdo/pri-fidoiot-v1.1.1/rv && docker-compose up --build  -d)

@@ -42,7 +42,7 @@ if [[ -z "$HZN_EXCHANGE_USER_AUTH" || -z "$FDO_RV_URL" || -z "$HZN_FDO_SVC_URL" 
 fi
 
 
-deviceBinaryDir='pri-fidoiot-v1.1.0.2'   # the place we will unpack sdo_device_binaries_1.10_linux_x64.tar.gz to
+deviceBinaryDir='pri-fidoiot-v1.1.1'   # the place we will unpack sdo_device_binaries_1.10_linux_x64.tar.gz to
 ownerPubKeyFile=${1}
 rvUrl="$FDO_RV_URL"   # the external rv url that the device should reach it at
 
@@ -59,7 +59,7 @@ fi
 SDO_MFG_IMAGE_TAG=${SDO_MFG_IMAGE_TAG:-1.10}
 # default SDO_SUPPORT_REPO to blank, so SDO_SUPPORT_RELEASE will be used
 #SDO_SUPPORT_REPO=${SDO_SUPPORT_REPO:-https://raw.githubusercontent.com/open-horizon/SDO-support/master}
-FDO_SUPPORT_RELEASE=${FDO_SUPPORT_RELEASE:-https://github.com/secure-device-onboard/release-fidoiot/releases/download/v1.1.0.2}
+FDO_SUPPORT_RELEASE=${FDO_SUPPORT_RELEASE:-https://github.com/secure-device-onboard/release-fidoiot/releases/download/v1.1.1}
 useNativeClient=${SDO_DEVICE_USE_NATIVE_CLIENT:-false}   # possible values: false (java client), host (TO native on host), docker (TO native in container)
 
 workingDir=fdo
@@ -231,6 +231,7 @@ if ! command -v docker >/dev/null 2>&1; then
     apt-get install -y docker-ce docker-ce-cli containerd.io
     chk $? 'installing docker'
 fi
+sudo chmod 666 /var/run/docker.sock
 
 # If docker-compose isn't installed, or isn't at least 1.21.0 (when docker-compose.yml version 2.4 was introduced), then install/upgrade it
 # For the dependency on 1.21.0 or greater, see: https://docs.docker.com/compose/release-notes/
@@ -293,8 +294,8 @@ echo "Running key generation script..."
 (cd $PWD/$deviceBinaryDir/scripts && cp -r creds/. ../)
 
 #Configurations
-sed -i -e '/network_mode: host/ s/./#&/' $PWD/$deviceBinaryDir/manufacturer/docker-compose.yml
-chk $? 'sed manufacturer/docker-compose.yml'
+#sed -i -e '/network_mode: host/ s/./#&/' $PWD/$deviceBinaryDir/manufacturer/docker-compose.yml
+#chk $? 'sed manufacturer/docker-compose.yml'
 #Device/service.yml configuration to point to local manufacturing port
 sed -i -e 's/di-url:.*/di-url: http:\/\/localhost:8039/' $PWD/$deviceBinaryDir/device/service.yml
 chk $? 'sed device/service.yml'
@@ -344,7 +345,7 @@ alias=$(echo $response | grep -o '"alias":"[^"]*' | grep -o '[^"]*$')
 echo "alias:$alias"
 
 echo "getting device public key"
-httpCode=$(curl -s -w "%{http_code}" --digest -u ${USER_AUTH} --location --request GET "$HZN_FDO_SVC_URL/api/v1/certificate?alias=$alias" --header 'Content-Type: text/plain' -o public_key.pem)
+httpCode=$(curl -k -s -w "%{http_code}" --digest -u ${USER_AUTH} --location --request GET "$HZN_FDO_SVC_URL/api/v1/certificate?alias=$alias" --header 'Content-Type: text/plain' -o public_key.pem)
 chkHttp $? $httpCode "getting device public key"
 
 echo "getting ownership voucher"
