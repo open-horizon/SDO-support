@@ -1,4 +1,4 @@
-# Open Horizon FDO 1.1
+# Open Horizon FDO 1.0
 
 ## Overview of the Open Horizon SDO Support
 

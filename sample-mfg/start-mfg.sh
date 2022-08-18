@@ -351,3 +351,13 @@ chkHttp $? $httpCode "getting device public key"
 echo "getting ownership voucher"
 httpCode=$(curl -s -w "%{http_code}" --digest -u ${USER_AUTH} --location --request POST "http://localhost:8039/api/v1/mfg/vouchers/$serial" --header 'Content-Type: text/plain' --data-binary '@public_key.pem' -o owner_voucher.txt)
 chkHttp $? $httpCode "getting ownership voucher"
+
+#
+## Install systemd service that will run at boot time to complete the SDO process
+#cp fdo/fdo_to.service /lib/systemd/system
+#chk $? 'copying sdo_to.service to systemd'
+#systemctl enable sdo_to.service
+#chk $? 'enabling sdo_to.service'
+#echo "Systemd service sdo_to.service has been enabled"
+## After importing the voucher to sdo-owner-services, if you want to you can initiate the sdo boot process by running: systemctl start sdo_to.service &
+## And you can view the output with: journalctl -f --no-tail -u sdo_to.service
