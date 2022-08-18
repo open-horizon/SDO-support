@@ -76,6 +76,9 @@ Note: you only have to perform the steps in this section once. The keys created 
 1. **On your admin host** go to the directory where you want your owner public keys to be saved. Run the commands below (modifying the key information as desired) to create the key pairs in the SDO owner service and receive the corresponding public keys:
 
    ```bash
+   export KEY_NAME=<insert_key_name>
+
+
    cat > key-info.json << EndOfText 
    {
      "key_name": "mykey",
@@ -142,7 +145,7 @@ When an SDO-enabled device (like your VM) boots, it starts the SDO process. The 
 2. Your VM device is now configured as a Horizon edge node and registered with your Horizon management hub to run the helloworld example edge service. View the log of the edge service:
 
    ```bash
-   hzn service log -f ibm.helloworld
+   sudo -E hzn service log -f ibm.helloworld
    ```
 
 Now that SDO has configured your edge device, it is automatically disabled on this device so that when the device is rebooted SDO will not run. (The sole purpose of SDO is configuration of a brand new device.) For ongoing maintenance and configuration of the edge device, use the `hzn` command. For example, you can update the node policy to cause other edge services to be deployed to it by either of these two ways:
