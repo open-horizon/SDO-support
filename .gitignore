@@ -5,13 +5,13 @@
 /keys/ecdsa384Key/
 /keys/rsaKey/
 
-# Where the SDO 1.9 tar files are downloaded to
+# Where the SDO files are downloaded to
 /sdo/
+# Where the FDO files are downloaded to 
+/fdo/
+/fdo1.1/
+/ocs-api/
 #todo: remove
-/sdo-1.10.0/
-/sdo-1.9.1/
-/sdo-1.9/
-/sdo-1.8/
 
 /vendor/
 /.vscode/
