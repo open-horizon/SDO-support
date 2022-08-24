@@ -24,7 +24,7 @@ The FDO owner services are packaged as a single docker container that can be run
 
    ```bash
    mkdir $HOME/sdo; cd $HOME/sdo
-   curl -sSLO https://raw.githubusercontent.com/open-horizon/SDO-support/master/docker/start-fdo.sh
+   curl -sSLO https://raw.githubusercontent.com/open-horizon/SDO-support/fdo1.0/docker/start-fdo.sh
    chmod +x start-fdo.sh
    ```
 
@@ -42,7 +42,7 @@ Before continuing with the rest of the FDO process, it is good to verify that yo
 1. Export these environment variables for the subsequent steps. Contact the management hub installer for the exact values:
 
    ```bash
-   export HZN_ORG_ID=<exchange-org>
+   #export HZN_ORG_ID=<exchange-org>
    export HZN_EXCHANGE_USER_AUTH=apiUser:<password>
    export HZN_FDO_SVC_URL=<protocol>://<sdo-owner-svc-host>:8042
    export FDO_RV_URL=http://<sdo-rv-svc-host>:8040
@@ -208,6 +208,13 @@ java -jar device.jar
 ```
 
 Now that FDO has configured your edge device, it is automatically disabled on this device so that when the device is rebooted FDO will not run. (The sole purpose of FDO is configuration of a brand new device.) 
+
+If you want to run through this process again with a fresh database
+
+```bash
+sudo -i -u postgres psql
+DROP DATABASE fdo;
+```
 
 
 #### <a name="troubleshooting"></a>Troubleshooting

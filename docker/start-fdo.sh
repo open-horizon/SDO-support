@@ -79,7 +79,7 @@ if [[ -z "$HZN_EXCHANGE_USER_AUTH" ]]; then
 fi
 
 # Get the other files we need from our git repo, by way of our device binaries tar file
-if [[ ! -d $deviceBinaryDir ]]; then
+if [[ ! -d $workingDir/$deviceBinaryDir ]]; then
 echo "$deviceBinaryDir DOES NOT EXIST"
     deviceBinaryTar="$deviceBinaryDir.tar.gz"
     deviceBinaryUrl="$FDO_SUPPORT_RELEASE/$deviceBinaryTar"
@@ -152,9 +152,12 @@ fi
 #check if database already exists
 if ! psql -lqt | cut -d \| -f 1 | grep -qw 'fdo'; then
   #set up database
-  sudo -u postgres createdb fdo
-  sudo -u postgres psql -c "CREATE USER fdo WITH PASSWORD 'fdo';"
-  sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE fdo TO fdo;"
+  echo "Creating PostgreSQL Database"
+  sudo -i -u postgres createdb fdo
+  echo "Creating PostgreSQL User: fdo"
+  sudo -i -u postgres psql -c "CREATE USER fdo WITH PASSWORD 'fdo';"
+  echo "Granting Privileges to PostgreSQL User: fdo"
+  sudo -i -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE fdo TO fdo;"
 fi
 
 #download PostgreSQL JDBC jar
@@ -210,7 +213,7 @@ if [[ "$FDO_DEV" == '1' || "$FDO_DEV" == 'true' ]]; then
       fi
 
     echo "Using local testing configuration, because FDO_DEV=$FDO_DEV"
-    #Configuring Owwner services for development, If you are running the local
+    #Configuring Owner services for development, If you are running the local
     #development RV server, then you must disable the port numbers for rv/docker-compose.yml & owner/docker-compose.yml
     sed -i -e '/ports:/ s/./#&/' fdo/pri-fidoiot-v1.1.1/owner/docker-compose.yml
     chk $? 'sed ports for owner/docker-compose.yml'
@@ -244,34 +247,38 @@ if [[ "$FDO_DEV" == '1' || "$FDO_DEV" == 'true' ]]; then
     #Delete owner and rv service db files here if re-running in a test environment
     #rm fdo/pri-fidoiot-v1.1.1/owner/app-data/emdb.mv.db && fdo/pri-fidoiot-v1.1.1/rv/app-data/emdb.mv.db
 
-    ssl_password=$(cat fdo/pri-fidoiot-v1.1.1/owner/service.env | grep "ssl_password" | awk -F= '{print $2}')
-    #generate SSL cert and put it in a keystore
-    keytool -genkeypair -alias ssl -keyalg RSA -keysize 2048 -dname "CN=<ip addr>" -keypass $ssl_password -validity 100 -storetype PKCS12 -keystore ssl.p12 -storepass $ssl_password
-
-    #we must start the owner service, give it the SSL certificate via HTTP, then reboot it in order to enable HTTPS
-    (cd fdo/pri-fidoiot-v1.1.1/owner && docker-compose up --build -d)
-    echo -n "waiting for owner service to boot."
-    httpCode=500
-    while [ $httpCode != 200 ]
-    do
-      echo -n "."
-      sleep 2
-      httpCode=$(curl -I -s -w "%{http_code}" -o /dev/null --digest -u ${USER_AUTH} --location --request GET 'http://localhost:8042/health')
-    done
-    echo ""
-
-    echo "adding SSL certificate to owner service"
-    response=$(curl -s -w "%{http_code}" -D - --digest -u ${USER_AUTH} --location --request POST 'http://localhost:8042/api/v1/certificate?filename=ssl.p12' --header 'Content-Type: text/plain' --data-binary '@ssl.p12')
-    code=$?
-    httpCode=$(tail -n1 <<< "$response")
-    chkHttp $code $httpCode "adding SSL certificate to owner service"
-
-    echo "shutting down owner service"
-    docker stop pri-fdo-owner
-    docker rm pri-fdo-owner
-
 else
 
+  #Production Environment HTTPS
+
+#        ssl_password=$(cat fdo/pri-fidoiot-v1.1.1/owner/service.env | grep "ssl_password" | awk -F= '{print $2}')
+#        #generate SSL cert and put it in a keystore
+#        FDO_OWNER_DNS=$(echo "$HZN_FDO_SVC_URL" | awk -F/ '{print $3}' | awk -F: '{print $1}')
+#        echo "FDO_OWNER_DNS: ${HZN_FDO_SVC_URL}"
+#        keytool -genkeypair -alias ssl -keyalg RSA -keysize 2048 -dname "CN='"${FDO_OWNER_DNS}"'" -keypass ${ssl_password} -validity 100 -storetype PKCS12 -keystore ssl.p12 -storepass ${ssl_password}
+#
+#        #we must start the owner service, give it the SSL certificate via HTTP, then reboot it in order to enable HTTPS
+#        (cd fdo/pri-fidoiot-v1.1.1/owner && docker-compose up --build -d)
+#        echo -n "waiting for owner service to boot."
+#        httpCode=500
+#        while [ $httpCode != 200 ]
+#        do
+#          echo -n "."
+#          sleep 2
+#          httpCode=$(curl -I -s -w "%{http_code}" -o /dev/null --digest -u ${USER_AUTH} --location --request GET 'http://localhost:8042/health')
+#        done
+#        echo ""
+#
+#        echo "adding SSL certificate to owner service"
+#        response=$(curl -s -w "%{http_code}" -D - --digest -u ${USER_AUTH} --location --request POST 'http://localhost:8042/api/v1/certificate?filename=ssl.p12' --header 'Content-Type: text/plain' --data-binary '@ssl.p12')
+#        code=$?
+#        httpCode=$(tail -n1 <<< "$response")
+#        chkHttp $code $httpCode "adding SSL certificate to owner service"
+#
+#        echo "shutting down owner service"
+#        docker stop pri-fdo-owner
+#        docker rm pri-fdo-owner
+#
     #Comment out network_mode: host for Owner services. Need TLS work
     sed -i -e '/network_mode: host/ s/./#&/' fdo/pri-fidoiot-v1.1.1/owner/docker-compose.yml
 
