@@ -1,0 +1,17 @@
+# Initiates the FDO device boot process, causing the device to be registered with the Horizon mgmt hub.
+# If you want to you can initiate the fdo boot process manually by running: systemctl start fdo_to.service
+# And you can view the output with: journalctl -f --no-tail -u fdo_to.service
+[Unit]
+Description=FDO boot-time TO1 and TO2 run-once service
+Requires=network-online.target
+After=network-online.target
+Before=user-sessions.service
+
+[Service]
+# For oneshot, systemd expects the command to NOT fork itself, and timeout is disabled by default
+Type=oneshot
+WorkingDirectory=/home/device/fdo/pri-fidoiot-v1.1.1/device
+ExecStart=/bin/java -jar /home/device/fdo/pri-fidoiot-v1.1.1/device/device.jar
+
+[Install]
+WantedBy=multi-user.target
