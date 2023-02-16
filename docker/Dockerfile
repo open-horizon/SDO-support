@@ -62,7 +62,7 @@ RUN curl -sSL -o openjre-11_linux-x64_bin.tar.gz https://github.com/AdoptOpenJDK
     rm openjre-11_linux-x64_bin.tar.gz && \
     mkdir -p /usr/lib/jvm && \
     mv openjdk-11.0.15_10-jre /usr/lib/jvm/openjre-11-manual-installation && \
-    update-alternatives --install /usr/bin/java java /usr/lib/jvm/openjre-11-manual-installation/bin/java 1 \
+    update-alternatives --install /usr/bin/java java /usr/lib/jvm/openjre-11-manual-installation/bin/java 1
 
 # this doesn't work here, because docker writes /etc/hosts when it starts the container
 #RUN echo "127.0.0.1 RVSDO OwnerSDO" >> /etc/hosts
