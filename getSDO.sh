@@ -14,38 +14,38 @@ chk() {
     exit $exitCode
 }
 
-echo "Retrieving Intel SDO Release 1.10.7 dependencies..."
+echo "Retrieving Intel SDO Release 1.10.8 dependencies..."
 mkdir -p ${SCRIPT_LOCATION}/sdo && cd ${SCRIPT_LOCATION}/sdo
 chk $? 'making sdo dir'
 
 echo "Getting iot-platform-sdk"
-curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.7/iot-platform-sdk-v1.10.7.tar.gz
+curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.8/iot-platform-sdk-v1.10.8.tar.gz
 chk $? 'downloading iot-platform-sdk'
-tar -zxf iot-platform-sdk-v1.10.7.tar.gz
+tar -zxf iot-platform-sdk-v1.10.8.tar.gz
 chk $? 'unpacking iot-platform-sdk'
 
 echo "Getting Protocol Reference Implementation"
-curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.7/pri-v1.10.7.tar.gz
+curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.8/pri-v1.10.8.tar.gz
 chk $? 'downloading pri'
-tar -zxf pri-v1.10.7.tar.gz
+tar -zxf pri-v1.10.8.tar.gz
 chk $? 'unpacking pri'
 
 echo "Getting NOTICES"
-curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.7/NOTICES-v1.10.7.tar.gz
+curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.8/NOTICES-v1.10.8.tar.gz
 chk $? 'downloading NOTICES'
-tar -zxf NOTICES-v1.10.7.tar.gz
+tar -zxf NOTICES-v1.10.8.tar.gz
 chk $? 'unpacking NOTICES'
 
 echo "Getting Rendezvous Service"
-curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.7/rendezvous-service-v1.10.7.tar.gz
+curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.8/rendezvous-service-v1.10.8.tar.gz
 chk $? 'downloading RV'
-tar -zxf rendezvous-service-v1.10.7.tar.gz
+tar -zxf rendezvous-service-v1.10.8.tar.gz
 chk $? 'unpacking RV'
 
 echo "Getting Supply Chain Tools"
-curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.7/supply-chain-tools-v1.10.7.tar.gz
+curl --progress-bar -LO https://github.com/secure-device-onboard/release/releases/download/v1.10.8/supply-chain-tools-v1.10.8.tar.gz
 chk $? 'downloading SCT'
-tar -zxf supply-chain-tools-v1.10.7.tar.gz
+tar -zxf supply-chain-tools-v1.10.8.tar.gz
 chk $? 'unpacking SCT'
 
 cd ${SCRIPT_LOCATION}
