@@ -72,18 +72,18 @@ WORKDIR $WORKDIR
 
 # Get the license file
 COPY LICENSE.txt /licenses/
-COPY sdo/NOTICES-v1.10.7/iot-platform-sdk/* /licenses/SDOIotPlatformSDK/
+COPY sdo/NOTICES-v1.10.8/iot-platform-sdk/* /licenses/SDOIotPlatformSDK/
 
 # Get rendezvous files. The rv subdir will be created automatically by COPY
 # Note: need to use uid and gid to be able to build on non-linux hosts
-COPY --chown=1000:0 sdo/pri-v1.10.7/rendezvous/* $WORKDIR/rv/
+COPY --chown=1000:0 sdo/pri-v1.10.8/rendezvous/* $WORKDIR/rv/
 
 # Get to0scheduler files
-COPY --chown=1000:0 sdo/iot-platform-sdk-v1.10.7/to0scheduler $WORKDIR/to0scheduler/
+COPY --chown=1000:0 sdo/iot-platform-sdk-v1.10.8/to0scheduler $WORKDIR/to0scheduler/
 
 # Get OCS files
 # Note: we don't want the contents of ocs/config/db, that is excluded in the .dockerignore file
-COPY --chown=1000:0 sdo/iot-platform-sdk-v1.10.7/ocs $WORKDIR/ocs/
+COPY --chown=1000:0 sdo/iot-platform-sdk-v1.10.8/ocs $WORKDIR/ocs/
 # This is only the default owner private key. It will be moved into ocs/config/db/v1/creds by start-sdo-owner-servic es.sh if they don't specify their own key in run-sdo-owner-services.sh
 COPY --chown=1000:0 keys/sample-owner-keystore.p12 $WORKDIR/ocs/config/sample-owner-keystore.p12
 #This command gives `USER sdouser` the correct permissions for mounting this key inside the container
@@ -92,7 +92,7 @@ RUN touch ocs/config/owner-keystore.p12 && chown sdouser:root ocs/config/owner-k
 RUN mkdir -p $SDO_OCS_DB_PATH/v1/{creds,devices,values} ocs-api-dir/keys && chown -R 1000:0 $SDO_OCS_DB_PATH ocs-api-dir
 
 # Get OPS files
-COPY --chown=1000:0 sdo/iot-platform-sdk-v1.10.7/ops $WORKDIR/ops/
+COPY --chown=1000:0 sdo/iot-platform-sdk-v1.10.8/ops $WORKDIR/ops/
 
 # Get our ocs-api binary, startup script, agent-install-wrapper.sh, and keystore scripts
 COPY --chown=1000:0 ocs-api/linux/ocs-api ocs-api/scripts/*.sh docker/start-sdo-owner-services.sh $WORKDIR/
